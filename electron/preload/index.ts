@@ -60,4 +60,14 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.on('fight:loaded', wrapped)
     return () => ipcRenderer.removeListener('fight:loaded', wrapped)
   },
+
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+
+  checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
+
+  downloadUpdate: (setupExeUrl: string) =>
+    ipcRenderer.invoke('updater:download-update', setupExeUrl),
+
+  getLatestReleaseNotes: () =>
+    ipcRenderer.invoke('updater:latest-release-notes'),
 })

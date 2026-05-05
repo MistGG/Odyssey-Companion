@@ -823,6 +823,24 @@ select {
   background: rgba(0, 0, 0, 0.75);
 }
 
+.modal-backdrop--release-notes {
+  z-index: 10060;
+}
+
+.release-notes-panel {
+  width: min(420px, 100%);
+  height: 100%;
+  background: linear-gradient(180deg, rgba(14, 18, 32, 0.98), rgba(8, 10, 20, 0.98));
+  border-left: 1px solid var(--glass-border);
+  padding: 20px 22px;
+  overflow: auto;
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+}
+
+.release-notes-body {
+  margin-top: 8px;
+}
+
 .settings-panel--solid {
   background: #0b0f1a;
   border-left-color: rgba(120, 200, 255, 0.22);
@@ -875,6 +893,98 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.settings-subheading {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-version-line {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.settings-update-btn.settings-update-btn--loading {
+  position: relative;
+  padding-right: 30px;
+}
+
+.settings-update-btn--loading::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: settings-update-spin 0.65s linear infinite;
+}
+
+@keyframes settings-update-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.settings-download-row {
+  margin-top: 10px;
+}
+
+.settings-update-status {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-changelog-hint {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-changelog-hint a {
+  color: var(--accent);
+}
+
+.settings-release-meta {
+  margin: 0 0 8px;
+  font-size: 11px;
+}
+
+.settings-release-meta a {
+  color: var(--accent);
+}
+
+.settings-changelog-body {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
 }
 
 .field {
@@ -968,6 +1078,10 @@ select {
 .hint.small {
   font-size: 11px;
   margin-top: 6px;
+}
+
+.hint.error {
+  color: var(--danger);
 }
 
 .hint a {

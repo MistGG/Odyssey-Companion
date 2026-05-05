@@ -9,8 +9,11 @@ import {
   nativeImage,
   shell,
 } from 'electron'
-import { autoUpdater } from 'electron-updater'
 import type { WebContents } from 'electron'
+import electronUpdater from 'electron-updater'
+
+/** CJS package — use default import; named `autoUpdater` breaks in packaged ESM main. */
+const { autoUpdater } = electronUpdater
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -666,3 +669,158 @@ ipcMain.handle('timeline:renderer-ready', () => {
   }
   return true
 })
+
+const GITHUB_RELEASES_LATEST =
+  'https://api.github.com/repos/MistGG/Odyssey-Companion/releases/latest'
+
+function semverParts(v: string): number[] {
+  const core = v.replace(/^v/i, '').split(/[-+]/)[0] ?? ''
+  return core.split('.').map((x) => parseInt(x.replace(/\D/g, ''), 10) || 0)
+}
+
+/** Positive if a > b */
+function compareSemver(a: string, b: string): number {
+  const pa = semverParts(a)
+  const pb = semverParts(b)
+  const n = Math.max(pa.length, pb.length)
+  for (let i = 0; i < n; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
+function pickWindowsSetupUrl(
+  assets: ReadonlyArray<{ name: string; browser_download_url: string }>,
+): string | null {
+  const lower = (s: string) => s.toLowerCase()
+  const setup = assets.find(
+    (x) => lower(x.name).endsWith('.exe') && lower(x.name).includes('setup'),
+  )
+  if (setup) return setup.browser_download_url
+  const anyExe = assets.find((x) => lower(x.name).endsWith('.exe'))
+  return anyExe?.browser_download_url ?? null
+}
+
+ipcMain.handle('app:get-version', () => ({
+  version: app.getVersion(),
+  isPackaged: app.isPackaged,
+}))
+
+ipcMain.handle(
+  'updater:check-for-updates',
+  async (): Promise<
+    | {
+        ok: true
+        currentVersion: string
+        latestVersion: string
+        latestTag: string
+        updateAvailable: boolean
+        setupDownloadUrl: string | null
+        releasePageUrl: string
+      }
+    | { ok: false; error: string }
+  > => {
+    try {
+      const res = await fetch(GITHUB_RELEASES_LATEST, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'Odyssey-Companion',
+        },
+      })
+      if (!res.ok) {
+        return { ok: false, error: `GitHub returned ${res.status}` }
+      }
+      const j = (await res.json()) as {
+        tag_name?: string
+        html_url?: string
+        assets?: Array<{ name: string; browser_download_url: string }>
+      }
+      const tag = j.tag_name ?? 'v0.0.0'
+      const latestVersion = tag.replace(/^v/i, '')
+      const currentVersion = app.getVersion()
+      const releasePageUrl =
+        j.html_url ?? 'https://github.com/MistGG/Odyssey-Companion/releases/latest'
+      const setupDownloadUrl = pickWindowsSetupUrl(j.assets ?? [])
+      const updateAvailable = compareSemver(latestVersion, currentVersion) > 0
+
+      return {
+        ok: true,
+        currentVersion,
+        latestVersion,
+        latestTag: tag,
+        updateAvailable,
+        setupDownloadUrl,
+        releasePageUrl,
+      }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'updater:download-update',
+  async (
+    _e,
+    setupUrl: unknown,
+  ): Promise<
+    | { ok: true; mode: 'auto-updater' | 'browser' | 'browser-fallback' }
+    | { ok: false; error: string }
+  > => {
+    const url = typeof setupUrl === 'string' ? setupUrl.trim() : ''
+    if (!url) return { ok: false, error: 'Missing installer URL' }
+
+    if (app.isPackaged) {
+      try {
+        const check = await autoUpdater.checkForUpdates()
+        if (check?.isUpdateAvailable) {
+          await autoUpdater.downloadUpdate()
+          return { ok: true, mode: 'auto-updater' }
+        }
+      } catch (e) {
+        console.warn('[odyssey-companion] autoUpdater download path failed', e)
+      }
+      await shell.openExternal(url)
+      return { ok: true, mode: 'browser-fallback' }
+    }
+
+    await shell.openExternal(url)
+    return { ok: true, mode: 'browser' }
+  },
+)
+
+ipcMain.handle(
+  'updater:latest-release-notes',
+  async (): Promise<
+    | { ok: true; tag: string; publishedAt: string; body: string; url: string }
+    | { ok: false; error: string }
+  > => {
+    try {
+      const res = await fetch(GITHUB_RELEASES_LATEST, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': 'Odyssey-Companion',
+        },
+      })
+      if (!res.ok) {
+        return { ok: false, error: `GitHub returned ${res.status}` }
+      }
+      const j = (await res.json()) as {
+        tag_name?: string
+        body?: string | null
+        published_at?: string
+        html_url?: string
+      }
+      return {
+        ok: true,
+        tag: j.tag_name ?? '?',
+        publishedAt: j.published_at ?? '',
+        body: typeof j.body === 'string' ? j.body : '',
+        url: j.html_url ?? 'https://github.com/MistGG/Odyssey-Companion/releases',
+      }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  },
+)

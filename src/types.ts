@@ -111,3 +111,29 @@ export type TimelineFightPayload = {
     skills: MonsterSkill[]
   }>
 }
+
+export type AppVersionInfo = {
+  version: string
+  isPackaged: boolean
+}
+
+/** Compares `app.getVersion()` with GitHub `releases/latest` (semver). */
+export type UpdateCheckResult =
+  | {
+      ok: true
+      currentVersion: string
+      latestVersion: string
+      latestTag: string
+      updateAvailable: boolean
+      setupDownloadUrl: string | null
+      releasePageUrl: string
+    }
+  | { ok: false; error: string }
+
+export type DownloadUpdateResult =
+  | { ok: true; mode: 'auto-updater' | 'browser' | 'browser-fallback' }
+  | { ok: false; error: string }
+
+export type LatestReleaseResult =
+  | { ok: true; tag: string; publishedAt: string; body: string; url: string }
+  | { ok: false; error: string }

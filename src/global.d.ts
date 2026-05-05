@@ -1,4 +1,12 @@
-import type { DungeonListResponse, HotkeyConfig, OverlaySettings } from './types'
+import type {
+  AppVersionInfo,
+  DownloadUpdateResult,
+  DungeonListResponse,
+  HotkeyConfig,
+  LatestReleaseResult,
+  OverlaySettings,
+  UpdateCheckResult,
+} from './types'
 
 export {}
 
@@ -22,6 +30,10 @@ declare global {
       onTimelineAction: (handler: (action: 'toggle' | 'reset') => void) => () => void
       onSettingsPatch: (handler: (patch: unknown) => void) => () => void
       onFightLoaded: (handler: (payload: unknown) => void) => () => void
+      getAppVersion: () => Promise<AppVersionInfo>
+      checkForUpdates: () => Promise<UpdateCheckResult>
+      downloadUpdate: (setupExeUrl: string) => Promise<DownloadUpdateResult>
+      getLatestReleaseNotes: () => Promise<LatestReleaseResult>
     }
   }
 }

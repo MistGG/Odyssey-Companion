@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  AppVersionInfo,
   Dungeon,
   DungeonDetail,
   HotkeyConfig,
+  LatestReleaseResult,
   MonsterDetail,
   OverlaySettings,
 } from './types'
@@ -51,6 +53,21 @@ export default function DungeonApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
   const [hotkeyListening, setHotkeyListening] = useState<keyof HotkeyConfig | null>(null)
 
+  const [appVersion, setAppVersion] = useState<AppVersionInfo | null>(null)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateCheckLine, setUpdateCheckLine] = useState<string | null>(null)
+  /** After a check finds a newer GitHub release — drives Download vs fallback link. */
+  const [updateOffer, setUpdateOffer] = useState<{
+    latestVersion: string
+    setupDownloadUrl: string | null
+    releasePageUrl: string
+  } | null>(null)
+
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false)
+  const [releaseNotesContent, setReleaseNotesContent] = useState<
+    LatestReleaseResult | undefined
+  >(undefined)
+
   const pickedDungeon = useMemo(
     () => dungeons.find((d) => d.id === pickedDungeonId) ?? null,
     [dungeons, pickedDungeonId],
@@ -93,6 +110,33 @@ export default function DungeonApp() {
   useEffect(() => {
     if (!settingsOpen) setHotkeyListening(null)
   }, [settingsOpen])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    const api = window.odysseyCompanion
+    if (!api) return
+    setUpdateCheckLine(null)
+    setUpdateOffer(null)
+    setAppVersion(null)
+    void api.getAppVersion().then(setAppVersion)
+  }, [settingsOpen])
+
+  useEffect(() => {
+    if (!releaseNotesOpen) return
+    const api = window.odysseyCompanion
+    if (!api) return
+    setReleaseNotesContent(undefined)
+    void api.getLatestReleaseNotes().then(setReleaseNotesContent)
+  }, [releaseNotesOpen])
+
+  useEffect(() => {
+    if (!releaseNotesOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReleaseNotesOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [releaseNotesOpen])
 
   useEffect(() => {
     if (!hotkeyListening) return
@@ -262,6 +306,51 @@ export default function DungeonApp() {
     const r = await window.odysseyCompanion?.applyHotkeys(h)
     if (r && !r.ok) alert(`Hotkeys: ${r.error ?? 'could not register'}`)
   }, [settings.hotkeys])
+
+  const handleCheckForUpdates = useCallback(async () => {
+    const api = window.odysseyCompanion
+    if (!api) return
+    setUpdateChecking(true)
+    setUpdateCheckLine(null)
+    setUpdateOffer(null)
+    const minDelay = new Promise<void>((resolve) => {
+      setTimeout(resolve, 2000)
+    })
+    try {
+      const [r] = await Promise.all([api.checkForUpdates(), minDelay])
+      if (!r.ok) {
+        setUpdateCheckLine(r.error)
+        return
+      }
+      if (r.updateAvailable) {
+        setUpdateCheckLine(`Update available: v${r.latestVersion}`)
+        setUpdateOffer({
+          latestVersion: r.latestVersion,
+          setupDownloadUrl: r.setupDownloadUrl,
+          releasePageUrl: r.releasePageUrl,
+        })
+      } else {
+        setUpdateCheckLine(`You're up to date (v${r.currentVersion}).`)
+      }
+    } catch (e) {
+      setUpdateCheckLine(e instanceof Error ? e.message : String(e))
+    } finally {
+      setUpdateChecking(false)
+    }
+  }, [])
+
+  const handleDownloadUpdate = useCallback(async () => {
+    const api = window.odysseyCompanion
+    if (!api || !updateOffer?.setupDownloadUrl) return
+    const r = await api.downloadUpdate(updateOffer.setupDownloadUrl)
+    if (!r.ok) {
+      alert(r.error)
+      return
+    }
+    if (r.mode === 'browser' || r.mode === 'browser-fallback') {
+      alert('Download started in your browser. Run the installer when it finishes.')
+    }
+  }, [updateOffer?.setupDownloadUrl])
 
   const browseMode = !pickedDungeonId
 
@@ -438,11 +527,13 @@ export default function DungeonApp() {
       )}
 
       {settingsOpen && (
+        <>
         <div
           className="modal-backdrop modal-backdrop--solid"
           role="presentation"
           onClick={() => {
             setHotkeyListening(null)
+            setReleaseNotesOpen(false)
             setSettingsOpen(false)
           }}
         >
@@ -459,6 +550,7 @@ export default function DungeonApp() {
                 className="btn icon"
                 onClick={() => {
                   setHotkeyListening(null)
+                  setReleaseNotesOpen(false)
                   setSettingsOpen(false)
                 }}
               >
@@ -552,6 +644,60 @@ export default function DungeonApp() {
               </label>
             </section>
 
+            <section className="field-group">
+              <h3>Updates</h3>
+              <p className="muted settings-version-line">
+                {appVersion ? (
+                  <>
+                    Version <strong>{appVersion.version}</strong>
+                    {appVersion.isPackaged ? ' · installed build' : ' · development build'}
+                  </>
+                ) : (
+                  'Loading version…'
+                )}
+              </p>
+              <div className="settings-update-actions">
+                <button
+                  type="button"
+                  className={`btn secondary settings-update-btn ${updateChecking ? 'settings-update-btn--loading' : ''}`}
+                  disabled={updateChecking}
+                  onClick={() => void handleCheckForUpdates()}
+                >
+                  {updateChecking ? 'Checking…' : 'Check for updates'}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => setReleaseNotesOpen(true)}
+                >
+                  Release notes
+                </button>
+              </div>
+              {updateCheckLine ? (
+                <p className="hint settings-update-status">{updateCheckLine}</p>
+              ) : null}
+              {updateOffer && updateOffer.setupDownloadUrl ? (
+                <div className="settings-download-row">
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={() => void handleDownloadUpdate()}
+                  >
+                    Download &amp; install latest
+                  </button>
+                </div>
+              ) : null}
+              {updateOffer && !updateOffer.setupDownloadUrl ? (
+                <p className="hint settings-update-status">
+                  No installer file on this release —{' '}
+                  <a href={updateOffer.releasePageUrl} target="_blank" rel="noreferrer">
+                    open the release on GitHub
+                  </a>
+                  .
+                </p>
+              ) : null}
+            </section>
+
             <section className="field-group row">
               <button
                 type="button"
@@ -569,6 +715,56 @@ export default function DungeonApp() {
             </section>
           </aside>
         </div>
+
+        {releaseNotesOpen ? (
+          <div
+            className="modal-backdrop modal-backdrop--solid modal-backdrop--release-notes"
+            role="presentation"
+            onClick={() => setReleaseNotesOpen(false)}
+          >
+            <aside
+              className="release-notes-panel settings-panel--solid"
+              role="dialog"
+              aria-label="Release notes"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="settings-head">
+                <h2>Release notes</h2>
+                <button
+                  type="button"
+                  className="btn icon"
+                  onClick={() => setReleaseNotesOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              {releaseNotesContent === undefined ? (
+                <p className="muted">Loading…</p>
+              ) : releaseNotesContent.ok ? (
+                <>
+                  <p className="settings-release-meta muted">
+                    {releaseNotesContent.tag}
+                    {releaseNotesContent.publishedAt
+                      ? ` · ${new Date(releaseNotesContent.publishedAt).toLocaleDateString(undefined, {
+                          dateStyle: 'medium',
+                        })}`
+                      : ''}{' '}
+                    ·{' '}
+                    <a href={releaseNotesContent.url} target="_blank" rel="noreferrer">
+                      Open on GitHub
+                    </a>
+                  </p>
+                  <pre className="settings-changelog-body release-notes-body">
+                    {releaseNotesContent.body.trim() || 'No notes for this release.'}
+                  </pre>
+                </>
+              ) : (
+                <p className="hint error">{releaseNotesContent.error}</p>
+              )}
+            </aside>
+          </div>
+        ) : null}
+        </>
       )}
     </div>
   )
