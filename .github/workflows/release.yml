@@ -1,0 +1,36 @@
+# Option A: push a version tag (e.g. v0.1.0) — builds Windows installer and publishes to GitHub Releases.
+# Bump package.json "version" to match the tag (without "v"). Release notes = GitHub release body (changelog for auto-updater).
+
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build app & publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned Windows build — skip code-sign discovery so CI doesn’t wait on certs.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run release

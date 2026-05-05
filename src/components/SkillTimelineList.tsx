@@ -1,0 +1,37 @@
+import type { MonsterSkill } from '../types'
+import { formatCastMs, formatCooldownMs, skillsForTimeline } from '../lib/skillTimeline'
+import { TargetBubble } from './TargetBubble'
+
+type Props = {
+  skills: MonsterSkill[]
+  /** Must match `flattenFightSkills` keying: objective index in fight. */
+  objectiveIndex: number
+}
+
+export function SkillTimelineList({ skills, objectiveIndex }: Props) {
+  if (!skills.length) {
+    return <p className="timeline-hint muted">No skill data.</p>
+  }
+  const ordered = skillsForTimeline(skills)
+  return (
+    <ol className="skill-timeline">
+      {ordered.map((s, j) => {
+        const rowKey = `${objectiveIndex}-${j}-${s.skill_id}`
+        return (
+          <li key={rowKey} className="skill-timeline__row">
+            <div className="skill-line-main">
+              <span className="skill-cd">{formatCooldownMs(s.cool_time)}</span>
+              <TargetBubble count={s.target_count} />
+              <span className="skill-type">{s.effect_type}</span>
+            </div>
+            <div className="skill-meta">
+              {formatCastMs(s.cast_time)}
+              {s.condition ? ` · ${s.condition} ${s.condition_val}` : ''}
+              {s.max_uses != null ? ` · ×${s.max_uses} uses` : ''}
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}

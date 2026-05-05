@@ -1,0 +1,113 @@
+export type Dungeon = {
+  id: string
+  name: string
+  map_name: string
+  image: string
+  difficulties?: string[]
+}
+
+export type DungeonListResponse = {
+  data: Dungeon[]
+  page: number
+  per_page: number
+  total: number
+  total_pages: number
+}
+
+export type DungeonObjective = {
+  step: number
+  monster_id: string
+  monster_name: string
+  pen_name: string
+  level: number
+  model_id: string
+  count: number
+}
+
+/** Single-dungeon API (`?id=`) — difficulties include objectives (monster_id → monster timeline). */
+export type DungeonDetailDifficulty = {
+  difficulty: string
+  time_limit_sec: number
+  death_limit: number
+  objectives: DungeonObjective[]
+}
+
+export type DungeonDetail = {
+  id: string
+  name: string
+  map_name: string
+  image: string
+  difficulties: DungeonDetailDifficulty[]
+}
+
+export type MonsterSkill = {
+  skill_id: number
+  cool_time: number
+  cast_time: number
+  effect_type: string
+  effect_min: number
+  effect_max: number
+  target_count: number
+  condition: string
+  condition_val: number
+  max_uses?: number
+}
+
+export type MonsterDetail = {
+  id: string
+  name: string
+  pen_name: string
+  model_id: string
+  level: number
+  skills: MonsterSkill[]
+}
+
+export type HotkeyConfig = {
+  /** Same accelerator toggles Start ↔ Pause (clock pause only; Reset restores reference timeline). */
+  toggle: string
+  reset: string
+}
+
+export type OverlaySettings = {
+  hotkeys: HotkeyConfig
+  /**
+   * Timeline window only: background strength (0 = fully transparent so only timeline UI shows, 1 = solid).
+   */
+  timelineBackdropOpacity: number
+  /** Applies to the timeline overlay window only. */
+  timelineAlwaysOnTop: boolean
+  /**
+   * When true, the timeline window cannot be moved (no drag regions).
+   */
+  timelinePositionLocked: boolean
+}
+
+export const DEFAULT_SETTINGS: OverlaySettings = {
+  hotkeys: {
+    toggle: 'F9',
+    reset: 'F11',
+  },
+  timelineBackdropOpacity: 0.88,
+  timelineAlwaysOnTop: true,
+  timelinePositionLocked: false,
+}
+
+/** Sent to the timeline window when a difficulty is chosen. */
+export type TimelineFightPayload = {
+  dungeonName: string
+  difficulty: string
+  time_limit_sec: number
+  death_limit: number
+  objectives: Array<{
+    step: number
+    monster_id: string
+    monster_name: string
+    pen_name: string
+    level: number
+    count: number
+  }>
+  monsterSkills: Array<{
+    monster_id: string
+    skills: MonsterSkill[]
+  }>
+}
