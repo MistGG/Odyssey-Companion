@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { OverlaySettings, TimelineFightPayload } from './types'
 import { loadSettings, saveSettings } from './lib/settingsStorage'
 import { useStopwatch } from './lib/useStopwatch'
@@ -26,6 +26,14 @@ export default function TimelineApp() {
   const [runSessionActive, setRunSessionActive] = useState(false)
 
   const positionLocked = settings.timelinePositionLocked
+  const lockBtnRef = useRef<HTMLButtonElement>(null)
+  const titleDragRef = useRef<HTMLDivElement>(null)
+  const runToggleBtnRef = useRef<HTMLButtonElement>(null)
+  const resetBtnRef = useRef<HTMLButtonElement>(null)
+  const minimizeBtnRef = useRef<HTMLButtonElement>(null)
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const ignoreMouseRaf = useRef<number | null>(null)
+  const lastIgnoreSent = useRef<boolean | null>(null)
 
   const resetTimeline = useCallback(() => {
     stop()
@@ -152,13 +160,96 @@ export default function TimelineApp() {
     if (elapsedMs >= fightLimitMs) stop()
   }, [fightLimitMs, running, elapsedMs, stop])
 
+  /**
+   * When position is locked, the window is click-through except over interactive controls:
+   * title drag strip, Start/Pause, Reset, Lock, minimize, close.
+   * Uses `setIgnoreMouseEvents` in the main process.
+   */
+  useEffect(() => {
+    const api = window.odysseyCompanion
+    const setIgnore = (ignore: boolean) => {
+      if (lastIgnoreSent.current === ignore) return
+      lastIgnoreSent.current = ignore
+      api?.setTimelineIgnoreMouseEvents?.(ignore)
+    }
+
+    if (!positionLocked) {
+      if (ignoreMouseRaf.current != null) {
+        cancelAnimationFrame(ignoreMouseRaf.current)
+        ignoreMouseRaf.current = null
+      }
+      lastIgnoreSent.current = null
+      setIgnore(false)
+      return
+    }
+
+    const inRect = (x: number, y: number, el: Element | null) => {
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    }
+
+    const onPointer = (clientX: number, clientY: number) => {
+      if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
+      ignoreMouseRaf.current = requestAnimationFrame(() => {
+        ignoreMouseRaf.current = null
+        const overLock = inRect(clientX, clientY, lockBtnRef.current)
+        const overTitleDrag = inRect(clientX, clientY, titleDragRef.current)
+        const overRunToggle = inRect(clientX, clientY, runToggleBtnRef.current)
+        const overReset = inRect(clientX, clientY, resetBtnRef.current)
+        const overMinimize = inRect(clientX, clientY, minimizeBtnRef.current)
+        const overClose = inRect(clientX, clientY, closeBtnRef.current)
+        const interactive =
+          overLock ||
+          overTitleDrag ||
+          overRunToggle ||
+          overReset ||
+          overMinimize ||
+          overClose
+        setIgnore(!interactive)
+      })
+    }
+
+    const onMove = (e: MouseEvent) => {
+      onPointer(e.clientX, e.clientY)
+    }
+
+    const collapsePassthrough = () => {
+      setIgnore(true)
+    }
+
+    /** Hide cursor leaves the browser window without firing move again */
+    const onBlur = () => {
+      collapsePassthrough()
+    }
+
+    lastIgnoreSent.current = null
+    setIgnore(true)
+
+    window.addEventListener('mousemove', onMove, { passive: true })
+    window.addEventListener('blur', onBlur)
+    document.documentElement.addEventListener('mouseleave', collapsePassthrough)
+
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('blur', onBlur)
+      document.documentElement.removeEventListener('mouseleave', collapsePassthrough)
+      if (ignoreMouseRaf.current != null) {
+        cancelAnimationFrame(ignoreMouseRaf.current)
+        ignoreMouseRaf.current = null
+      }
+      lastIgnoreSent.current = null
+      setIgnore(false)
+    }
+  }, [positionLocked])
+
   return (
     <div className={shellCls} style={shellStyle}>
       <div
         className={`timeline-backdrop ${ghostChrome ? 'timeline-backdrop--ghost' : ''}`}
       >
         <header className="titlebar titlebar--timeline">
-          <div className="titlebar-drag titlebar-drag--inline">
+          <div ref={titleDragRef} className="titlebar-drag titlebar-drag--inline">
             <span className="logo-dot" aria-hidden />
             <div className="titlebar-inline-brand">
               <strong className="titlebar-inline-title">Timeline</strong>
@@ -191,19 +282,25 @@ export default function TimelineApp() {
                 {running ? 'Running' : runSessionActive ? 'Paused' : 'Stopped'}
               </span>
             </div>
-            <button type="button" className="btn ghost" onClick={toggleRunClock}>
+            <button
+              ref={runToggleBtnRef}
+              type="button"
+              className="btn ghost"
+              onClick={toggleRunClock}
+            >
               {running ? 'Pause' : 'Start'}
             </button>
-            <button type="button" className="btn ghost" onClick={resetTimeline}>
+            <button ref={resetBtnRef} type="button" className="btn ghost" onClick={resetTimeline}>
               Reset
             </button>
             <button
+              ref={lockBtnRef}
               type="button"
               className={`btn icon ${positionLocked ? 'btn-lock-active' : ''}`}
               title={
                 positionLocked
-                  ? 'Unlock — drag the window from edges or title area'
-                  : 'Lock — prevent moving the window'
+                  ? 'Unlock — drag from Timeline title, or use Start / Reset / Lock / minimize / close'
+                  : 'Lock — click-through overlay (except title strip & controls)'
               }
               aria-pressed={positionLocked}
               onClick={togglePositionLock}
@@ -243,6 +340,7 @@ export default function TimelineApp() {
               )}
             </button>
             <button
+              ref={minimizeBtnRef}
               type="button"
               className="btn icon"
               title="Hide to system tray"
@@ -251,6 +349,7 @@ export default function TimelineApp() {
               ─
             </button>
             <button
+              ref={closeBtnRef}
               type="button"
               className="btn icon danger"
               title="Hide to system tray"

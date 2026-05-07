@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.send('timeline:apply-options', opts)
   },
 
+  /** When locked: pass `true` so the timeline window ignores mouse (click-through); `false` receives clicks (drag strip / lock). */
+  setTimelineIgnoreMouseEvents: (ignore: boolean) => {
+    ipcRenderer.send('timeline:set-ignore-mouse-events', ignore)
+  },
+
   loadFightIntoTimeline: (payload: unknown) =>
     ipcRenderer.invoke('timeline:load-fight', payload) as Promise<boolean>,
 

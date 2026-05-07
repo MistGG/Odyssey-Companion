@@ -1292,10 +1292,17 @@ select {
   color: var(--muted);
 }
 
-/* Do NOT set drag on `.timeline-backdrop` — on Windows it steals clicks from the title bar (min/close). */
-.shell--timeline.timeline-position-locked .timeline-backdrop,
-.shell--timeline.timeline-position-locked .titlebar-drag {
+/* Locked: body stays non-drag; left title strip stays draggable (paired with main-process click-through). */
+.shell--timeline.timeline-position-locked .timeline-backdrop {
   -webkit-app-region: no-drag;
+}
+
+.shell--timeline.timeline-position-locked .titlebar-drag {
+  cursor: grab;
+}
+
+.shell--timeline.timeline-position-locked .titlebar-drag:active {
+  cursor: grabbing;
 }
 
 .timeline-body-drag-framing {

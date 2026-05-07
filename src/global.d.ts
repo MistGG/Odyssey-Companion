@@ -24,6 +24,8 @@ declare global {
       showTimelineWindow: () => Promise<boolean>
       pushSettings: (settings: OverlaySettings) => void
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
+      /** Electron timeline window only: OS-level click-through when `true`. */
+      setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       loadFightIntoTimeline: (payload: unknown) => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>

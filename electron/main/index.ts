@@ -616,6 +616,15 @@ ipcMain.handle('window:show-timeline', () => {
   return true
 })
 
+ipcMain.on('timeline:set-ignore-mouse-events', (_e, ignore: unknown) => {
+  if (!timelineWin || timelineWin.isDestroyed()) return
+  if (ignore === true) {
+    timelineWin.setIgnoreMouseEvents(true, { forward: true })
+  } else {
+    timelineWin.setIgnoreMouseEvents(false)
+  }
+})
+
 ipcMain.on('timeline:apply-options', (_e, opts: TimelineOptionsPayload) => {
   setWinAlwaysOnTop(timelineWin, !!opts.alwaysOnTop)
 })
