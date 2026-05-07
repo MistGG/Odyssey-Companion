@@ -19,6 +19,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
+
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
   if (direct && !direct.isDestroyed()) return direct
@@ -444,7 +446,7 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = false
 
   autoUpdater.on('update-available', async (info) => {
-    const notes = releaseNotesPlain(info)
+    const notes = stripHtmlToPlainText(releaseNotesPlain(info))
     const { response } = await dialog.showMessageBox({
       type: 'info',
       buttons: ['Download', 'Later'],
@@ -478,7 +480,7 @@ function setupAutoUpdater() {
   })
 
   autoUpdater.on('update-downloaded', async (info) => {
-    const notes = releaseNotesPlain(info)
+    const notes = stripHtmlToPlainText(releaseNotesPlain(info))
     const { response } = await dialog.showMessageBox({
       type: 'info',
       buttons: ['Restart now', 'Later'],
@@ -812,11 +814,12 @@ ipcMain.handle(
         published_at?: string
         html_url?: string
       }
+      const rawBody = typeof j.body === 'string' ? j.body : ''
       return {
         ok: true,
         tag: j.tag_name ?? '?',
         publishedAt: j.published_at ?? '',
-        body: typeof j.body === 'string' ? j.body : '',
+        body: stripHtmlToPlainText(rawBody),
         url: j.html_url ?? 'https://github.com/MistGG/Odyssey-Companion/releases',
       }
     } catch (e) {

@@ -1,7 +1,7 @@
 /** UI labels for wiki/API effect types (timeline + run queue). */
 const EFFECT_TYPE_LABELS: Record<string, string> = {
   'Knock Back': 'Spread',
-  'Stacking Debuff': 'Stack',
+  'Stacking Debuff': 'Raidwide Damage',
   'Persistent AoE': 'AoE Puddle',
   'Continuous AoE': 'Meteors',
   'Continous AoE': 'Meteors',

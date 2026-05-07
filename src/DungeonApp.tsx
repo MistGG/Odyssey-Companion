@@ -16,6 +16,7 @@ import { fetchDungeonDetail, findDifficultyRow } from './lib/dungeonDetailApi'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
 import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
+import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { DifficultyTimelinePreview } from './components/DifficultyTimelinePreview'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 
@@ -755,7 +756,8 @@ export default function DungeonApp() {
                     </a>
                   </p>
                   <pre className="settings-changelog-body release-notes-body">
-                    {releaseNotesContent.body.trim() || 'No notes for this release.'}
+                    {stripHtmlToPlainText(releaseNotesContent.body.trim()) ||
+                      'No notes for this release.'}
                   </pre>
                 </>
               ) : (

@@ -52,6 +52,87 @@ function barFillWidthStyle(p: number): CSSProperties {
   return { width: `${w}%` }
 }
 
+function RunQueueTimingRow({
+  fireAt,
+  elapsedMs,
+  progress,
+  compactBar,
+  ariaBarLabel,
+}: {
+  fireAt: number
+  elapsedMs: number
+  progress: number
+  compactBar?: boolean
+  ariaBarLabel: string
+}) {
+  const label = formatBarCountdown(fireAt, elapsedMs)
+  return (
+    <div className="timeline-run-queue-timing">
+      <span className="timeline-run-queue-countdown" aria-hidden>
+        {label === '—' ? (
+          label
+        ) : (
+          <>
+            <span className="timeline-run-queue-countdown__value">{label.replace(/s$/, '')}</span>
+            <span className="timeline-run-queue-countdown__unit">s</span>
+          </>
+        )}
+      </span>
+      <div
+        className={`skill-schedule-bar timeline-run-queue-bar ${compactBar ? 'timeline-run-queue-bar--stack' : 'timeline-run-queue-bar--hero'}`}
+        role="progressbar"
+        aria-valuenow={pctInt(progress)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`${label} until cast`}
+        aria-label={ariaBarLabel}
+      >
+        <div className="skill-schedule-bar__fill" style={barFillWidthStyle(progress)} />
+      </div>
+    </div>
+  )
+}
+
+function RunQueueMechanicCard({
+  fight,
+  q,
+  tagBoss,
+}: {
+  fight: TimelineFightPayload
+  q: QueuedEvent
+  tagBoss: boolean
+}) {
+  const b = skillBrief(q.entry.skill)
+  const ob = fight.objectives[q.entry.objectiveIndex]
+  const n = q.entry.skill.target_count
+  return (
+    <div className="run-queue-mechanic-card">
+      {tagBoss && ob ? <div className="run-queue-boss-line muted">{ob.monster_name}</div> : null}
+      <div className="run-queue-mechanic-body">
+        <div className="run-queue-target-block">
+          {n > 0 ? (
+            <>
+              <TargetBubble count={n} prominent />
+              <span className="run-queue-target-label">Targets hit</span>
+            </>
+          ) : (
+            <>
+              <span className="run-queue-target-placeholder" title="No target count in data">
+                —
+              </span>
+              <span className="run-queue-target-label">Targets hit</span>
+            </>
+          )}
+        </div>
+        <div className="run-queue-main-facts">
+          <span className="run-queue-action">{b.attack}</span>
+          <span className="run-queue-damage">{b.damage}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
   const queue = useMemo(
     () => computeEventQueue(flatSkills, elapsedMs, 24),
@@ -78,52 +159,22 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
         <h2 id="upcoming-action-label" className="timeline-carousel-section-label">
           Upcoming
         </h2>
-        <div className="timeline-carousel-bar-row">
-          <div
-            className="skill-schedule-bar skill-schedule-bar--compact-hero timeline-carousel-schedule-bar"
-            role="progressbar"
-            aria-valuenow={pctInt(upcomingProg)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuetext={`${formatBarCountdown(upcoming.fireAt, elapsedMs)} until cast`}
-            aria-label="Time until this mechanic"
-          >
-            <div
-              className="skill-schedule-bar__fill"
-              style={barFillWidthStyle(upcomingProg)}
-            />
-          </div>
-          <span className="timeline-carousel-bar-countdown muted" aria-hidden>
-            {formatBarCountdown(upcoming.fireAt, elapsedMs)}
-          </span>
-        </div>
+        <RunQueueTimingRow
+          fireAt={upcoming.fireAt}
+          elapsedMs={elapsedMs}
+          progress={upcomingProg}
+          ariaBarLabel="Time until this mechanic"
+        />
 
-        <div className="timeline-carousel-group-lines">
-          {upcoming.entries.map((q) => {
-            const b = skillBrief(q.entry.skill)
-            const ob = fight.objectives[q.entry.objectiveIndex]
-            const tagBoss = showBossTag(upcoming.entries)
-            return (
-              <p key={q.entry.key} className="timeline-carousel-line timeline-carousel-line--hero">
-                {tagBoss && ob ? (
-                  <>
-                    <span className="timeline-carousel-boss-tag">{ob.monster_name}</span>
-                    <span className="timeline-carousel-sep" aria-hidden>
-                      {' '}
-                      ·{' '}
-                    </span>
-                  </>
-                ) : null}
-                <TargetBubble count={q.entry.skill.target_count} />
-                <span className="timeline-carousel-attack">{b.attack}</span>
-                <span className="timeline-carousel-sep" aria-hidden>
-                  {' '}
-                  ·{' '}
-                </span>
-                <span className="timeline-carousel-damage">{b.damage}</span>
-              </p>
-            )
-          })}
+        <div className="timeline-carousel-group-lines timeline-carousel-group-lines--cards">
+          {upcoming.entries.map((q) => (
+            <RunQueueMechanicCard
+              key={q.entry.key}
+              fight={fight}
+              q={q}
+              tagBoss={showBossTag(upcoming.entries)}
+            />
+          ))}
         </div>
       </section>
 
@@ -134,51 +185,22 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
             return (
               <div key={groupDomKey(g)} className="timeline-carousel-stack-row">
                 <span className="timeline-carousel-cue muted">{gi === 0 ? 'Next' : 'Then'}</span>
-                <div className="timeline-carousel-bar-row">
-                  <div
-                    className="skill-schedule-bar skill-schedule-bar--compact-stack timeline-carousel-schedule-bar"
-                    role="progressbar"
-                    aria-valuenow={pctInt(prog)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuetext={`${formatBarCountdown(g.fireAt, elapsedMs)} until cast`}
-                    aria-label={gi === 0 ? 'Progress until next wave' : 'Progress until later wave'}
-                  >
-                    <div
-                      className="skill-schedule-bar__fill"
-                      style={barFillWidthStyle(prog)}
+                <RunQueueTimingRow
+                  fireAt={g.fireAt}
+                  elapsedMs={elapsedMs}
+                  progress={prog}
+                  compactBar
+                  ariaBarLabel={gi === 0 ? 'Time until next wave' : 'Time until later wave'}
+                />
+                <div className="timeline-carousel-group-lines timeline-carousel-group-lines--cards">
+                  {g.entries.map((q) => (
+                    <RunQueueMechanicCard
+                      key={q.entry.key}
+                      fight={fight}
+                      q={q}
+                      tagBoss={showBossTag(g.entries)}
                     />
-                  </div>
-                  <span className="timeline-carousel-bar-countdown muted" aria-hidden>
-                    {formatBarCountdown(g.fireAt, elapsedMs)}
-                  </span>
-                </div>
-                <div className="timeline-carousel-group-lines">
-                  {g.entries.map((q) => {
-                    const b = skillBrief(q.entry.skill)
-                    const ob = fight.objectives[q.entry.objectiveIndex]
-                    const tagBoss = showBossTag(g.entries)
-                    return (
-                      <p key={q.entry.key} className="timeline-carousel-line timeline-carousel-line--stack">
-                        {tagBoss && ob ? (
-                          <>
-                            <span className="timeline-carousel-boss-tag">{ob.monster_name}</span>
-                            <span className="timeline-carousel-sep" aria-hidden>
-                              {' '}
-                              ·{' '}
-                            </span>
-                          </>
-                        ) : null}
-                        <TargetBubble count={q.entry.skill.target_count} />
-                        <span className="timeline-carousel-attack">{b.attack}</span>
-                        <span className="timeline-carousel-sep" aria-hidden>
-                          {' '}
-                          ·{' '}
-                        </span>
-                        <span className="timeline-carousel-damage">{b.damage}</span>
-                      </p>
-                    )
-                  })}
+                  ))}
                 </div>
               </div>
             )
