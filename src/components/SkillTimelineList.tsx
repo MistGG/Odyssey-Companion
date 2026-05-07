@@ -1,4 +1,5 @@
 import type { MonsterSkill } from '../types'
+import { formatEffectTypeDisplay } from '../lib/effectTypeDisplay'
 import { formatCastMs, formatCooldownMs, skillsForTimeline } from '../lib/skillTimeline'
 import { TargetBubble } from './TargetBubble'
 
@@ -22,7 +23,7 @@ export function SkillTimelineList({ skills, objectiveIndex }: Props) {
             <div className="skill-line-main">
               <span className="skill-cd">{formatCooldownMs(s.cool_time)}</span>
               <TargetBubble count={s.target_count} />
-              <span className="skill-type">{s.effect_type}</span>
+              <span className="skill-type">{formatEffectTypeDisplay(s.effect_type)}</span>
             </div>
             <div className="skill-meta">
               {formatCastMs(s.cast_time)}

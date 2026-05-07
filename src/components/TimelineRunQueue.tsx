@@ -6,6 +6,7 @@ import {
   groupQueueByFireAt,
   sequentialGroupProgress,
 } from '../lib/timelineSchedule'
+import { formatEffectTypeDisplay } from '../lib/effectTypeDisplay'
 import { TargetBubble } from './TargetBubble'
 
 type Props = {
@@ -24,7 +25,7 @@ function formatDamageMax(s: MonsterSkill): string {
 
 function skillBrief(skill: MonsterSkill) {
   return {
-    attack: skill.effect_type,
+    attack: formatEffectTypeDisplay(skill.effect_type),
     damage: formatDamageMax(skill),
   }
 }
@@ -33,9 +34,17 @@ function groupDomKey(g: { fireAt: number; entries: QueuedEvent[] }) {
   return `${g.fireAt}:${g.entries.map((e) => e.entry.key).join('|')}`
 }
 
-/** Integer % for labels and ARIA — rounding the bar *width* to whole % made fills look stepped at ~60fps. */
+/** Integer % for bar width — rounding the bar *width* to whole % made fills look stepped at ~60fps. */
 function pctInt(p: number): number {
   return Math.min(100, Math.max(0, Math.round(p * 100)))
+}
+
+/** Whole-second countdown until `fireAt` (ceil), for bar labels. */
+function formatBarCountdown(fireAt: number, elapsedMs: number): string {
+  if (!Number.isFinite(fireAt) || fireAt === Number.POSITIVE_INFINITY) return '—'
+  const remain = Math.max(0, fireAt - elapsedMs)
+  const sec = Math.ceil(remain / 1000)
+  return `${sec}s`
 }
 
 function barFillWidthStyle(p: number): CSSProperties {
@@ -76,6 +85,7 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
             aria-valuenow={pctInt(upcomingProg)}
             aria-valuemin={0}
             aria-valuemax={100}
+            aria-valuetext={`${formatBarCountdown(upcoming.fireAt, elapsedMs)} until cast`}
             aria-label="Time until this mechanic"
           >
             <div
@@ -83,8 +93,8 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
               style={barFillWidthStyle(upcomingProg)}
             />
           </div>
-          <span className="timeline-carousel-bar-pct muted" aria-hidden>
-            {pctInt(upcomingProg)}%
+          <span className="timeline-carousel-bar-countdown muted" aria-hidden>
+            {formatBarCountdown(upcoming.fireAt, elapsedMs)}
           </span>
         </div>
 
@@ -131,6 +141,7 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
                     aria-valuenow={pctInt(prog)}
                     aria-valuemin={0}
                     aria-valuemax={100}
+                    aria-valuetext={`${formatBarCountdown(g.fireAt, elapsedMs)} until cast`}
                     aria-label={gi === 0 ? 'Progress until next wave' : 'Progress until later wave'}
                   >
                     <div
@@ -138,8 +149,8 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
                       style={barFillWidthStyle(prog)}
                     />
                   </div>
-                  <span className="timeline-carousel-bar-pct muted" aria-hidden>
-                    {pctInt(prog)}%
+                  <span className="timeline-carousel-bar-countdown muted" aria-hidden>
+                    {formatBarCountdown(g.fireAt, elapsedMs)}
                   </span>
                 </div>
                 <div className="timeline-carousel-group-lines">
