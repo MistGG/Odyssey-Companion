@@ -14,12 +14,16 @@ import electronUpdater from 'electron-updater'
 
 /** CJS package — use default import; named `autoUpdater` breaks in packaged ESM main. */
 const { autoUpdater } = electronUpdater
+import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
+
+/** Set `ODYSSEY_START_PANEL=meter` to launch only the DPS meter window (UI dev). */
+const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
@@ -71,6 +75,9 @@ function wikiLog(label: string, url: string) {
 
 let dungeonWin: BrowserWindow | null = null
 let timelineWin: BrowserWindow | null = null
+let meterWin: BrowserWindow | null = null
+let dpsReaderProc: ChildProcess | null = null
+let dpsReaderStdoutBuf = ''
 let tray: Tray | null = null
 /** When false, the close handler hides to tray instead of destroying the window. */
 let quitting = false
@@ -118,6 +125,7 @@ let lastFightPayload: unknown | undefined
 type WindowLayoutFile = {
   dungeon?: Electron.Rectangle
   timeline?: Electron.Rectangle
+  meter?: Electron.Rectangle
 }
 
 const DEFAULT_DUNGEON_SIZE = {
@@ -132,6 +140,13 @@ const DEFAULT_TIMELINE_SIZE = {
   height: 440,
   minWidth: 380,
   minHeight: 180,
+} as const
+
+const DEFAULT_METER_SIZE = {
+  width: 340,
+  height: 220,
+  minWidth: 260,
+  minHeight: 160,
 } as const
 
 function layoutFilePath(): string {
@@ -180,6 +195,18 @@ function normalizeTimelineBounds(
   }
 }
 
+function normalizeMeterBounds(
+  r?: Electron.Rectangle,
+): Pick<Electron.Rectangle, 'x' | 'y' | 'width' | 'height'> | undefined {
+  if (!r || typeof r.width !== 'number' || typeof r.height !== 'number') return undefined
+  return {
+    x: typeof r.x === 'number' ? Math.round(r.x) : 0,
+    y: typeof r.y === 'number' ? Math.round(r.y) : 0,
+    width: Math.max(DEFAULT_METER_SIZE.minWidth, Math.round(r.width)),
+    height: Math.max(DEFAULT_METER_SIZE.minHeight, Math.round(r.height)),
+  }
+}
+
 let layoutSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 function persistWindowLayout(): void {
@@ -189,6 +216,9 @@ function persistWindowLayout(): void {
   }
   if (timelineWin && !timelineWin.isDestroyed()) {
     layout.timeline = timelineWin.getBounds()
+  }
+  if (meterWin && !meterWin.isDestroyed()) {
+    layout.meter = meterWin.getBounds()
   }
   writeWindowLayout(layout)
 }
@@ -219,6 +249,8 @@ function setWinAlwaysOnTop(win: BrowserWindow | null, flag: boolean) {
 type HotkeyPayload = {
   toggle: string
   reset: string
+  meterReconnect: string
+  meterResetSession: string
 }
 
 type TimelineOptionsPayload = {
@@ -235,6 +267,12 @@ function timelineLoadUrl() {
   if (!VITE_DEV_SERVER_URL) return
   const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
   return `${base}/?panel=timeline`
+}
+
+function meterLoadUrl() {
+  if (!VITE_DEV_SERVER_URL) return
+  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
+  return `${base}/?panel=meter`
 }
 
 function wireHideInsteadOfClose(win: BrowserWindow) {
@@ -297,12 +335,15 @@ function createTimelineWindow() {
   timelineWin = new BrowserWindow({
     icon: getWindowIcon(),
     title: 'Odyssey Companion — Timeline',
+    show: false,
     ...(b ?? {
       width: DEFAULT_TIMELINE_SIZE.width,
       height: DEFAULT_TIMELINE_SIZE.height,
     }),
     minWidth: DEFAULT_TIMELINE_SIZE.minWidth,
     minHeight: DEFAULT_TIMELINE_SIZE.minHeight,
+    /** Required for edge resize: a large `-webkit-app-region: drag` body would swallow resize hits (see timeline CSS). */
+    resizable: true,
     /**
      * Win11 + transparent frameless windows get DWM-rounded outer corners by default.
      * Our `.timeline-backdrop` already draws a 14px radius + border — two mismatched arcs read as a “double corner”.
@@ -339,6 +380,50 @@ function createTimelineWindow() {
   attachWindowLayoutTracking(timelineWin)
 }
 
+function createMeterWindow() {
+  const layout = readWindowLayout()
+  const b = normalizeMeterBounds(layout.meter)
+  meterWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey Companion — DPS meter',
+    ...(b ?? {
+      width: DEFAULT_METER_SIZE.width,
+      height: DEFAULT_METER_SIZE.height,
+    }),
+    minWidth: DEFAULT_METER_SIZE.minWidth,
+    minHeight: DEFAULT_METER_SIZE.minHeight,
+    ...(os.platform() === 'win32' ? { roundedCorners: false as const } : {}),
+    backgroundColor: '#00000000',
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+
+  const url = meterLoadUrl()
+  if (url) {
+    meterWin.loadURL(url)
+  } else {
+    meterWin.loadFile(indexHtml, { query: { panel: 'meter' } })
+  }
+
+  meterWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  setWinAlwaysOnTop(meterWin, true)
+  wireHideInsteadOfClose(meterWin)
+  attachWindowLayoutTracking(meterWin)
+}
+
 function showDungeonWindow() {
   if (!dungeonWin || dungeonWin.isDestroyed()) {
     createDungeonWindow()
@@ -363,6 +448,147 @@ function showTimelineWindow() {
   setWinAlwaysOnTop(w, true)
 }
 
+function showMeterWindow() {
+  if (!meterWin || meterWin.isDestroyed()) {
+    createMeterWindow()
+  }
+  const w = meterWin!
+  w.show()
+  w.setSkipTaskbar(false)
+  if (w.isMinimized()) w.restore()
+  w.focus()
+  setWinAlwaysOnTop(w, true)
+}
+
+function dpsReaderScriptPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'scripts', 'odyssey-dps-reader.py')
+  }
+  return path.join(process.env.APP_ROOT ?? '', 'scripts', 'odyssey-dps-reader.py')
+}
+
+/**
+ * Windows: prefer embeddable CPython + pymem from `npm run prepare:dps-python` (shipped under
+ * `resources/python-runtime` in the installer). Dev: `bundle/python-runtime/python.exe` if present.
+ * Override with env `ODYSSEY_PYTHON` (full path to interpreter).
+ */
+function bundledPythonExecutable(): string | null {
+  if (process.platform !== 'win32') return null
+  if (app.isPackaged) {
+    const p = path.join(process.resourcesPath, 'python-runtime', 'python.exe')
+    return fs.existsSync(p) ? p : null
+  }
+  const dev = path.join(process.env.APP_ROOT ?? '', 'bundle', 'python-runtime', 'python.exe')
+  return fs.existsSync(dev) ? dev : null
+}
+
+function resolvePythonForDps(): { exe: string; cwd?: string } {
+  const fromEnv = process.env.ODYSSEY_PYTHON?.trim()
+  if (fromEnv) {
+    return { exe: fromEnv }
+  }
+  const bundled = bundledPythonExecutable()
+  if (bundled) {
+    return { exe: bundled, cwd: path.dirname(bundled) }
+  }
+  return { exe: process.platform === 'win32' ? 'python' : 'python3' }
+}
+
+function broadcastMeterTelemetry(payload: unknown) {
+  if (meterWin && !meterWin.isDestroyed()) {
+    meterWin.webContents.send('meter:telemetry', payload)
+  }
+}
+
+function stopDpsReader() {
+  if (!dpsReaderProc) return
+  try {
+    dpsReaderProc.kill()
+  } catch {
+    /* ignore */
+  }
+  dpsReaderProc = null
+  dpsReaderStdoutBuf = ''
+}
+
+function startDpsReader(): { ok: boolean; error?: string } {
+  if (dpsReaderProc !== null && !dpsReaderProc.killed) {
+    return { ok: true }
+  }
+  const scriptPath = dpsReaderScriptPath()
+  if (!fs.existsSync(scriptPath)) {
+    return {
+      ok: false,
+      error: `DPS reader script not found at ${scriptPath}`,
+    }
+  }
+  const { exe: py, cwd: pyCwd } = resolvePythonForDps()
+  try {
+    dpsReaderProc = spawn(py, ['-u', scriptPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      ...(pyCwd ? { cwd: pyCwd } : {}),
+    })
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+  dpsReaderStdoutBuf = ''
+  dpsReaderProc.stdout?.on('data', (chunk: Buffer) => {
+    dpsReaderStdoutBuf += chunk.toString('utf8')
+    let nl: number
+    while ((nl = dpsReaderStdoutBuf.indexOf('\n')) >= 0) {
+      const line = dpsReaderStdoutBuf.slice(0, nl).trim()
+      dpsReaderStdoutBuf = dpsReaderStdoutBuf.slice(nl + 1)
+      if (!line) continue
+      try {
+        const msg: unknown = JSON.parse(line)
+        broadcastMeterTelemetry(msg)
+      } catch {
+        broadcastMeterTelemetry({
+          type: 'log',
+          level: 'warn',
+          message: `Non-JSON stdout: ${line}`,
+        })
+      }
+    }
+  })
+  dpsReaderProc.stderr?.on('data', (chunk: Buffer) => {
+    const t = chunk.toString('utf8').trim()
+    if (t) {
+      broadcastMeterTelemetry({ type: 'log', level: 'stderr', message: t })
+    }
+  })
+  dpsReaderProc.on('error', (err) => {
+    broadcastMeterTelemetry({
+      type: 'status',
+      status: 'error',
+      message: String(err),
+    })
+    dpsReaderProc = null
+    dpsReaderStdoutBuf = ''
+  })
+  dpsReaderProc.on('exit', (code, signal) => {
+    dpsReaderProc = null
+    dpsReaderStdoutBuf = ''
+    broadcastMeterTelemetry({
+      type: 'status',
+      status: 'stopped',
+      code,
+      signal: signal ?? undefined,
+    })
+  })
+  return { ok: true }
+}
+
+function sendDpsReaderReset() {
+  if (!dpsReaderProc?.stdin || dpsReaderProc.killed) return
+  try {
+    dpsReaderProc.stdin.write('RESET\n')
+  } catch {
+    /* stdin closed */
+  }
+}
+
 function hideWindowToTray(win: BrowserWindow | null | undefined) {
   if (!win || win.isDestroyed()) return false
   win.hide()
@@ -373,12 +599,15 @@ function hideWindowToTray(win: BrowserWindow | null | undefined) {
 function quitFromTray() {
   quitting = true
   globalShortcut.unregisterAll()
+  stopDpsReader()
   tray?.destroy()
   tray = null
   if (dungeonWin && !dungeonWin.isDestroyed()) dungeonWin.destroy()
   if (timelineWin && !timelineWin.isDestroyed()) timelineWin.destroy()
+  if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
   dungeonWin = null
   timelineWin = null
+  meterWin = null
   app.quit()
 }
 
@@ -395,6 +624,10 @@ function createTray() {
       label: 'Open timeline',
       click: () => showTimelineWindow(),
     },
+    {
+      label: 'Open DPS meter',
+      click: () => showMeterWindow(),
+    },
     { type: 'separator' },
     {
       label: 'Quit',
@@ -405,6 +638,18 @@ function createTray() {
   tray.on('click', () => {
     showDungeonWindow()
   })
+}
+
+function triggerMeterReconnectFromHotkey() {
+  stopDpsReader()
+  startDpsReader()
+}
+
+function triggerMeterResetFromHotkey() {
+  sendDpsReaderReset()
+  if (meterWin && !meterWin.isDestroyed()) {
+    meterWin.webContents.send('meter:clear-session-ui')
+  }
 }
 
 function registerHotkeys(cfg: HotkeyPayload) {
@@ -421,6 +666,17 @@ function registerHotkeys(cfg: HotkeyPayload) {
     })
     if (!ok) {
       console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${action})`)
+    }
+  }
+  const meterEntries: { acc: string; label: string; fn: () => void }[] = [
+    { acc: cfg.meterReconnect.trim(), label: 'meterReconnect', fn: triggerMeterReconnectFromHotkey },
+    { acc: cfg.meterResetSession.trim(), label: 'meterResetSession', fn: triggerMeterResetFromHotkey },
+  ]
+  for (const { acc, label, fn } of meterEntries) {
+    if (!acc || acc.toLowerCase() === 'none') continue
+    const ok = globalShortcut.register(acc, fn)
+    if (!ok) {
+      console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${label})`)
     }
   }
 }
@@ -505,7 +761,14 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(() => {
-  createWindows()
+  if (METER_ONLY_STARTUP) {
+    createMeterWindow()
+    meterWin?.show()
+    meterWin?.setSkipTaskbar(false)
+  } else {
+    createWindows()
+    showDungeonWindow()
+  }
   createTray()
   setupAutoUpdater()
 })
@@ -513,6 +776,7 @@ app.whenReady().then(() => {
 /** Allow real quit (Cmd+Q, Alt+F4 chain, etc.) — without this, `close` handlers would hide instead of exiting. */
 app.on('before-quit', () => {
   quitting = true
+  stopDpsReader()
   if (layoutSaveTimer) {
     clearTimeout(layoutSaveTimer)
     layoutSaveTimer = null
@@ -524,6 +788,7 @@ app.on('window-all-closed', () => {
   if (quitting) {
     dungeonWin = null
     timelineWin = null
+    meterWin = null
     return
   }
   // Windows are hidden to tray, not destroyed — if we ever end up with zero
@@ -532,13 +797,22 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindows()
+    if (METER_ONLY_STARTUP) {
+      createMeterWindow()
+      meterWin?.show()
+    } else {
+      createWindows()
+      showDungeonWindow()
+    }
   }
 })
 
 app.on('second-instance', () => {
-  showDungeonWindow()
-  showTimelineWindow()
+  if (METER_ONLY_STARTUP) {
+    showMeterWindow()
+  } else {
+    showDungeonWindow()
+  }
 })
 
 app.on('will-quit', () => {
@@ -595,6 +869,9 @@ function windowFromSenderExact(sender: WebContents): BrowserWindow | undefined {
   if (timelineWin && !timelineWin.isDestroyed() && timelineWin.webContents.id === id) {
     return timelineWin
   }
+  if (meterWin && !meterWin.isDestroyed() && meterWin.webContents.id === id) {
+    return meterWin
+  }
   return browserWindowForIpc(sender)
 }
 
@@ -616,12 +893,61 @@ ipcMain.handle('window:show-timeline', () => {
   return true
 })
 
+ipcMain.handle('window:show-meter', () => {
+  showMeterWindow()
+  return true
+})
+
+ipcMain.on('meter:apply-options', (_e, opts: unknown) => {
+  if (!opts || typeof opts !== 'object') return
+  const v = (opts as { alwaysOnTop?: unknown }).alwaysOnTop
+  if (typeof v === 'boolean') {
+    setWinAlwaysOnTop(meterWin, v)
+  }
+})
+
+ipcMain.handle(
+  'meter:start-reader',
+  (): { ok: boolean; error?: string } => startDpsReader(),
+)
+
+ipcMain.handle('meter:stop-reader', () => {
+  stopDpsReader()
+  return true
+})
+
+ipcMain.handle('meter:reset-session', () => {
+  sendDpsReaderReset()
+  return true
+})
+
+ipcMain.handle('meter:reader-stdin', (_e, line: unknown) => {
+  if (typeof line !== 'string' || !line.trim()) return false
+  if (!dpsReaderProc?.stdin || dpsReaderProc.killed) return false
+  try {
+    const out = line.endsWith('\n') ? line : `${line}\n`
+    dpsReaderProc.stdin.write(out)
+    return true
+  } catch {
+    return false
+  }
+})
+
 ipcMain.on('timeline:set-ignore-mouse-events', (_e, ignore: unknown) => {
   if (!timelineWin || timelineWin.isDestroyed()) return
   if (ignore === true) {
     timelineWin.setIgnoreMouseEvents(true, { forward: true })
   } else {
     timelineWin.setIgnoreMouseEvents(false)
+  }
+})
+
+ipcMain.on('meter:set-ignore-mouse-events', (_e, ignore: unknown) => {
+  if (!meterWin || meterWin.isDestroyed()) return
+  if (ignore === true) {
+    meterWin.setIgnoreMouseEvents(true, { forward: true })
+  } else {
+    meterWin.setIgnoreMouseEvents(false)
   }
 })
 
@@ -634,6 +960,12 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
     const v = (payload as { timelineAlwaysOnTop: unknown }).timelineAlwaysOnTop
     if (typeof v === 'boolean') {
       setWinAlwaysOnTop(timelineWin, v)
+    }
+  }
+  if (payload && typeof payload === 'object' && 'meterAlwaysOnTop' in payload) {
+    const v = (payload as { meterAlwaysOnTop: unknown }).meterAlwaysOnTop
+    if (typeof v === 'boolean') {
+      setWinAlwaysOnTop(meterWin, v)
     }
   }
   // Never echo `settings:patch` back to the sender — causes an infinite loop in DungeonApp
@@ -652,6 +984,13 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
     timelineWin.webContents.id !== senderId
   ) {
     timelineWin.webContents.send('settings:patch', payload)
+  }
+  if (
+    meterWin &&
+    !meterWin.isDestroyed() &&
+    meterWin.webContents.id !== senderId
+  ) {
+    meterWin.webContents.send('settings:patch', payload)
   }
 })
 

@@ -22,10 +22,19 @@ declare global {
       close: () => Promise<unknown>
       showMainWindow: () => Promise<boolean>
       showTimelineWindow: () => Promise<boolean>
+      showMeterWindow: () => Promise<boolean>
       pushSettings: (settings: OverlaySettings) => void
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
+      applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => void
+      startMeterReader: () => Promise<{ ok: boolean; error?: string }>
+      stopMeterReader: () => Promise<boolean>
+      resetMeterSession: () => Promise<boolean>
+      sendMeterReaderStdin: (line: string) => Promise<boolean>
+      onMeterTelemetry: (handler: (msg: unknown) => void) => () => void
+      onMeterClearSessionUi: (handler: () => void) => () => void
       /** Electron timeline window only: OS-level click-through when `true`. */
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
+      setMeterIgnoreMouseEvents?: (ignore: boolean) => void
       loadFightIntoTimeline: (payload: unknown) => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>

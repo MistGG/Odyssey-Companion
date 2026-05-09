@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 export type HotkeyConfig = {
   toggle: string
   reset: string
+  meterReconnect: string
+  meterResetSession: string
 }
 
 contextBridge.exposeInMainWorld('odysseyCompanion', {
@@ -24,15 +26,50 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   showTimelineWindow: () =>
     ipcRenderer.invoke('window:show-timeline') as Promise<boolean>,
 
+  showMeterWindow: () =>
+    ipcRenderer.invoke('window:show-meter') as Promise<boolean>,
+
   pushSettings: (settings: unknown) => ipcRenderer.send('overlay:push-settings', settings),
 
   applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => {
     ipcRenderer.send('timeline:apply-options', opts)
   },
 
+  applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => {
+    ipcRenderer.send('meter:apply-options', opts)
+  },
+
+  startMeterReader: () =>
+    ipcRenderer.invoke('meter:start-reader') as Promise<{ ok: boolean; error?: string }>,
+
+  stopMeterReader: () => ipcRenderer.invoke('meter:stop-reader') as Promise<boolean>,
+
+  resetMeterSession: () => ipcRenderer.invoke('meter:reset-session') as Promise<boolean>,
+
+  /** Send a line to the Python reader stdin (DEBUG_ON, DEBUG_OFF, DUMP, RESET). */
+  sendMeterReaderStdin: (line: string) =>
+    ipcRenderer.invoke('meter:reader-stdin', line) as Promise<boolean>,
+
+  onMeterTelemetry: (handler: (msg: unknown) => void) => {
+    const wrapped = (_evt: unknown, msg: unknown) => handler(msg)
+    ipcRenderer.on('meter:telemetry', wrapped)
+    return () => ipcRenderer.removeListener('meter:telemetry', wrapped)
+  },
+
+  /** Main-process global shortcut fired “reset session” — clear meter totals without a second RESET. */
+  onMeterClearSessionUi: (handler: () => void) => {
+    const wrapped = () => handler()
+    ipcRenderer.on('meter:clear-session-ui', wrapped)
+    return () => ipcRenderer.removeListener('meter:clear-session-ui', wrapped)
+  },
+
   /** When locked: pass `true` so the timeline window ignores mouse (click-through); `false` receives clicks (drag strip / lock). */
   setTimelineIgnoreMouseEvents: (ignore: boolean) => {
     ipcRenderer.send('timeline:set-ignore-mouse-events', ignore)
+  },
+
+  setMeterIgnoreMouseEvents: (ignore: boolean) => {
+    ipcRenderer.send('meter:set-ignore-mouse-events', ignore)
   },
 
   loadFightIntoTimeline: (payload: unknown) =>

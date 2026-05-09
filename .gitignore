@@ -4,3 +4,9 @@ dist-electron
 release
 *.local
 .DS_Store
+
+# Downloaded by scripts/prepare-embedded-python.ps1 before packaging Windows installers.
+bundle/python-runtime/
+
+scripts/__pycache__/
+*.pyc

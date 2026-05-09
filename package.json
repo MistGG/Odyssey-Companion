@@ -6,10 +6,12 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
+    "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
     "build": "vite build",
     "preview": "vite preview",
-    "pack": "vite build && electron-builder --win",
-    "release": "vite build && electron-builder --win --publish always"
+    "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",
+    "pack": "npm run prepare:dps-python && npm run build && electron-builder --win",
+    "release": "npm run prepare:dps-python && npm run build && electron-builder --win --publish always"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
@@ -39,6 +41,16 @@
       {
         "from": "resources",
         "to": "resources",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "scripts",
+        "to": "scripts",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "bundle/python-runtime",
+        "to": "python-runtime",
         "filter": ["**/*"]
       }
     ],

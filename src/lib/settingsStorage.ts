@@ -12,6 +12,8 @@ type HotkeyConfigLike = {
   reset?: string
   start?: string
   stop?: string
+  meterReconnect?: string
+  meterResetSession?: string
 }
 
 function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
@@ -23,7 +25,15 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
         : DEFAULT_SETTINGS.hotkeys.toggle
   const reset =
     typeof raw.reset === 'string' ? raw.reset : DEFAULT_SETTINGS.hotkeys.reset
-  return { toggle, reset }
+  const meterReconnect =
+    typeof raw.meterReconnect === 'string'
+      ? raw.meterReconnect
+      : DEFAULT_SETTINGS.hotkeys.meterReconnect
+  const meterResetSession =
+    typeof raw.meterResetSession === 'string'
+      ? raw.meterResetSession
+      : DEFAULT_SETTINGS.hotkeys.meterResetSession
+  return { toggle, reset, meterReconnect, meterResetSession }
 }
 
 function normalizeLoaded(raw: unknown): OverlaySettings {
@@ -57,6 +67,21 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     positionLocked = raw.timelinePositionLocked
   }
 
+  let meterBackdrop =
+    typeof raw.meterBackdropOpacity === 'number' ? raw.meterBackdropOpacity : undefined
+  if (meterBackdrop === undefined && typeof raw.meterOpacity === 'number') {
+    meterBackdrop = raw.meterOpacity
+  }
+
+  let meterTop =
+    typeof raw.meterAlwaysOnTop === 'boolean' ? raw.meterAlwaysOnTop : undefined
+
+  let meterLocked =
+    typeof raw.meterPositionLocked === 'boolean' ? raw.meterPositionLocked : undefined
+
+  let meterIdleReset =
+    typeof raw.meterAutoResetIdleSec === 'number' ? raw.meterAutoResetIdleSec : undefined
+
   return {
     ...DEFAULT_SETTINGS,
     hotkeys,
@@ -70,6 +95,22 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof positionLocked === 'boolean'
         ? positionLocked
         : DEFAULT_SETTINGS.timelinePositionLocked,
+    meterBackdropOpacity:
+      typeof meterBackdrop === 'number'
+        ? Math.min(1, Math.max(0, meterBackdrop))
+        : DEFAULT_SETTINGS.meterBackdropOpacity,
+    meterAlwaysOnTop:
+      typeof meterTop === 'boolean' ? meterTop : DEFAULT_SETTINGS.meterAlwaysOnTop,
+    meterPositionLocked:
+      typeof meterLocked === 'boolean'
+        ? meterLocked
+        : DEFAULT_SETTINGS.meterPositionLocked,
+    meterAutoResetIdleSec:
+      typeof meterIdleReset === 'number' &&
+      Number.isFinite(meterIdleReset) &&
+      meterIdleReset >= 0
+        ? Math.min(86400, Math.round(meterIdleReset))
+        : DEFAULT_SETTINGS.meterAutoResetIdleSec,
   }
 }
 

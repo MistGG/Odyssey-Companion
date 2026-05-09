@@ -374,7 +374,7 @@ export default function TimelineApp() {
             )}
             {fight ? (
               runSessionActive ? (
-                <div className="timeline-fight timeline-fight--run">
+                <div className="timeline-fight timeline-fight--run timeline-fight--run-compact">
                   <TimelineRunQueue fight={fight} flatSkills={flatSkills} elapsedMs={cappedElapsedMs} />
                 </div>
               ) : (

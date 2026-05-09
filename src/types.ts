@@ -66,6 +66,10 @@ export type HotkeyConfig = {
   /** Same accelerator toggles Start ↔ Pause (clock pause only; Reset restores reference timeline). */
   toggle: string
   reset: string
+  /** Global: restart the Python DPS reader (`None` to disable). */
+  meterReconnect: string
+  /** Global: reset meter session / reader cursor (`None` to disable). */
+  meterResetSession: string
 }
 
 export type OverlaySettings = {
@@ -80,16 +84,35 @@ export type OverlaySettings = {
    * When true, the timeline window cannot be moved (no drag regions).
    */
   timelinePositionLocked: boolean
+  /** DPS meter overlay window — panel opacity (0–1). */
+  meterBackdropOpacity: number
+  /** Keep DPS meter above other windows. */
+  meterAlwaysOnTop: boolean
+  /**
+   * When true: window stays put; pointer passes through except controls (gear, lock, title strip, etc.).
+   */
+  meterPositionLocked: boolean
+  /**
+   * After this many seconds without a damage hit, clear live DPS/total/time only.
+   * Skill breakdown is frozen until new hits arrive. `0` disables.
+   */
+  meterAutoResetIdleSec: number
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
   hotkeys: {
     toggle: 'F9',
     reset: 'F11',
+    meterReconnect: 'None',
+    meterResetSession: 'None',
   },
   timelineBackdropOpacity: 0.88,
   timelineAlwaysOnTop: true,
   timelinePositionLocked: false,
+  meterBackdropOpacity: 0.82,
+  meterAlwaysOnTop: true,
+  meterPositionLocked: false,
+  meterAutoResetIdleSec: 10,
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */

@@ -395,6 +395,14 @@ export default function DungeonApp() {
           </button>
           <button
             type="button"
+            className="btn ghost"
+            title="Show DPS meter overlay"
+            onClick={() => void window.odysseyCompanion?.showMeterWindow()}
+          >
+            Meter
+          </button>
+          <button
+            type="button"
             className="btn icon"
             title="Hide to system tray"
             onClick={() => void window.odysseyCompanion?.minimize()}
@@ -642,6 +650,73 @@ export default function DungeonApp() {
                   }
                 />
                 Lock timeline window position (disable dragging)
+              </label>
+            </section>
+
+            <section className="field-group">
+              <h3>DPS meter overlay</h3>
+              <label className="field">
+                <span>Background strength</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={settings.meterBackdropOpacity}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      meterBackdropOpacity: Number(e.target.value),
+                    }))
+                  }
+                />
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.meterAlwaysOnTop}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      meterAlwaysOnTop: e.target.checked,
+                    }))
+                  }
+                />
+                Keep DPS meter above other apps
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.meterPositionLocked}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      meterPositionLocked: e.target.checked,
+                    }))
+                  }
+                />
+                Lock meter — click-through except title bar (same as meter lock button)
+              </label>
+              <label className="field">
+                <span>Reset current DPS after no hits (seconds)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={86400}
+                  step={1}
+                  value={settings.meterAutoResetIdleSec}
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    if (!Number.isFinite(n)) return
+                    setSettings((s) => ({
+                      ...s,
+                      meterAutoResetIdleSec: Math.min(86400, Math.max(0, Math.round(n))),
+                    }))
+                  }}
+                />
+                <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  Default 10. 0 = disabled. Clears live DPS/total/time only; skills stay until new damage.
+                </span>
               </label>
             </section>
 

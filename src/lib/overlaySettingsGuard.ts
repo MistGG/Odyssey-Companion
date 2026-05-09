@@ -3,7 +3,12 @@ import type { OverlaySettings } from '../types'
 function isHotkeyShape(v: unknown): boolean {
   if (!v || typeof v !== 'object') return false
   const h = v as Record<string, unknown>
-  return typeof h.toggle === 'string' && typeof h.reset === 'string'
+  return (
+    typeof h.toggle === 'string' &&
+    typeof h.reset === 'string' &&
+    typeof h.meterReconnect === 'string' &&
+    typeof h.meterResetSession === 'string'
+  )
 }
 
 export function mergeOverlaySettings(
@@ -28,6 +33,12 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
   if (
     typeof o.timelineBackdropOpacity !== 'number' ||
     typeof o.timelineAlwaysOnTop !== 'boolean' ||
+    typeof o.meterBackdropOpacity !== 'number' ||
+    typeof o.meterAlwaysOnTop !== 'boolean' ||
+    typeof o.meterPositionLocked !== 'boolean' ||
+    typeof o.meterAutoResetIdleSec !== 'number' ||
+    !Number.isFinite(o.meterAutoResetIdleSec) ||
+    o.meterAutoResetIdleSec < 0 ||
     !isHotkeyShape(o.hotkeys)
   ) {
     return false

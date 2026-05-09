@@ -1,11 +1,7 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo } from 'react'
 import type { MonsterSkill, TimelineFightPayload } from '../types'
 import type { FlatSkillEntry, QueuedEvent } from '../lib/timelineSchedule'
-import {
-  computeEventQueue,
-  groupQueueByFireAt,
-  sequentialGroupProgress,
-} from '../lib/timelineSchedule'
+import { computeEventQueue, groupQueueByFireAt } from '../lib/timelineSchedule'
 import { formatEffectTypeDisplay } from '../lib/effectTypeDisplay'
 import { TargetBubble } from './TargetBubble'
 
@@ -34,101 +30,108 @@ function groupDomKey(g: { fireAt: number; entries: QueuedEvent[] }) {
   return `${g.fireAt}:${g.entries.map((e) => e.entry.key).join('|')}`
 }
 
-/** Integer % for bar width — rounding the bar *width* to whole % made fills look stepped at ~60fps. */
-function pctInt(p: number): number {
-  return Math.min(100, Math.max(0, Math.round(p * 100)))
-}
-
-/** Whole-second countdown until `fireAt` (ceil), for bar labels. */
-function formatBarCountdown(fireAt: number, elapsedMs: number): string {
+/** Whole-second countdown until `fireAt` (ceil); uses M:SS at ≥60s. */
+function formatCountdownLabel(fireAt: number, elapsedMs: number): string {
   if (!Number.isFinite(fireAt) || fireAt === Number.POSITIVE_INFINITY) return '—'
   const remain = Math.max(0, fireAt - elapsedMs)
-  const sec = Math.ceil(remain / 1000)
-  return `${sec}s`
+  const secTotal = Math.ceil(remain / 1000)
+  if (secTotal >= 60) {
+    const m = Math.floor(secTotal / 60)
+    const s = secTotal % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
+  return `${secTotal}s`
 }
 
-function barFillWidthStyle(p: number): CSSProperties {
-  const w = Math.min(100, Math.max(0, p * 100))
-  return { width: `${w}%` }
-}
-
-function RunQueueTimingRow({
+function CountdownInline({
   fireAt,
   elapsedMs,
-  progress,
-  compactBar,
-  ariaBarLabel,
+  compact,
 }: {
   fireAt: number
   elapsedMs: number
-  progress: number
-  compactBar?: boolean
-  ariaBarLabel: string
+  compact?: boolean
 }) {
-  const label = formatBarCountdown(fireAt, elapsedMs)
+  const label = formatCountdownLabel(fireAt, elapsedMs)
   return (
-    <div className="timeline-run-queue-timing">
-      <span className="timeline-run-queue-countdown" aria-hidden>
-        {label === '—' ? (
-          label
-        ) : (
-          <>
-            <span className="timeline-run-queue-countdown__value">{label.replace(/s$/, '')}</span>
-            <span className="timeline-run-queue-countdown__unit">s</span>
-          </>
-        )}
-      </span>
-      <div
-        className={`skill-schedule-bar timeline-run-queue-bar ${compactBar ? 'timeline-run-queue-bar--stack' : 'timeline-run-queue-bar--hero'}`}
-        role="progressbar"
-        aria-valuenow={pctInt(progress)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuetext={`${label} until cast`}
-        aria-label={ariaBarLabel}
-      >
-        <div className="skill-schedule-bar__fill" style={barFillWidthStyle(progress)} />
-      </div>
-    </div>
+    <span
+      className={`run-queue-row-timer ${compact ? 'run-queue-row-timer--compact' : ''}`}
+      aria-hidden
+    >
+      {label === '—' ? (
+        label
+      ) : label.includes(':') ? (
+        <span className="run-queue-row-timer__value run-queue-row-timer__value--clock">{label}</span>
+      ) : (
+        <>
+          <span className="run-queue-row-timer__value">{label.replace(/s$/, '')}</span>
+          <span className="run-queue-row-timer__unit">s</span>
+        </>
+      )}
+    </span>
   )
 }
 
-function RunQueueMechanicCard({
+function RunQueueMechanicRow({
   fight,
   q,
   tagBoss,
+  fireAt,
+  elapsedMs,
+  compact,
+  rowCue,
+  ariaLabel,
 }: {
   fight: TimelineFightPayload
   q: QueuedEvent
   tagBoss: boolean
+  fireAt: number
+  elapsedMs: number
+  compact?: boolean
+  /** One column label for the first row of a stacked group (Next / Then). */
+  rowCue?: string
+  ariaLabel: string
 }) {
   const b = skillBrief(q.entry.skill)
   const ob = fight.objectives[q.entry.objectiveIndex]
   const n = q.entry.skill.target_count
+  const label = formatCountdownLabel(fireAt, elapsedMs)
+  const spoken = `${ariaLabel}: ${label}; ${b.attack}; ${b.damage} damage${tagBoss && ob ? ` (${ob.monster_name})` : ''}`
+
   return (
-    <div className="run-queue-mechanic-card">
-      {tagBoss && ob ? <div className="run-queue-boss-line muted">{ob.monster_name}</div> : null}
-      <div className="run-queue-mechanic-body">
-        <div className="run-queue-target-block">
-          {n > 0 ? (
-            <>
-              <TargetBubble count={n} prominent />
-              <span className="run-queue-target-label">Targets hit</span>
-            </>
-          ) : (
-            <>
-              <span className="run-queue-target-placeholder" title="No target count in data">
-                —
-              </span>
-              <span className="run-queue-target-label">Targets hit</span>
-            </>
-          )}
-        </div>
-        <div className="run-queue-main-facts">
-          <span className="run-queue-action">{b.attack}</span>
-          <span className="run-queue-damage">{b.damage}</span>
-        </div>
-      </div>
+    <div
+      className={`run-queue-mechanic-row ${compact ? 'run-queue-mechanic-row--compact' : ''}`}
+      aria-label={spoken}
+    >
+      {rowCue ? (
+        <span className="run-queue-row-cue muted" aria-hidden>
+          {rowCue}
+        </span>
+      ) : (
+        <span className="run-queue-row-cue run-queue-row-cue--empty" aria-hidden />
+      )}
+      <CountdownInline fireAt={fireAt} elapsedMs={elapsedMs} compact={compact} />
+      <span className="run-queue-row-target">
+        {n > 0 ? (
+          <TargetBubble count={n} />
+        ) : (
+          <span className="run-queue-row-target-dash" title="No target count in data">
+            —
+          </span>
+        )}
+      </span>
+      <span className="run-queue-row-mechanic" title={b.attack}>
+        {tagBoss && ob ? (
+          <>
+            <span className="run-queue-row-boss muted">{ob.monster_name}</span>
+            <span className="run-queue-row-boss-sep muted" aria-hidden>
+              {' · '}
+            </span>
+          </>
+        ) : null}
+        <span className="run-queue-row-action">{b.attack}</span>
+      </span>
+      <span className="run-queue-row-damage">{b.damage}</span>
     </div>
   )
 }
@@ -150,29 +153,25 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
   }
 
   const upcoming = groups[0]!
-  const upcomingProg = sequentialGroupProgress(groups, 0, elapsedMs)
   const stackGroups = groups.slice(1)
 
   return (
-    <div className="timeline-carousel timeline-carousel--wide">
+    <div className="timeline-carousel timeline-carousel--wide timeline-carousel--compact-run">
       <section className="timeline-carousel-upcoming" aria-labelledby="upcoming-action-label">
         <h2 id="upcoming-action-label" className="timeline-carousel-section-label">
           Upcoming
         </h2>
-        <RunQueueTimingRow
-          fireAt={upcoming.fireAt}
-          elapsedMs={elapsedMs}
-          progress={upcomingProg}
-          ariaBarLabel="Time until this mechanic"
-        />
 
-        <div className="timeline-carousel-group-lines timeline-carousel-group-lines--cards">
+        <div className="timeline-carousel-group-lines timeline-carousel-group-lines--inline-rows">
           {upcoming.entries.map((q) => (
-            <RunQueueMechanicCard
+            <RunQueueMechanicRow
               key={q.entry.key}
               fight={fight}
               q={q}
               tagBoss={showBossTag(upcoming.entries)}
+              fireAt={upcoming.fireAt}
+              elapsedMs={elapsedMs}
+              ariaLabel="Upcoming mechanic"
             />
           ))}
         </div>
@@ -181,24 +180,20 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
       {stackGroups.length > 0 ? (
         <div className="timeline-carousel-stack">
           {stackGroups.map((g, gi) => {
-            const prog = sequentialGroupProgress(groups, gi + 1, elapsedMs)
             return (
               <div key={groupDomKey(g)} className="timeline-carousel-stack-row">
-                <span className="timeline-carousel-cue muted">{gi === 0 ? 'Next' : 'Then'}</span>
-                <RunQueueTimingRow
-                  fireAt={g.fireAt}
-                  elapsedMs={elapsedMs}
-                  progress={prog}
-                  compactBar
-                  ariaBarLabel={gi === 0 ? 'Time until next wave' : 'Time until later wave'}
-                />
-                <div className="timeline-carousel-group-lines timeline-carousel-group-lines--cards">
-                  {g.entries.map((q) => (
-                    <RunQueueMechanicCard
+                <div className="timeline-carousel-group-lines timeline-carousel-group-lines--inline-rows">
+                  {g.entries.map((q, idx) => (
+                    <RunQueueMechanicRow
                       key={q.entry.key}
                       fight={fight}
                       q={q}
                       tagBoss={showBossTag(g.entries)}
+                      fireAt={g.fireAt}
+                      elapsedMs={elapsedMs}
+                      compact
+                      rowCue={idx === 0 ? (gi === 0 ? 'Next' : 'Then') : undefined}
+                      ariaLabel={gi === 0 ? 'Next wave' : 'Later wave'}
                     />
                   ))}
                 </div>
