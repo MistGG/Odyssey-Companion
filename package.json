@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",
     "pack": "npm run prepare:dps-python && npm run build && electron-builder --win",
-    "release": "npm run prepare:dps-python && npm run build && electron-builder --win --publish always"
+    "release": "npm run prepare:dps-python && npm run build && electron-builder --win --publish always",
+    "release:overwrite": "cross-env EP_GH_IGNORE_TIME=true npm run release"
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
