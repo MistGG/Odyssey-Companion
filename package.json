@@ -72,7 +72,8 @@
     "publish": {
       "provider": "github",
       "owner": "MistGG",
-      "repo": "Odyssey-Companion"
+      "repo": "Odyssey-Companion",
+      "releaseType": "release"
     }
   }
 }
