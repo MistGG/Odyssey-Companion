@@ -59,6 +59,6 @@ finally {
 
 Remove-Item $GetPip -ErrorAction SilentlyContinue
 
-& $PyExe -c "import pymem; print('pymem OK:', pymem.__version__)" 2>&1 | Write-Host
+& $PyExe -c "import pymem; print('pymem OK')" 2>&1 | Write-Host
 
 Write-Host "[prepare-embedded-python] Done. Bundled runtime at:`n  $Dest"
