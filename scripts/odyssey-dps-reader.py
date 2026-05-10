@@ -6,11 +6,16 @@ stdin commands (line-based, case-insensitive):
   DEBUG_ON    — emit debug_parse JSON for each candidate line + each hit
   DEBUG_OFF   — stop debug noise
   DUMP        — one-shot full buffer snapshot on next read cycle
+
+Environment:
+  ODYSSEY_GAME_WINDOW_TITLE — substring to match the game window title (default: Digital Odyssey).
+    Example title: "Digital Odyssey (0.0.1)" — the version in parentheses can change; only the substring must match.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import threading
@@ -34,6 +39,172 @@ except ImportError:
 PROCESS_NAME = "client.exe"
 BASE_OFFSET = 0x00A81A30
 OFFSETS = [0x448, 0xA0]
+
+# Prefer processes whose visible window title contains this (case-insensitive). Patch/version suffix in the title is OK.
+GAME_WINDOW_TITLE_SUBSTR = (os.environ.get("ODYSSEY_GAME_WINDOW_TITLE") or "Digital Odyssey").strip()
+
+
+def _pids_from_visible_window_title_substring(substr: str) -> list[int]:
+    """
+    PIDs that own at least one visible top-level window whose title contains `substr`.
+    Used to pick the real game when several client.exe processes exist (launcher, etc.).
+    """
+    if sys.platform != "win32":
+        return []
+    s = substr.strip()
+    if not s:
+        return []
+
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    needle = s.casefold()
+    found: list[int] = []
+    seen: set[int] = set()
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def _enum(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        gl = user32.GetWindowTextLengthW(hwnd)
+        if gl <= 0:
+            return True
+        buf = ctypes.create_unicode_buffer(gl + 1)
+        user32.GetWindowTextW(hwnd, buf, gl + 1)
+        if needle not in buf.value.casefold():
+            return True
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value and pid.value not in seen:
+            seen.add(pid.value)
+            found.append(pid.value)
+        return True
+
+    user32.EnumWindows(_enum, 0)
+    return found
+
+
+def client_pids_matching_game_window(among: list[int]) -> list[int]:
+    """Intersection of client.exe PIDs and PIDs that have a matching game window title."""
+    if not GAME_WINDOW_TITLE_SUBSTR:
+        return []
+    allowed = set(among)
+    return [p for p in _pids_from_visible_window_title_substring(GAME_WINDOW_TITLE_SUBSTR) if p in allowed]
+
+
+def enumerate_client_exe_pids() -> list[int]:
+    """All PIDs whose image name is client.exe (launchers/updaters often reuse the same exe name)."""
+    from pymem.process import list_processes
+
+    seen: set[int] = set()
+    ordered: list[int] = []
+    target = PROCESS_NAME.lower()
+    for pe in list_processes():
+        try:
+            raw = pe.szExeFile
+            if isinstance(raw, (bytes, bytearray)):
+                exe = raw.decode("utf-8", errors="ignore")
+            else:
+                exe = str(raw)
+        except Exception:
+            continue
+        base = exe.replace("/", "\\").split("\\")[-1].lower()
+        if base != target:
+            continue
+        pid = int(pe.th32ProcessID)
+        if pid not in seen:
+            seen.add(pid)
+            ordered.append(pid)
+    return ordered
+
+
+def attach_preferred_pm(pids: list[int] | None = None) -> tuple[pymem.Pymem, dict]:
+    """
+    pymem.Pymem(\"client.exe\") opens whichever matching process the OS enumerates first — not stable
+    when several client.exe exist (launcher, zombie session). Prefer PIDs whose main window title matches
+    the game (see GAME_WINDOW_TITLE_SUBSTR), then the PID whose pointer chain resolves.
+    """
+    if pids is None:
+        pids = enumerate_client_exe_pids()
+    title_pids = client_pids_matching_game_window(pids)
+    if title_pids:
+        rest = [x for x in pids if x not in set(title_pids)]
+        scan_order = title_pids + rest
+    else:
+        scan_order = list(pids)
+
+    meta: dict = {
+        "candidate_pids": list(pids),
+        "chosen_pid": None,
+        "pick_method": None,
+        "window_title_substr": GAME_WINDOW_TITLE_SUBSTR or None,
+        "pids_matching_window_title": title_pids,
+    }
+
+    if not pids:
+        raise RuntimeError(f"No {PROCESS_NAME} process found — start the game first.")
+
+    last_open_error: str | None = None
+    for pid in scan_order:
+        pm: pymem.Pymem | None = None
+        try:
+            pm = pymem.Pymem(pid)
+        except Exception as e:
+            last_open_error = str(e)
+            continue
+        try:
+            if get_ptr_addr(pm) is not None:
+                meta["chosen_pid"] = pid
+                meta["pick_method"] = "pointer_chain"
+                meta["used_window_title_hint"] = bool(title_pids) and pid in title_pids
+                emit(
+                    {
+                        "type": "reader_attach",
+                        "chosen_pid": pid,
+                        "candidate_pids": pids,
+                        "candidate_scan_order": scan_order,
+                        "pick_method": "pointer_chain",
+                        "window_title_substr": meta["window_title_substr"],
+                        "pids_matching_window_title": title_pids,
+                        "used_window_title_hint": meta["used_window_title_hint"],
+                    }
+                )
+                return pm, meta
+        except Exception:
+            pass
+        try:
+            if pm is not None:
+                pm.close_process()
+        except Exception:
+            pass
+
+    for pid in scan_order:
+        try:
+            pm = pymem.Pymem(pid)
+            meta["chosen_pid"] = pid
+            meta["pick_method"] = "first_open_only"
+            meta["used_window_title_hint"] = bool(title_pids) and pid in title_pids
+            emit(
+                {
+                    "type": "reader_attach",
+                    "chosen_pid": pid,
+                    "candidate_pids": pids,
+                    "candidate_scan_order": scan_order,
+                    "pick_method": "first_open_only",
+                    "window_title_substr": meta["window_title_substr"],
+                    "pids_matching_window_title": title_pids,
+                    "used_window_title_hint": meta["used_window_title_hint"],
+                }
+            )
+            return pm, meta
+        except Exception as e:
+            last_open_error = str(e)
+
+    detail = last_open_error or "unknown"
+    raise RuntimeError(
+        f"Could not open any {PROCESS_NAME} (tried PIDs {pids}). Last error: {detail}"
+    )
 
 reset_flag = threading.Event()
 dump_requested = threading.Event()
@@ -228,10 +399,38 @@ def emit_debug_parse(
     emit(payload)
 
 
-def run_loop(pm: pymem.Pymem) -> None:
-    last_log_line = prime_last_line(pm)
+def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
+    # One snapshot seeds last_log_line and tells us if offsets still match this client build.
+    snap0 = snap_combat_buffer(pm)
+    last_log_line = ""
+    if snap0:
+        _, _, parts0 = snap0
+        best0 = pick_best_part(parts0) if parts0 else None
+        last_log_line = best0 if best0 else ""
 
-    emit({"type": "status", "status": "connected", "message": "Pointer sync active"})
+    multi_pid = attach_meta and len(attach_meta.get("candidate_pids") or []) > 1
+
+    if snap0 is None:
+        extra = (
+            " Several client.exe processes were running — close launcher/zombie instances and reconnect if this persists."
+            if multi_pid
+            else ""
+        )
+        emit(
+            {
+                "type": "status",
+                "status": "warning",
+                "message": (
+                    "Connected to client.exe, but the combat-log pointer chain failed (invalid memory). "
+                    "After a game patch, BASE_OFFSET / OFFSETS in this script usually need updating — "
+                    "DPS will stay at 0 until then. This is not fixed by Run as administrator."
+                    + extra
+                ),
+            }
+        )
+    else:
+        # Quiet success: UI shows hits only (no "reading combat log" / PID copy).
+        emit({"type": "status", "status": "connected", "message": ""})
 
     while True:
         if reset_flag.is_set():
@@ -388,27 +587,30 @@ def run_loop(pm: pymem.Pymem) -> None:
 
 
 def main() -> None:
-    emit(
-        {
-            "type": "status",
-            "status": "starting",
-            "message": f"Attaching to {PROCESS_NAME}…",
-        }
-    )
+    pids = enumerate_client_exe_pids()
+    emit({"type": "status", "status": "starting", "message": ""})
+
     try:
-        pm = pymem.Pymem(PROCESS_NAME)
+        pm, attach_meta = attach_preferred_pm(pids)
+    except RuntimeError as e:
+        emit({"type": "status", "status": "error", "message": str(e)})
+        sys.exit(1)
     except Exception as e:
         emit(
             {
                 "type": "status",
                 "status": "error",
-                "message": f"Could not open {PROCESS_NAME}: {e}",
+                "message": (
+                    f"Could not open {PROCESS_NAME}: {e}. "
+                    "Try: right-click Odyssey Companion → Run as administrator (or run game + companion both normal, not mixed). "
+                    "Check antivirus/Windows Security. Close extra client.exe (launcher/updater) and retry."
+                ),
             }
         )
         sys.exit(1)
 
     try:
-        run_loop(pm)
+        run_loop(pm, attach_meta)
     except KeyboardInterrupt:
         pass
 

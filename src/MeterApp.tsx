@@ -69,6 +69,8 @@ export default function MeterApp() {
   const [, setTick] = useState(0)
   const [readerError, setReaderError] = useState<string | null>(null)
   const [readerHint, setReaderHint] = useState<string | null>(null)
+  /** Distinct from errors: warning = offsets/patch likely; info = normal status line. */
+  const [readerHintKind, setReaderHintKind] = useState<'info' | 'warning'>('info')
 
   hitsRef.current = hits
   sessionStartMsRef.current = sessionStartMs
@@ -257,7 +259,8 @@ export default function MeterApp() {
     const api = window.odysseyCompanion
     if (!api?.startMeterReader || !api.onMeterTelemetry) return
 
-    setReaderHint('Starting reader…')
+    setReaderHintKind('info')
+    setReaderHint(null)
     void api.startMeterReader().then((r) => {
       if (!r.ok) {
         setReaderError(r.error ?? 'Could not start DPS reader')
@@ -274,6 +277,9 @@ export default function MeterApp() {
       if (o.type === 'debug_parse') {
         return
       }
+      if (o.type === 'reader_attach') {
+        return
+      }
       if (isHitMessage(msg)) {
         setFrozenHits(null)
         lastHitMsRef.current = Date.now()
@@ -287,11 +293,20 @@ export default function MeterApp() {
           setReaderError(o.message)
         } else if (o.status === 'connected') {
           setReaderError(null)
-          setReaderHint(typeof o.message === 'string' ? o.message : 'Reading combat log')
+          setReaderHintKind('info')
+          const m = typeof o.message === 'string' ? o.message.trim() : ''
+          setReaderHint(m.length > 0 ? m : null)
+        } else if (o.status === 'warning' && typeof o.message === 'string') {
+          setReaderError(null)
+          setReaderHintKind('warning')
+          setReaderHint(o.message)
         } else if (o.status === 'stopped') {
+          setReaderHintKind('info')
           setReaderHint('Reader stopped')
         } else if (o.status === 'starting') {
-          setReaderHint(typeof o.message === 'string' ? o.message : 'Connecting…')
+          setReaderHintKind('info')
+          const m = typeof o.message === 'string' ? o.message.trim() : ''
+          setReaderHint(m.length > 0 ? m : null)
         }
       }
     })
@@ -350,6 +365,7 @@ export default function MeterApp() {
     const api = window.odysseyCompanion
     if (!api?.stopMeterReader || !api.startMeterReader) return
     setReaderError(null)
+    setReaderHintKind('info')
     setReaderHint('Reconnecting…')
     void api.stopMeterReader().then(() => {
       void api.startMeterReader?.().then((r) => {
@@ -509,13 +525,28 @@ export default function MeterApp() {
               {readerError}
               <span className="muted meter-banner-sub">
                 {' '}
-                Game (<code>client.exe</code>) running. From-source: Python +{' '}
-                <code>pip install -r scripts/requirements-dps.txt</code> — installers bundle Python + pymem.
+                {/could not open|attach to client/i.test(readerError) ? (
+                  <>
+                    This is usually <strong>Windows blocking access</strong> to the game (run Companion as admin,
+                    match elevation with the game, or allow in antivirus)—not a missing Python install; the installer
+                    bundles Python.
+                  </>
+                ) : (
+                  <>
+                    Game (<code>client.exe</code>) must be running. From-source dev:{' '}
+                    <code>pip install -r scripts/requirements-dps.txt</code>. Installers bundle Python + pymem.
+                  </>
+                )}
               </span>
             </p>
           ) : null}
           {!readerError && readerHint ? (
-            <p className="meter-banner meter-banner--info muted meter-banner--compact">{readerHint}</p>
+            <p
+              className={`meter-banner meter-banner--${readerHintKind} muted meter-banner--compact`}
+              role={readerHintKind === 'warning' ? 'status' : undefined}
+            >
+              {readerHint}
+            </p>
           ) : null}
 
           <div className="meter-stats-row meter-stats-row--compact">

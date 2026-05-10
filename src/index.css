@@ -2402,6 +2402,12 @@ select {
   margin: 0 0 8px;
 }
 
+.meter-banner--warning {
+  margin: 0 0 8px;
+  background: rgba(255, 180, 60, 0.12);
+  border: 1px solid rgba(255, 190, 90, 0.4);
+}
+
 .meter-banner-sub {
   display: block;
   margin-top: 6px;
