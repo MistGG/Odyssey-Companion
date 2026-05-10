@@ -265,8 +265,9 @@ def get_ptr_addr(pm: pymem.Pymem):
         return None
 
 
-READ_BEFORE = 150
-READ_LEN = 300
+# UTF-16LE: each BMP char is 2 bytes. 300 bytes ≈ 150 chars — long names can push "damage" / digits out of window.
+READ_BEFORE = 512
+READ_LEN = 1024
 
 
 def snap_combat_buffer(pm: pymem.Pymem):
@@ -383,7 +384,7 @@ def emit_debug_parse(
         "type": "debug_parse",
         "phase": phase,
         "target_addr_hex": hex(target_addr) if target_addr else None,
-        "read_window": "bytes[target-150 : target+150] (300 bytes)",
+        "read_window": f"bytes[target-{READ_BEFORE} : target+{READ_LEN - READ_BEFORE}] ({READ_LEN} bytes UTF-16LE window)",
         "decoded_len": len(decoded),
         "decoded_tail": trunc(decoded[-1400:], 1400),
         "null_segment_count": len(null_segments),
