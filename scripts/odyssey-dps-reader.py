@@ -265,9 +265,9 @@ def get_ptr_addr(pm: pymem.Pymem):
         return None
 
 
-# UTF-16LE: each BMP char is 2 bytes. 300 bytes ≈ 150 chars — long names can push "damage" / digits out of window.
-READ_BEFORE = 512
-READ_LEN = 1024
+# UTF-16LE: 2 bytes per BMP char. Keep window modest — larger reads often cross unmapped pages and break read_bytes.
+READ_BEFORE = 150
+READ_LEN = 300
 
 
 def snap_combat_buffer(pm: pymem.Pymem):
