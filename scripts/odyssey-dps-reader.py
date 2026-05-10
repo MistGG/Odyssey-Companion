@@ -266,8 +266,68 @@ def get_ptr_addr(pm: pymem.Pymem):
 
 
 # UTF-16LE: 2 bytes per BMP char. Keep window modest — larger reads often cross unmapped pages and break read_bytes.
-READ_BEFORE = 150
-READ_LEN = 300
+# Slightly wider slice so "Attacked [ Skill ]" often stays in view before "… inflicted damage to [ …" wrap rows.
+READ_BEFORE = 200
+READ_LEN = 360
+
+# Same logical line can reappear across reads when the BATTLE window reflows on resize; skip re-emit.
+_HIT_DEDUPE_SEC = 0.75
+_recent_hit_sigs: list[tuple[float, int, str]] = []
+
+
+def is_recent_duplicate_hit(damage: int, final_line: str) -> bool:
+    global _recent_hit_sigs
+    now = time.monotonic()
+    norm = re.sub(r"\s+", " ", final_line.strip().lower())
+    _recent_hit_sigs = [
+        (t, d, s) for t, d, s in _recent_hit_sigs if now - t < _HIT_DEDUPE_SEC
+    ]
+    for _t, d, s in _recent_hit_sigs:
+        if d == damage and s == norm:
+            return True
+    return False
+
+
+def record_hit_for_dedupe(damage: int, final_line: str) -> None:
+    global _recent_hit_sigs
+    now = time.monotonic()
+    norm = re.sub(r"\s+", " ", final_line.strip().lower())
+    _recent_hit_sigs.append((now, damage, norm))
+
+
+def scrub_log_segment(s: str) -> str:
+    """Remove embedded NULs (padding / torn UTF-16) so \"[ MarineDevimon \\x00...\" parses as one name."""
+    return s.replace("\x00", "").strip()
+
+
+def normalize_log_line_for_parse(s: str) -> str:
+    """
+    Skip junk codepoints often seen immediately before the real UTF-16 text in the read window
+    (e.g. \"៎竛 蠁attacked [ Double Impact ] …\" → starts at \"attacked [\").
+    Repair torn UTF-16 heads: \"ttacked [\", \"tacked [\" → \"attacked [\" (\"ked [\" left as-is).
+    """
+    t = s.strip()
+    m = re.search(r"(?i)(attacked\s*\[|ttacked\s*\[|tacked\s*\[|ked\s*\[)", t)
+    if not m:
+        return t
+    frag = t[m.start() :].strip()
+    if re.match(r"(?i)ttacked\s*\[", frag):
+        return "a" + frag
+    if re.match(r"(?i)tacked\s*\[", frag) and not frag.lower().startswith("attacked"):
+        return "at" + frag
+    return frag
+
+
+def is_orphan_inflicted_tail(s: str) -> bool:
+    """
+    Standalone \"and inflicted damage to [ Target ] of N\" with no \"attacked [\" — appears when the ring buffer
+    shows only the tail of a skill line (same digits as Double Impact etc.). Must not emit as a separate Auto Attack hit.
+    Wrap-merge heads are incomplete (no 'of N') and do not match here.
+    """
+    t = s.strip()
+    if not re.match(r"(?i)^and\s+inflicted\s+damage\s+to\s+\[", t):
+        return False
+    return extract_damage_match(t) is not None
 
 
 def snap_combat_buffer(pm: pymem.Pymem):
@@ -282,11 +342,10 @@ def snap_combat_buffer(pm: pymem.Pymem):
     try:
         data = pm.read_bytes(target_addr - READ_BEFORE, READ_LEN)
         decoded = data.decode("utf-16le", errors="ignore")
-        parts = [
-            p.strip()
-            for p in decoded.split("\x00")
-            if "damage" in p.lower() and "[" in p
-        ]
+        raw = [scrub_log_segment(p) for p in decoded.split("\x00") if scrub_log_segment(p)]
+        fragments = [p for p in raw if is_damage_log_fragment(p)]
+        merged = merge_wrapped_damage_fragments_stable(fragments)
+        parts = [normalize_log_line_for_parse(p) for p in merged]
         return target_addr, decoded, parts
     except Exception:
         return None
@@ -297,24 +356,22 @@ def is_probable_full_combat_line(s: str) -> bool:
     Skip UTF-16 window tears: mid-write segments often lose the leading \"Attac\" so we see
     \"th Fists ]\", \"her! ]\", \"nger ]\" — same damage as the real line but misclassified as Auto Attack.
     Full lines start with \"Attacked [\" or \"attacked [\" (client varies); torn UTF-16 segments use \"ked [\".
+    Also accept an *incomplete* window-clipped wrap head \"… and inflicted damage to [ …\" (no \"of N\" yet) for merging.
+    Reject complete orphan tails \"and inflicted damage to [ T ] of N\" without \"attacked [\" — duplicate of a skill line.
     """
-    t = s.strip()
+    t = normalize_log_line_for_parse(s)
     if len(t) < 24:
+        return False
+    if is_orphan_inflicted_tail(t):
         return False
     head = t[:20].lstrip()
     hl = head.lower()
     tl = t.lower()
-    return hl.startswith("ked [") or hl.startswith("ked[") or tl.startswith("attacked [")
-
-
-def pick_best_part(parts: list[str]) -> str | None:
-    """Prefer complete-looking segments; ignore trailing UTF-16 fragments in the same window."""
-    if not parts:
-        return None
-    good = [p for p in parts if is_probable_full_combat_line(p)]
-    if good:
-        return good[-1]
-    return None
+    if hl.startswith("ked [") or hl.startswith("ked[") or tl.startswith("attacked ["):
+        return True
+    if "inflicted damage to" in tl and "[" in t:
+        return extract_damage_match(t) is None
+    return False
 
 
 def extract_damage_match(final_line: str) -> re.Match | None:
@@ -338,6 +395,93 @@ def extract_damage_match(final_line: str) -> re.Match | None:
     return re.search(r"damage\s+to\s+\[[^\]]*\]\s+of\s+(\d+)", final_line, re.IGNORECASE)
 
 
+def skill_target_from_brackets(final_line: str, brackets: list[str]) -> tuple[str, str] | None:
+    """
+    Map bracket groups to meter skill/target.
+    One visible bracket (common on crit lines like \"attacked [ MarineDevimon ] … critical damage of N\")
+    is the target; real skill is not in the string — count as Auto Attack (same as in-game auto).
+    """
+    if len(brackets) < 1:
+        return None
+    if len(brackets) == 1:
+        return ("Auto Attack", brackets[0])
+    return (brackets[0], brackets[-1])
+
+
+def is_damage_log_fragment(s: str) -> bool:
+    """
+    Rows we keep from the UTF-16 null split for combat parsing.
+    Includes UI-wrapped second rows like \"n ] of 72000\" / \"] of 72000\" — they have no word \"damage\"
+    but belong to the same logical hit as the previous row.
+    """
+    t = s.strip()
+    if not t:
+        return False
+    tl = t.lower()
+    if "[" in t and "damage" in tl:
+        return True
+    if re.search(r"\]\s*of\s+\d+", t):
+        return True
+    return False
+
+
+def merge_wrapped_damage_fragments(ordered: list[str]) -> list[str]:
+    """
+    Join consecutive BATTLE-log rows when the UI wrapped one message across two null-terminated strings.
+    Example: \"...damage to [ MarineDevimo\" + \"n ] of 72000\" -> one line that extract_damage_match accepts.
+    """
+    if len(ordered) < 2:
+        return ordered
+    out: list[str] = []
+    i = 0
+    while i < len(ordered):
+        a = ordered[i]
+        if i + 1 < len(ordered):
+            b = ordered[i + 1]
+            joined = a + b
+            if (
+                is_probable_full_combat_line(a)
+                and not extract_damage_match(a)
+                and extract_damage_match(joined)
+                and re.search(r"\]\s*of\s+\d+", b, re.IGNORECASE)
+            ):
+                out.append(joined)
+                i += 2
+                continue
+        out.append(a)
+        i += 1
+    return out
+
+
+def merge_wrapped_damage_fragments_stable(ordered: list[str]) -> list[str]:
+    """Repeat pair-merge until fixed point (handles rare triple-row wraps)."""
+    cur = ordered
+    for _ in range(4):
+        nxt = merge_wrapped_damage_fragments(cur)
+        if nxt == cur:
+            return nxt
+        cur = nxt
+    return cur
+
+
+def pick_best_part(parts: list[str]) -> str | None:
+    """
+    Prefer the longest segment that both looks like a combat line and parses a damage value.
+    UI-wrapped log heads (no '] of N') or tail fragments fail extract_damage_match; taking good[-1]
+    used to flip on window resize and re-emit the same hit many times.
+    """
+    if not parts:
+        return None
+    good = [
+        p.strip()
+        for p in parts
+        if is_probable_full_combat_line(p) and extract_damage_match(p)
+    ]
+    if good:
+        return max(good, key=len)
+    return None
+
+
 def prime_last_line(pm: pymem.Pymem) -> str:
     snap = snap_combat_buffer(pm)
     if not snap:
@@ -348,15 +492,21 @@ def prime_last_line(pm: pymem.Pymem) -> str:
 
 
 def pick_skill_line(parts, current_line: str):
+    """If several parts share the same damage digit, prefer the longest (usually contains the skill name)."""
+    candidates: list[str] = []
     for p in parts:
         if not is_probable_full_combat_line(p):
+            continue
+        if not extract_damage_match(p):
             continue
         if p.count("[") < 2:
             continue
         m = re.search(r"of\s+(\d+)", p, re.IGNORECASE)
         if m and m.group(1) in current_line:
-            return p
-    return None
+            candidates.append(p)
+    if not candidates:
+        return None
+    return max(candidates, key=len)
 
 
 def emit_debug_parse(
@@ -378,7 +528,9 @@ def emit_debug_parse(
     """Structured dump so the Electron meter can show why a hit was classified."""
     null_segments = decoded.split("\x00")
     damageish_segments = [
-        i for i, seg in enumerate(null_segments) if "damage" in seg.lower()
+        i
+        for i, seg in enumerate(null_segments)
+        if "damage" in seg.lower() or re.search(r"\]\s*of\s+\d+", seg)
     ]
     payload = {
         "type": "debug_parse",
@@ -400,7 +552,7 @@ def emit_debug_parse(
         "bracket_count": len(brackets or []),
         "derived_skill": skill,
         "derived_target": target,
-        "skill_rule": ">=2 bracket groups → first=skill, last=target; else Auto Attack + last=target",
+        "skill_rule": ">=2 brackets → first=skill, last=target; 1 bracket → Auto Attack + that bracket=target",
         "note": note,
     }
     emit(payload)
@@ -442,6 +594,7 @@ def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
     while True:
         if reset_flag.is_set():
             reset_flag.clear()
+            _recent_hit_sigs.clear()
             last_log_line = prime_last_line(pm)
             emit({"type": "reset_ack"})
             time.sleep(0.05)
@@ -476,7 +629,14 @@ def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
                     target_addr=target_addr,
                     decoded=decoded,
                     parts=parts,
-                    current_line=best if best else (parts[-1] if parts else ""),
+                    current_line=(
+                        best
+                        if best
+                        else (
+                            "(pick_best_part returned none — no parsable combat line; "
+                            "see parts_filtered; wrap tails are merged when possible)"
+                        )
+                    ),
                     last_log_line=last_log_line,
                     skill_version=None,
                     final_line=None,
@@ -484,7 +644,7 @@ def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
                     brackets=None,
                     skill=None,
                     target=None,
-                    note="Manual DUMP — pick_best_part when possible else raw tail segment",
+                    note="Manual DUMP — current_line is pick_best_part only (not a misleading raw fragment)",
                 )
                 dump_requested.clear()
 
@@ -510,12 +670,9 @@ def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
 
                 val_match = extract_damage_match(final_line)
 
-                skill_guess = (
-                    (brackets[0] if len(brackets) >= 2 else "Auto Attack")
-                    if brackets
-                    else None
-                )
-                target_guess = brackets[-1] if brackets else None
+                st_pair = skill_target_from_brackets(final_line, brackets)
+                skill_guess = st_pair[0] if st_pair else None
+                target_guess = st_pair[1] if st_pair else None
 
                 if is_debug():
                     emit_debug_parse(
@@ -538,38 +695,42 @@ def run_loop(pm: pymem.Pymem, attach_meta: dict | None = None) -> None:
                     val = int(val_match.group(1))
 
                     if len(brackets) >= 1:
-                        skill = brackets[0] if len(brackets) >= 2 else "Auto Attack"
-                        target = brackets[-1]
+                        pair = skill_target_from_brackets(final_line, brackets)
+                        skill, target = pair if pair else ("Unknown", brackets[0])
                         is_crit = "critical" in final_line.lower()
 
-                        emit(
-                            {
-                                "type": "hit",
-                                "skill": skill,
-                                "target": target,
-                                "damage": val,
-                                "crit": is_crit,
-                            }
-                        )
-
-                        if is_debug():
-                            emit_debug_parse(
-                                phase="hit",
-                                target_addr=target_addr,
-                                decoded=decoded,
-                                parts=parts,
-                                current_line=current_line,
-                                last_log_line=last_log_line,
-                                skill_version=skill_version,
-                                final_line=final_line,
-                                val_match=val_match,
-                                brackets=brackets,
-                                skill=skill,
-                                target=target,
-                                note="Emitted hit — compare candidate vs final_line if misclassified",
+                        if is_recent_duplicate_hit(val, final_line):
+                            last_log_line = current_line
+                        else:
+                            emit(
+                                {
+                                    "type": "hit",
+                                    "skill": skill,
+                                    "target": target,
+                                    "damage": val,
+                                    "crit": is_crit,
+                                }
                             )
+                            record_hit_for_dedupe(val, final_line)
 
-                        last_log_line = current_line
+                            if is_debug():
+                                emit_debug_parse(
+                                    phase="hit",
+                                    target_addr=target_addr,
+                                    decoded=decoded,
+                                    parts=parts,
+                                    current_line=current_line,
+                                    last_log_line=last_log_line,
+                                    skill_version=skill_version,
+                                    final_line=final_line,
+                                    val_match=val_match,
+                                    brackets=brackets,
+                                    skill=skill,
+                                    target=target,
+                                    note="Emitted hit — compare candidate vs final_line if misclassified",
+                                )
+
+                            last_log_line = current_line
         except Exception as ex:
             if need_dump:
                 emit(

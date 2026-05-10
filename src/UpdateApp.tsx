@@ -139,9 +139,18 @@ export default function UpdateApp() {
         {phase === 'downloading' ? (
           <>
             <p className="update-lead">Downloading update…</p>
-            <div className="update-progress-wrap" role="progressbar" aria-valuenow={percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
+            <div
+              className="update-progress-wrap"
+              role="progressbar"
+              aria-valuenow={percent ?? 0}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div className="update-progress-track">
-                <div className="update-progress-fill" style={{ width: `${Math.min(100, Math.max(0, percent ?? 0))}%` }} />
+                <div
+                  className="update-progress-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, percent ?? 0))}%` }}
+                />
               </div>
               <p className="update-progress-meta muted">
                 {percent != null ? `${percent}%` : ''}

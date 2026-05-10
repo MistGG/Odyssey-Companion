@@ -555,7 +555,7 @@ export default function MeterApp() {
               <span className="meter-stat-value">{formatInt(dps)}</span>
             </div>
             <div className="meter-stat meter-stat--compact">
-              <span className="meter-stat-label">Tot</span>
+              <span className="meter-stat-label">TOTAL</span>
               <span className="meter-stat-value meter-stat-value--accent">{formatInt(totalDamage)}</span>
             </div>
             <div className="meter-stat meter-stat--compact">
