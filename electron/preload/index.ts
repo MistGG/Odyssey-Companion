@@ -112,4 +112,19 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   getLatestReleaseNotes: () =>
     ipcRenderer.invoke('updater:latest-release-notes'),
+
+  getUpdaterUiState: () => ipcRenderer.invoke('updater:get-ui-state'),
+
+  onUpdaterState: (handler: (state: unknown) => void) => {
+    const wrapped = (_evt: unknown, payload: unknown) => handler(payload)
+    ipcRenderer.on('updater:state', wrapped)
+    return () => ipcRenderer.removeListener('updater:state', wrapped)
+  },
+
+  confirmUpdaterDownload: () =>
+    ipcRenderer.invoke('updater:confirm-download') as Promise<{ ok: true } | { ok: false; error: string }>,
+
+  quitAndInstall: () => ipcRenderer.invoke('updater:quit-and-install') as Promise<boolean>,
+
+  dismissUpdateWindow: () => ipcRenderer.invoke('updater:dismiss-update-window') as Promise<boolean>,
 })

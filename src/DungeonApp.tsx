@@ -345,11 +345,15 @@ export default function DungeonApp() {
     if (!api || !updateOffer?.setupDownloadUrl) return
     const r = await api.downloadUpdate(updateOffer.setupDownloadUrl)
     if (!r.ok) {
-      alert(r.error)
+      setUpdateCheckLine(r.error ?? 'Download failed')
+      return
+    }
+    if (r.mode === 'auto-updater') {
+      setUpdateCheckLine('Downloading… — watch the update window for progress.')
       return
     }
     if (r.mode === 'browser' || r.mode === 'browser-fallback') {
-      alert('Download started in your browser. Run the installer when it finishes.')
+      setUpdateCheckLine('Opened the installer in your browser. Run it when the download finishes.')
     }
   }, [updateOffer?.setupDownloadUrl])
 

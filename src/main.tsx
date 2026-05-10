@@ -5,6 +5,7 @@ import { getPanel } from './panel'
 import DungeonApp from './DungeonApp'
 import TimelineApp from './TimelineApp'
 import MeterApp from './MeterApp'
+import UpdateApp from './UpdateApp'
 import './index.css'
 
 const panel = getPanel()
@@ -14,8 +15,12 @@ if (panel === 'timeline') {
 if (panel === 'meter') {
   document.body.classList.add('body--meter')
 }
+if (panel === 'update') {
+  document.body.classList.add('body--update')
+}
 
-const panelLabel = panel === 'timeline' ? 'timeline' : panel === 'meter' ? 'meter' : 'dungeon'
+const panelLabel =
+  panel === 'timeline' ? 'timeline' : panel === 'meter' ? 'meter' : panel === 'update' ? 'update' : 'dungeon'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -24,6 +29,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <TimelineApp />
       ) : panel === 'meter' ? (
         <MeterApp />
+      ) : panel === 'update' ? (
+        <UpdateApp />
       ) : (
         <DungeonApp />
       )}

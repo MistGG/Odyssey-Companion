@@ -45,6 +45,11 @@ declare global {
       checkForUpdates: () => Promise<UpdateCheckResult>
       downloadUpdate: (setupExeUrl: string) => Promise<DownloadUpdateResult>
       getLatestReleaseNotes: () => Promise<LatestReleaseResult>
+      getUpdaterUiState: () => Promise<unknown>
+      onUpdaterState: (handler: (state: unknown) => void) => () => void
+      confirmUpdaterDownload: () => Promise<{ ok: true } | { ok: false; error: string }>
+      quitAndInstall: () => Promise<boolean>
+      dismissUpdateWindow: () => Promise<boolean>
     }
   }
 }

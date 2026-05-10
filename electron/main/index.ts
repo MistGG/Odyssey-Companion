@@ -3,10 +3,10 @@ import {
   Menu,
   Tray,
   app,
-  dialog,
   globalShortcut,
   ipcMain,
   nativeImage,
+  screen,
   shell,
 } from 'electron'
 import type { WebContents } from 'electron'
@@ -76,6 +76,10 @@ function wikiLog(label: string, url: string) {
 let dungeonWin: BrowserWindow | null = null
 let timelineWin: BrowserWindow | null = null
 let meterWin: BrowserWindow | null = null
+/** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
+let updateWin: BrowserWindow | null = null
+let lastUpdaterState: Record<string, unknown> | null = null
+let updateDownloadInProgress = false
 let dpsReaderProc: ChildProcess | null = null
 let dpsReaderStdoutBuf = ''
 let tray: Tray | null = null
@@ -273,6 +277,77 @@ function meterLoadUrl() {
   if (!VITE_DEV_SERVER_URL) return
   const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
   return `${base}/?panel=meter`
+}
+
+function updateLoadUrl() {
+  if (!VITE_DEV_SERVER_URL) return
+  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
+  return `${base}/?panel=update`
+}
+
+function pushUpdaterState(payload: Record<string, unknown>) {
+  lastUpdaterState = payload
+  if (updateWin && !updateWin.isDestroyed() && !updateWin.webContents.isDestroyed()) {
+    updateWin.webContents.send('updater:state', payload)
+  }
+}
+
+function centerUpdateWindow(win: BrowserWindow) {
+  const { width, height } = win.getBounds()
+  const wa = screen.getPrimaryDisplay().workArea
+  const x = Math.round(wa.x + (wa.width - width) / 2)
+  const y = Math.round(wa.y + (wa.height - height) / 2)
+  win.setPosition(x, y)
+}
+
+function showOrFocusUpdateWindow() {
+  if (updateWin && !updateWin.isDestroyed()) {
+    updateWin.show()
+    updateWin.focus()
+    if (lastUpdaterState) {
+      updateWin.webContents.send('updater:state', lastUpdaterState)
+    }
+    return
+  }
+  updateWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey Companion — Update',
+    width: 440,
+    height: 360,
+    minWidth: 400,
+    minHeight: 300,
+    ...(os.platform() === 'win32' ? { roundedCorners: false as const } : {}),
+    backgroundColor: '#00000000',
+    transparent: true,
+    frame: false,
+    show: false,
+    resizable: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+  setWinAlwaysOnTop(updateWin, true)
+  const url = updateLoadUrl()
+  if (url) {
+    void updateWin.loadURL(url)
+  } else {
+    void updateWin.loadFile(indexHtml, { query: { panel: 'update' } })
+  }
+  updateWin.once('ready-to-show', () => {
+    if (!updateWin || updateWin.isDestroyed()) return
+    centerUpdateWindow(updateWin)
+    updateWin.show()
+    updateWin.focus()
+    if (lastUpdaterState) {
+      updateWin.webContents.send('updater:state', lastUpdaterState)
+    }
+  })
+  updateWin.on('closed', () => {
+    updateWin = null
+  })
 }
 
 function wireHideInsteadOfClose(win: BrowserWindow) {
@@ -605,9 +680,11 @@ function quitFromTray() {
   if (dungeonWin && !dungeonWin.isDestroyed()) dungeonWin.destroy()
   if (timelineWin && !timelineWin.isDestroyed()) timelineWin.destroy()
   if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
+  if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
   dungeonWin = null
   timelineWin = null
   meterWin = null
+  updateWin = null
   app.quit()
 }
 
@@ -701,53 +778,46 @@ function setupAutoUpdater() {
 
   autoUpdater.autoDownload = false
 
-  autoUpdater.on('update-available', async (info) => {
+  autoUpdater.on('update-available', (info) => {
+    if (updateDownloadInProgress) return
     const notes = stripHtmlToPlainText(releaseNotesPlain(info))
-    const { response } = await dialog.showMessageBox({
-      type: 'info',
-      buttons: ['Download', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'Update available',
-      message: `Odyssey Companion ${info.version} is available.`,
-      detail: notes || undefined,
+    showOrFocusUpdateWindow()
+    pushUpdaterState({
+      phase: 'available',
+      version: info.version,
+      notes,
     })
-    if (response === 0) {
-      try {
-        await autoUpdater.downloadUpdate()
-      } catch (e) {
-        console.warn('[odyssey-companion] download failed', e)
-        void dialog.showMessageBox({
-          type: 'error',
-          title: 'Update',
-          message: 'Could not download the update.',
-          detail: String(e),
-        })
-      }
-    }
   })
 
   autoUpdater.on('update-not-available', () => {
     /* silent — optional: toast on manual check later */
   })
 
-  autoUpdater.on('error', (e) => {
-    console.warn('[odyssey-companion] updater error', e)
+  autoUpdater.on('download-progress', (p) => {
+    pushUpdaterState({
+      phase: 'downloading',
+      percent: Math.round(p.percent ?? 0),
+      transferred: p.transferred,
+      total: p.total,
+    })
   })
 
-  autoUpdater.on('update-downloaded', async (info) => {
+  autoUpdater.on('error', (e) => {
+    console.warn('[odyssey-companion] updater error', e)
+    updateDownloadInProgress = false
+    pushUpdaterState({ phase: 'error', message: String(e) })
+    showOrFocusUpdateWindow()
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    updateDownloadInProgress = false
     const notes = stripHtmlToPlainText(releaseNotesPlain(info))
-    const { response } = await dialog.showMessageBox({
-      type: 'info',
-      buttons: ['Restart now', 'Later'],
-      defaultId: 0,
-      title: 'Update ready',
-      message: 'The update has been downloaded.',
-      detail: notes ? `Changes:\n${notes}` : undefined,
+    showOrFocusUpdateWindow()
+    pushUpdaterState({
+      phase: 'ready',
+      version: info.version,
+      notes,
     })
-    if (response === 0) {
-      setImmediate(() => autoUpdater.quitAndInstall(false, true))
-    }
   })
 
   void autoUpdater.checkForUpdates().catch((e) => {
@@ -872,14 +942,28 @@ function windowFromSenderExact(sender: WebContents): BrowserWindow | undefined {
   if (meterWin && !meterWin.isDestroyed() && meterWin.webContents.id === id) {
     return meterWin
   }
+  if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
+    return updateWin
+  }
   return browserWindowForIpc(sender)
 }
 
 ipcMain.handle('window:minimize', (e) => {
+  const id = e.sender.id
+  if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
+    updateWin.minimize()
+    return true
+  }
   return hideWindowToTray(windowFromSenderExact(e.sender))
 })
 
 ipcMain.handle('window:close', (e) => {
+  const id = e.sender.id
+  if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
+    updateWin.destroy()
+    updateWin = null
+    return true
+  }
   return hideWindowToTray(windowFromSenderExact(e.sender))
 })
 
@@ -1123,13 +1207,25 @@ ipcMain.handle(
 
     if (app.isPackaged) {
       try {
+        updateDownloadInProgress = true
+        showOrFocusUpdateWindow()
+        pushUpdaterState({ phase: 'downloading', percent: 0 })
         const check = await autoUpdater.checkForUpdates()
         if (check?.isUpdateAvailable) {
           await autoUpdater.downloadUpdate()
           return { ok: true, mode: 'auto-updater' }
         }
+        updateDownloadInProgress = false
+        pushUpdaterState({
+          phase: 'error',
+          message:
+            'The auto-updater did not report a new build. Opening the installer page in your browser instead.',
+        })
       } catch (e) {
+        updateDownloadInProgress = false
+        const msg = String(e)
         console.warn('[odyssey-companion] autoUpdater download path failed', e)
+        pushUpdaterState({ phase: 'error', message: msg })
       }
       await shell.openExternal(url)
       return { ok: true, mode: 'browser-fallback' }
@@ -1139,6 +1235,45 @@ ipcMain.handle(
     return { ok: true, mode: 'browser' }
   },
 )
+
+ipcMain.handle('updater:get-ui-state', () => lastUpdaterState)
+
+ipcMain.handle(
+  'updater:confirm-download',
+  async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (!app.isPackaged) {
+      return { ok: false, error: 'Updates apply to installed builds only.' }
+    }
+    if (updateDownloadInProgress) {
+      return { ok: false, error: 'Download already in progress.' }
+    }
+    updateDownloadInProgress = true
+    showOrFocusUpdateWindow()
+    pushUpdaterState({ phase: 'downloading', percent: 0 })
+    try {
+      await autoUpdater.downloadUpdate()
+      return { ok: true }
+    } catch (e) {
+      updateDownloadInProgress = false
+      const msg = String(e)
+      pushUpdaterState({ phase: 'error', message: msg })
+      return { ok: false, error: msg }
+    }
+  },
+)
+
+ipcMain.handle('updater:quit-and-install', () => {
+  if (!app.isPackaged) return false
+  setImmediate(() => autoUpdater.quitAndInstall(false, true))
+  return true
+})
+
+ipcMain.handle('updater:dismiss-update-window', () => {
+  if (updateWin && !updateWin.isDestroyed()) {
+    updateWin.close()
+  }
+  return true
+})
 
 ipcMain.handle(
   'updater:latest-release-notes',
