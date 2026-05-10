@@ -295,13 +295,15 @@ def is_probable_full_combat_line(s: str) -> bool:
     """
     Skip UTF-16 window tears: mid-write segments often lose the leading \"Attac\" so we see
     \"th Fists ]\", \"her! ]\", \"nger ]\" — same damage as the real line but misclassified as Auto Attack.
-    Real English combat lines in this client retain \"ked [\" (Attacked [) near the start.
+    Full lines start with \"Attacked [\" or \"attacked [\" (client varies); torn UTF-16 segments use \"ked [\".
     """
     t = s.strip()
     if len(t) < 24:
         return False
     head = t[:20].lstrip()
-    return head.startswith("ked [") or head.startswith("ked[") or t.startswith("Attacked [")
+    hl = head.lower()
+    tl = t.lower()
+    return hl.startswith("ked [") or hl.startswith("ked[") or tl.startswith("attacked [")
 
 
 def pick_best_part(parts: list[str]) -> str | None:
@@ -317,8 +319,12 @@ def pick_best_part(parts: list[str]) -> str | None:
 def extract_damage_match(final_line: str) -> re.Match | None:
     """
     Order matters: crit vs normal use different templates. Avoid broad damage.*?of picking the wrong match.
+    Some builds use \"incurred damage of\" (outgoing hit wording) instead of \"inflicted damage to [X] of\".
     """
     m = re.search(r"inflicted\s+critical\s+damage\s+of\s+(\d+)", final_line, re.IGNORECASE)
+    if m:
+        return m
+    m = re.search(r"incurred\s+damage\s+of\s+(\d+)", final_line, re.IGNORECASE)
     if m:
         return m
     m = re.search(
