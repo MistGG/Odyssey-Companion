@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type {
   AppVersionInfo,
   Dungeon,
@@ -12,6 +12,8 @@ import { DEFAULT_SETTINGS } from './types'
 import { loadSettings, saveSettings } from './lib/settingsStorage'
 import { dungeonImageUrl } from './lib/dungeonImage'
 import { fetchDungeonsListCached } from './lib/dungeonsListApi'
+import { difficultyTagClassName, orderedDifficultyLabels } from './lib/dungeonDifficultyTags'
+import { bossNamesPreviewLine, dungeonDetailMatchesBossQuery } from './lib/dungeonBossPreview'
 import { fetchDungeonDetail, findDifficultyRow } from './lib/dungeonDetailApi'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
@@ -77,8 +79,12 @@ export default function DungeonApp() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return dungeons
-    return dungeons.filter((d) => d.name.toLowerCase().includes(q))
-  }, [dungeons, query])
+    return dungeons.filter((d) => {
+      if (d.name.toLowerCase().includes(q)) return true
+      const det = detailById[d.id]
+      return det ? dungeonDetailMatchesBossQuery(det, q) : false
+    })
+  }, [dungeons, query, detailById])
 
   useEffect(() => {
     saveSettings(settings)
@@ -107,6 +113,37 @@ export default function DungeonApp() {
       }
     })()
   }, [])
+
+  /**
+   * List API has no boss names — only `?id=` detail does. Prefetch details in the background
+   * (low concurrency) so cards can show bosses and search can match them without opening first.
+   */
+  useEffect(() => {
+    if (loading || loadError || dungeons.length === 0) return
+    let cancelled = false
+    const ids = dungeons.map((d) => d.id)
+    const concurrency = 3
+    const worker = async () => {
+      while (!cancelled) {
+        const id = ids.shift()
+        if (!id) break
+        try {
+          const detail = await fetchDungeonDetail(id)
+          if (cancelled) return
+          setDetailById((prev) => {
+            if (prev[id]) return prev
+            return { ...prev, [id]: detail }
+          })
+        } catch {
+          /* ignore per-dungeon failures */
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, () => worker()))
+    return () => {
+      cancelled = true
+    }
+  }, [dungeons, loading, loadError])
 
   useEffect(() => {
     if (!settingsOpen) setHotkeyListening(null)
@@ -429,7 +466,7 @@ export default function DungeonApp() {
           <div className="toolbar">
             <input
               className="search"
-              placeholder="Search dungeons by name…"
+              placeholder="Search by dungeon or boss name…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -450,48 +487,94 @@ export default function DungeonApp() {
             </div>
           )}
 
-          <div className="grid">
+          <div className="dungeon-list">
             {filtered.map((d) => {
               const url = dungeonImageUrl(d.image)
               const failed = !!imgFailed[d.id]
               const hue = hashHue(d.id)
-              const subline = d.difficulties?.length
-                ? d.difficulties.join(' · ')
-                : '—'
+              const detail = detailById[d.id]
+              const bossLine = detail ? bossNamesPreviewLine(detail) : ''
+              const titleText = bossLine || d.name
+              const diffTags = orderedDifficultyLabels(d.difficulties)
               return (
                 <button
                   key={d.id}
                   type="button"
-                  className="card"
+                  className="dungeon-list-row"
+                  style={
+                    {
+                      '--dl-hue': String(hue),
+                    } as CSSProperties
+                  }
+                  aria-label={`${titleText} — ${d.name}${diffTags.length ? ` — ${diffTags.join(', ')}` : ''}`}
                   onClick={() => {
-                setFightPanelError(null)
-                setPickedDungeonId(d.id)
-              }}
+                    setFightPanelError(null)
+                    setPickedDungeonId(d.id)
+                  }}
                 >
-                  <div
-                    className="card-art"
-                    style={{
-                      background: `linear-gradient(145deg, hsla(${hue}, 70%, 42%, 0.35), hsla(${hue}, 60%, 12%, 0.9))`,
-                    }}
-                  >
-                    {!failed ? (
-                      <img
-                        src={url}
-                        alt=""
-                        loading="lazy"
-                        onError={() =>
-                          setImgFailed((prev) => ({ ...prev, [d.id]: true }))
-                        }
-                      />
-                    ) : (
-                      <span className="card-initial" aria-hidden>
-                        {d.name.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="card-body">
-                    <div className="card-title">{d.name}</div>
-                    <div className="card-limits card-limits--faint">{subline}</div>
+                  {!failed ? (
+                    <img
+                      className="dungeon-list-row__bg-img"
+                      src={url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      aria-hidden
+                      onError={() =>
+                        setImgFailed((prev) => ({ ...prev, [d.id]: true }))
+                      }
+                    />
+                  ) : (
+                    <div className="dungeon-list-row__bg-fallback" aria-hidden />
+                  )}
+                  <div className="dungeon-list-row__scrim" aria-hidden />
+                  <div className="dungeon-list-row__inner">
+                    <div className="dungeon-list-row__thumb-wrap">
+                      {!failed ? (
+                        <img
+                          className="dungeon-list-row__thumb"
+                          src={url}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          onError={() =>
+                            setImgFailed((prev) => ({ ...prev, [d.id]: true }))
+                          }
+                        />
+                      ) : (
+                        <span className="dungeon-list-row__thumb-fallback" aria-hidden>
+                          {titleText.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="dungeon-list-row__text">
+                      {bossLine ? (
+                        <>
+                          <div className="dungeon-list-row__title" title={bossLine}>
+                            {bossLine}
+                          </div>
+                          <div className="dungeon-list-row__dungeon-name" title={d.name}>
+                            {d.name}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="dungeon-list-row__title" title={d.name}>
+                          {d.name}
+                        </div>
+                      )}
+                      {diffTags.length > 0 ? (
+                        <div className="dungeon-list-row__tags" aria-label="Difficulties">
+                          {diffTags.map((label) => (
+                            <span key={label} className={difficultyTagClassName(label)}>
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <span className="dungeon-list-row__chevron" aria-hidden>
+                      ›
+                    </span>
                   </div>
                 </button>
               )

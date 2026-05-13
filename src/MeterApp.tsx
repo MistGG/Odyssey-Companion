@@ -3,6 +3,7 @@ import type { HotkeyConfig, OverlaySettings } from './types'
 import { loadSettings, saveSettings } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
+import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
 
 export type MeterHitRow = {
   skill: string
@@ -295,7 +296,8 @@ export default function MeterApp() {
           setReaderError(null)
           setReaderHintKind('info')
           const m = typeof o.message === 'string' ? o.message.trim() : ''
-          setReaderHint(m.length > 0 ? m : null)
+          const noise = /pointer sync|sync active/i.test(m)
+          setReaderHint(m.length > 0 && !noise ? m : null)
         } else if (o.status === 'warning' && typeof o.message === 'string') {
           setReaderError(null)
           setReaderHintKind('warning')
@@ -570,14 +572,13 @@ export default function MeterApp() {
               showingFrozenBreakdown ? 'Damage by skill (last pull, until new hits)' : 'Damage by skill'
             }
           >
-            <div className="meter-breakdown-head-inline">
-              <span className="meter-breakdown-title meter-breakdown-title--inline">Skills</span>
-              {showingFrozenBreakdown ? (
+            {showingFrozenBreakdown ? (
+              <div className="meter-breakdown-head-inline meter-breakdown-head-inline--meta-only">
                 <span className="meter-breakdown-meta muted" title="Cleared when new damage arrives">
                   last
                 </span>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             <div className="meter-breakdown-table meter-breakdown-table--compact">
               <div className="meter-breakdown-colhead meter-breakdown-colhead--compact">
                 <span>Skill</span>
@@ -587,8 +588,9 @@ export default function MeterApp() {
               </div>
               <div className="meter-breakdown-scroll meter-scroll--themed meter-breakdown-scroll--compact">
                 {skillBreakdown.length === 0 ? (
-                  <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
-                    Damage rolls up here.
+                  <p className="meter-breakdown-empty meter-breakdown-empty--compact meter-breakdown-empty-hint muted">
+                    Please ensure BATTLE logs are open and stretched wide enough to avoid entries going into
+                    multiple lines.
                   </p>
                 ) : (
                   skillBreakdown.map((row) => {
@@ -598,7 +600,10 @@ export default function MeterApp() {
                       <div key={row.skill} className="meter-breakdown-row meter-breakdown-row--compact">
                         <div
                           className="meter-breakdown-bar"
-                          style={{ width: `${Math.min(100, sharePct)}%` }}
+                          style={{
+                            width: `${Math.min(100, sharePct)}%`,
+                            background: meterBarBackgroundForSkill(row.skill),
+                          }}
                           aria-hidden
                         />
                         <div className="meter-breakdown-row-grid meter-breakdown-row-grid--compact">

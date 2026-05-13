@@ -28,18 +28,21 @@ const panelLabel =
         ? 'update'
         : 'dungeon'
 
+/** Meter mounts the pymem reader in an effect — skip StrictMode so dev never double-mounts it. */
+const appTree = (
+  <ErrorBoundary panel={panelLabel}>
+    {panel === 'timeline' ? (
+      <TimelineApp />
+    ) : panel === 'meter' ? (
+      <MeterApp />
+    ) : panel === 'update' ? (
+      <UpdateApp />
+    ) : (
+      <DungeonApp />
+    )}
+  </ErrorBoundary>
+)
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary panel={panelLabel}>
-      {panel === 'timeline' ? (
-        <TimelineApp />
-      ) : panel === 'meter' ? (
-        <MeterApp />
-      ) : panel === 'update' ? (
-        <UpdateApp />
-      ) : (
-        <DungeonApp />
-      )}
-    </ErrorBoundary>
-  </React.StrictMode>,
+  panel === 'meter' ? appTree : <React.StrictMode>{appTree}</React.StrictMode>,
 )

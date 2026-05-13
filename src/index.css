@@ -75,6 +75,21 @@ body.body--update #root {
 
 .update-titlebar-drag {
   -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.update-titlebar-drag:active {
+  cursor: grabbing;
+}
+
+.shell--update .update-titlebar-drag .title-text,
+.shell--update .update-titlebar-drag .subtitle {
+  pointer-events: none;
+  user-select: none;
+}
+
+.shell--update .update-titlebar-drag .logo-dot {
+  pointer-events: none;
 }
 
 .update-body {
@@ -167,6 +182,17 @@ select {
   color: var(--bg-deep);
 }
 
+/* Dungeon shell: text in drag strip must not steal window-drag hits from Electron. */
+.shell--dungeon .titlebar-drag .title-text,
+.shell--dungeon .titlebar-drag .subtitle {
+  pointer-events: none;
+  user-select: none;
+}
+
+.shell--dungeon .titlebar-drag .logo-dot {
+  pointer-events: none;
+}
+
 .shell--dungeon {
   height: 100%;
   display: flex;
@@ -176,6 +202,30 @@ select {
   background: #070a12;
   box-shadow: 0 18px 56px rgba(0, 0, 0, 0.45);
   overflow: hidden;
+}
+
+.shell--dungeon .titlebar.titlebar--solid {
+  padding: 6px 10px 6px 12px;
+  gap: 8px;
+}
+
+.shell--dungeon .title-text strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.shell--dungeon .subtitle {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.shell--dungeon .main {
+  padding: 12px 14px 16px;
+  gap: 12px;
+}
+
+.shell--dungeon .search {
+  padding: 9px 12px;
 }
 
 .shell--timeline {
@@ -322,6 +372,18 @@ select {
   gap: 10px;
 }
 
+.titlebar-drag--inline .titlebar-inline-brand,
+.titlebar-drag--inline .titlebar-inline-title,
+.titlebar-drag--inline .titlebar-inline-context,
+.titlebar-drag--inline .titlebar-inline-sep {
+  pointer-events: none;
+  user-select: none;
+}
+
+.titlebar-drag--inline .logo-dot {
+  pointer-events: none;
+}
+
 .titlebar-inline-brand {
   display: flex;
   align-items: baseline;
@@ -372,7 +434,11 @@ select {
   min-height: 36px;
   -webkit-app-region: drag;
   user-select: none;
-  cursor: default;
+  cursor: grab;
+}
+
+.titlebar-drag:active {
+  cursor: grabbing;
 }
 
 .shell--timeline .titlebar-drag {
@@ -807,104 +873,268 @@ select {
   white-space: pre-wrap;
 }
 
-.grid {
+.dungeon-list {
   flex: 1;
   min-height: 0;
   overflow: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
   gap: 12px;
   align-content: start;
-  padding-right: 4px;
+  align-items: stretch;
+  padding: 2px 4px 10px 2px;
 }
 
-.grid::-webkit-scrollbar {
+@media (max-width: 760px) {
+  .dungeon-list {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  .dungeon-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dungeon-list::-webkit-scrollbar {
   width: 8px;
 }
-.grid::-webkit-scrollbar-thumb {
+
+.dungeon-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 99px;
 }
 
-.card {
+.dungeon-list-row {
   all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
   cursor: pointer;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition:
-    transform 0.12s ease,
-    border-color 0.12s,
-    box-shadow 0.12s;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(62, 224, 255, 0.25);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-}
-
-.card.active {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px var(--accent-dim),
-    0 16px 40px rgba(0, 0, 0, 0.45);
-}
-
-.card-art {
   position: relative;
-  aspect-ratio: 16 / 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  /* `overflow: hidden` on grid items can clamp min-size to 0 and shrink rows below content — clips thumbs/text. */
+  overflow: visible;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.32);
+  color: inherit;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.18s ease;
 }
 
-.card-art img {
+.dungeon-list-row__bg-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+  border-radius: 12px;
 }
 
-.card-initial {
-  font-size: 42px;
+.dungeon-list-row__bg-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+  border-radius: 12px;
+  background: linear-gradient(
+    125deg,
+    hsla(var(--dl-hue, 200), 72%, 38%, 0.55),
+    hsla(var(--dl-hue, 200), 55%, 12%, 0.92)
+  );
+}
+
+.dungeon-list-row__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+  border-radius: 12px;
+  background: linear-gradient(
+    105deg,
+    rgba(5, 8, 18, 0.94) 0%,
+    rgba(5, 8, 18, 0.72) 38%,
+    rgba(5, 8, 18, 0.35) 72%,
+    rgba(5, 8, 18, 0.12) 100%
+  );
+}
+
+.dungeon-list-row:is(:hover, :focus-visible) {
+  border-color: rgba(62, 224, 255, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(62, 224, 255, 0.12),
+    0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.dungeon-list-row:is(:hover, :focus-visible) .dungeon-list-row__bg-img,
+.dungeon-list-row:is(:hover, :focus-visible) .dungeon-list-row__bg-fallback {
+  opacity: 1;
+}
+
+.dungeon-list-row:is(:hover, :focus-visible) .dungeon-list-row__scrim {
+  opacity: 1;
+}
+
+.dungeon-list-row__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 13px;
+  box-sizing: border-box;
+  padding: 12px 14px 14px;
+}
+
+.dungeon-list-row__thumb-wrap {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  min-height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dungeon-list-row__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.dungeon-list-row__thumb-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 24px;
   font-weight: 700;
-  opacity: 0.45;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.card-body {
-  padding: 10px 11px 12px;
+.dungeon-list-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 2px 0 4px;
 }
 
-.card-title {
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-limits {
-  font-size: 10px;
-  line-height: 1.35;
+.dungeon-list-row__title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.38;
   color: var(--text);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.85);
 }
 
-.card-limits--faint {
-  color: var(--muted);
+.dungeon-list-row__dungeon-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.48;
+  color: rgba(210, 222, 245, 0.94);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+
+.dungeon-list-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: 6px;
+}
+
+.dungeon-diff-tag {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  line-height: 1.25;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.dungeon-diff-tag--story {
+  color: rgba(210, 255, 225, 0.98);
+  background: rgba(36, 160, 88, 0.28);
+  border-color: rgba(90, 220, 150, 0.5);
+}
+
+.dungeon-diff-tag--normal {
+  color: rgba(215, 238, 255, 0.98);
+  background: rgba(52, 118, 210, 0.3);
+  border-color: rgba(110, 185, 255, 0.52);
+}
+
+.dungeon-diff-tag--hard {
+  color: rgba(255, 228, 215, 0.98);
+  background: rgba(200, 72, 48, 0.32);
+  border-color: rgba(255, 130, 95, 0.55);
+}
+
+.dungeon-diff-tag--other {
+  color: rgba(220, 225, 240, 0.88);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dungeon-list-row__chevron {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.22);
+  transition: color 0.16s ease;
+}
+
+.dungeon-list-row:is(:hover, :focus-visible) .dungeon-list-row__chevron {
+  color: rgba(62, 224, 255, 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dungeon-list-row,
+  .dungeon-list-row__bg-img,
+  .dungeon-list-row__bg-fallback,
+  .dungeon-list-row__scrim,
+  .dungeon-list-row__chevron {
+    transition: none !important;
+  }
 }
 
 .modal-backdrop {
@@ -2129,19 +2359,25 @@ select {
   border-top-right-radius: var(--radius);
   background: rgba(6, 10, 18, calc(0.55 + var(--meter-backdrop-alpha) * 0.35));
   border-bottom-color: rgba(120, 200, 255, calc(0.08 + var(--meter-backdrop-alpha) * 0.12));
-  min-height: 46px;
+  min-height: 36px;
 }
 
 .titlebar--meter-compact {
-  min-height: 34px;
-  padding-left: 8px;
-  padding-right: 6px;
+  min-height: 28px;
+  padding: 3px 4px 3px 6px;
+  gap: 6px;
 }
 
 .titlebar-drag--meter {
   flex: 1;
   min-width: 0;
   gap: 8px;
+}
+
+.titlebar-drag--meter .meter-title-text,
+.titlebar-drag--meter .logo-dot--meter {
+  pointer-events: none;
+  user-select: none;
 }
 
 .logo-dot--meter {
@@ -2166,11 +2402,11 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
   padding: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   line-height: 0;
   color: rgba(205, 228, 255, 0.88);
   background: rgba(0, 0, 0, 0.22);
@@ -2225,8 +2461,8 @@ select {
 }
 
 .meter-body--compact {
-  padding: 6px 8px 8px;
-  gap: 6px;
+  padding: 4px 6px 6px;
+  gap: 4px;
 }
 
 .meter-banner--compact {
@@ -2412,6 +2648,10 @@ select {
   gap: 8px;
 }
 
+.meter-breakdown-head-inline--meta-only {
+  justify-content: flex-end;
+}
+
 .meter-breakdown-title--inline {
   margin: 0;
   font-size: 10px;
@@ -2459,8 +2699,16 @@ select {
 }
 
 .meter-breakdown-empty--compact {
-  margin: 10px 8px;
-  font-size: 10px;
+  margin: 12px 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.meter-breakdown-empty-hint {
+  font-weight: 500;
+  max-width: 19rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .meter-stats-row {
