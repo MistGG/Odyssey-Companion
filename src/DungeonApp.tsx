@@ -20,7 +20,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
 import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
-import { DifficultyTimelinePreview } from './components/DifficultyTimelinePreview'
+import { DungeonDifficultyDetail } from './components/DungeonDifficultyDetail'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 
 const HOTKEY_FIELDS: { label: string; slot: keyof HotkeyConfig }[] = [
@@ -131,10 +131,7 @@ export default function DungeonApp() {
         try {
           const detail = await fetchDungeonDetail(id)
           if (cancelled) return
-          setDetailById((prev) => {
-            if (prev[id]) return prev
-            return { ...prev, [id]: detail }
-          })
+          setDetailById((prev) => ({ ...prev, [id]: detail }))
         } catch {
           /* ignore per-dungeon failures */
         }
@@ -225,12 +222,11 @@ export default function DungeonApp() {
       setPrefetchLoading(true)
       setFightPanelError(null)
       try {
-        let detail = detailById[pickedDungeonId]
-        if (!detail) {
-          detail = await fetchDungeonDetail(pickedDungeonId)
-          if (cancelled) return
-          setDetailById((prev) => ({ ...prev, [detail!.id]: detail! }))
-        }
+        /* Always refetch when opening a dungeon so we never show an older trimmed in-memory
+         * snapshot (prefetch used to skip updates once an id existed). */
+        const detail = await fetchDungeonDetail(pickedDungeonId)
+        if (cancelled) return
+        setDetailById((prev) => ({ ...prev, [detail.id]: detail }))
         setDifficultyLabels(detail.difficulties.map((d) => d.difficulty))
 
         const monsterIds = [
@@ -407,7 +403,7 @@ export default function DungeonApp() {
             <span className="subtitle">
               {browseMode
                 ? 'Pick a dungeon · search and select a fight'
-                : 'Pick Story, Normal, or Hard'}
+                : 'Objectives & rewards · open timeline when ready'}
             </span>
           </div>
         </div>
@@ -591,29 +587,43 @@ export default function DungeonApp() {
             <p className="muted fight-centered">Loading dungeon detail and monster timelines…</p>
           ) : difficultyLabels.length ? (
             <div className="fight-diff-row">
-              {difficultyLabels.map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="fight-diff-card"
-                  disabled={loadingDifficulty !== null || prefetchLoading}
-                  onClick={() => void loadDifficultyToTimeline(label)}
-                >
-                  <span className="fight-diff-name">{label}</span>
-                  {loadingDifficulty === label ? (
-                    <span className="fight-diff-loading muted">Sending to timeline…</span>
-                  ) : null}
-                  <DifficultyTimelinePreview
-                    dungeonDetail={
-                      pickedDungeonId ? detailById[pickedDungeonId] : undefined
-                    }
-                    difficultyLabel={label}
-                    monsterById={monsterById}
-                    prefetchLoading={prefetchLoading}
-                  />
-                  <span className="fight-diff-action">Load</span>
-                </button>
-              ))}
+              {difficultyLabels.map((label) => {
+                const detail = pickedDungeonId
+                  ? detailById[pickedDungeonId]
+                  : undefined
+                const row = detail ? findDifficultyRow(detail, label) : undefined
+                const busy = loadingDifficulty !== null || prefetchLoading
+                return (
+                  <article key={label} className="fight-diff-card">
+                    <div className="fight-diff-card-head">
+                      <span className="fight-diff-name">{label}</span>
+                      <button
+                        type="button"
+                        className="btn primary fight-diff-timeline-btn"
+                        disabled={busy || !row}
+                        onClick={() => void loadDifficultyToTimeline(label)}
+                      >
+                        {loadingDifficulty === label
+                          ? 'Opening…'
+                          : 'Open timeline'}
+                      </button>
+                    </div>
+                    {prefetchLoading && !row ? (
+                      <p className="muted fight-diff-detail-placeholder">
+                        Loading dungeon data…
+                      </p>
+                    ) : row ? (
+                      <div className="fight-diff-detail-scroll">
+                        <DungeonDifficultyDetail row={row} />
+                      </div>
+                    ) : (
+                      <p className="muted fight-diff-detail-placeholder">
+                        No data for this difficulty.
+                      </p>
+                    )}
+                  </article>
+                )
+              })}
             </div>
           ) : (
             <p className="muted fight-centered">

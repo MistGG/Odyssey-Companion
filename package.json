@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -93,7 +93,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Further polished timeline UI allowing for a smaller UI\n- Added support to cache the dungeon list allowing for the newest dungeon to appear first\n- Made it easier to resize the timeline window"
+      "releaseNotes": "- Removed the redundant timeline after clicking into a dungeon\n- Replaced it with a clean view of rewards"
     }
   }
 }

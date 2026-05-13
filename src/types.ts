@@ -14,6 +14,35 @@ export type DungeonListResponse = {
   total_pages: number
 }
 
+export type DungeonEnterCondition = {
+  type: string
+  description: string
+}
+
+/** Boss chest / raid roll row (permille ×100 = display %, matching the wiki). */
+export type DungeonRaidRewardRoll = {
+  item_id: string
+  item_name: string
+  item_icon_id: string
+  rate_permil: number
+  min: number
+  max: number
+}
+
+export type DungeonRaidRankingBand = {
+  start: number
+  end: number
+  rewards: DungeonRaidRewardRoll[]
+}
+
+export type DungeonClearReward = {
+  rank: number
+  item_id: string
+  item_name: string
+  item_icon_id: string
+  item_count: number
+}
+
 export type DungeonObjective = {
   step: number
   monster_id: string
@@ -22,6 +51,7 @@ export type DungeonObjective = {
   level: number
   model_id: string
   count: number
+  raid_rankings?: DungeonRaidRankingBand[]
 }
 
 /** Single-dungeon API (`?id=`) — difficulties include objectives (monster_id → monster timeline). */
@@ -30,6 +60,10 @@ export type DungeonDetailDifficulty = {
   time_limit_sec: number
   death_limit: number
   objectives: DungeonObjective[]
+  user_limit?: number
+  weekly_limit?: number
+  enter_conditions?: DungeonEnterCondition[]
+  rewards?: DungeonClearReward[]
 }
 
 export type DungeonDetail = {

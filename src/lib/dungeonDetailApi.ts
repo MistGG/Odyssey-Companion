@@ -3,9 +3,13 @@
  * (Story / Normal / … difficulties include `objectives[].monster_id` for timeline loads.)
  */
 import type {
+  DungeonClearReward,
   DungeonDetail,
   DungeonDetailDifficulty,
+  DungeonEnterCondition,
   DungeonObjective,
+  DungeonRaidRankingBand,
+  DungeonRaidRewardRoll,
 } from '../types'
 import { fetchWithWikiCache } from './wikiCache'
 
@@ -27,6 +31,70 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
   if (!Array.isArray(difficultiesRaw)) {
     throw new Error('Invalid dungeon difficulties')
   }
+  const parseRaidRewards = (raw: unknown): DungeonRaidRewardRoll[] => {
+    if (!Array.isArray(raw)) return []
+    const out: DungeonRaidRewardRoll[] = []
+    for (const r of raw) {
+      if (!r || typeof r !== 'object') continue
+      const o = r as Record<string, unknown>
+      out.push({
+        item_id: String(o.item_id ?? ''),
+        item_name: String(o.item_name ?? ''),
+        item_icon_id: String(o.item_icon_id ?? ''),
+        rate_permil: Number(o.rate_permil ?? 0),
+        min: Number(o.min ?? 1),
+        max: Number(o.max ?? o.min ?? 1),
+      })
+    }
+    return out
+  }
+
+  const parseRaidRankings = (raw: unknown): DungeonRaidRankingBand[] => {
+    if (!Array.isArray(raw)) return []
+    const out: DungeonRaidRankingBand[] = []
+    for (const rk of raw) {
+      if (!rk || typeof rk !== 'object') continue
+      const o = rk as Record<string, unknown>
+      out.push({
+        start: Number(o.start ?? 0),
+        end: Number(o.end ?? 0),
+        rewards: parseRaidRewards(o.rewards),
+      })
+    }
+    return out
+  }
+
+  const parseEnterConditions = (raw: unknown): DungeonEnterCondition[] => {
+    if (!Array.isArray(raw)) return []
+    const out: DungeonEnterCondition[] = []
+    for (const c of raw) {
+      if (!c || typeof c !== 'object') continue
+      const o = c as Record<string, unknown>
+      out.push({
+        type: String(o.type ?? ''),
+        description: String(o.description ?? ''),
+      })
+    }
+    return out
+  }
+
+  const parseClearRewards = (raw: unknown): DungeonClearReward[] => {
+    if (!Array.isArray(raw)) return []
+    const out: DungeonClearReward[] = []
+    for (const r of raw) {
+      if (!r || typeof r !== 'object') continue
+      const o = r as Record<string, unknown>
+      out.push({
+        rank: Number(o.rank ?? 0),
+        item_id: String(o.item_id ?? ''),
+        item_name: String(o.item_name ?? ''),
+        item_icon_id: String(o.item_icon_id ?? ''),
+        item_count: Number(o.item_count ?? 1),
+      })
+    }
+    return out
+  }
+
   const difficulties = difficultiesRaw.map((item) => {
     if (!item || typeof item !== 'object') {
       throw new Error('Invalid difficulty row')
@@ -38,6 +106,7 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
       for (const ob of objectivesRaw) {
         if (!ob || typeof ob !== 'object') continue
         const x = ob as Record<string, unknown>
+        const raidRankings = parseRaidRankings(x.raid_rankings)
         objectives.push({
           step: Number(x.step ?? 0),
           monster_id: String(x.monster_id ?? ''),
@@ -46,15 +115,29 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
           level: Number(x.level ?? 0),
           model_id: String(x.model_id ?? ''),
           count: Number(x.count ?? 1),
+          raid_rankings: raidRankings.length ? raidRankings : undefined,
         })
       }
     }
-    return {
+    const userLimit = d.user_limit
+    const weeklyLimit = d.weekly_limit
+    const enterConditions = parseEnterConditions(d.enter_conditions)
+    const rewards = parseClearRewards(d.rewards)
+    const row: DungeonDetailDifficulty = {
       difficulty: String(d.difficulty ?? ''),
       time_limit_sec: Number(d.time_limit_sec ?? 0),
       death_limit: Number(d.death_limit ?? 0),
       objectives,
     }
+    if (typeof userLimit === 'number' && Number.isFinite(userLimit)) {
+      row.user_limit = userLimit
+    }
+    if (typeof weeklyLimit === 'number' && Number.isFinite(weeklyLimit) && weeklyLimit > 0) {
+      row.weekly_limit = weeklyLimit
+    }
+    if (enterConditions.length) row.enter_conditions = enterConditions
+    if (rewards.length) row.rewards = rewards
+    return row
   })
   return {
     id: String(o.id ?? ''),
@@ -89,7 +172,8 @@ async function fetchDungeonDetailLive(safe: string): Promise<DungeonDetail> {
 export async function fetchDungeonDetail(id: string): Promise<DungeonDetail> {
   const safe = id.trim()
   if (!safe) throw new Error('Missing dungeon id')
-  const key = `dungeon:${safe}`
+  /** Bump when parsed shape changes so we do not resurrect trim objects from localStorage. */
+  const key = `dungeon:v2:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchDungeonDetailLive(safe))
   return value
 }
