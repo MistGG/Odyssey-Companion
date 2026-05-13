@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -94,7 +94,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Removed the redundant timeline after clicking into a dungeon\n- Replaced it with a clean view of rewards"
+      "releaseNotes": "- Added support for Party DPS with a key\n- Added support for uploading DPS to Odyssey Calc site"
     }
   }
 }
