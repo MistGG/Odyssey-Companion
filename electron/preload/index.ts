@@ -29,30 +29,6 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   showMeterWindow: () =>
     ipcRenderer.invoke('window:show-meter') as Promise<boolean>,
 
-  showPacketLabWindow: () =>
-    ipcRenderer.invoke('window:show-packetlab') as Promise<boolean>,
-
-  startPacketLabCapture: (opts: { sessionName?: string; iface?: string }) =>
-    ipcRenderer.invoke('packetlab:start', opts) as Promise<{ ok: boolean; error?: string; outDir?: string }>,
-
-  stopPacketLabCapture: () => ipcRenderer.invoke('packetlab:stop') as Promise<{ ok: boolean }>,
-
-  openPacketLabOutputFolder: () =>
-    ipcRenderer.invoke('packetlab:open-output-folder') as Promise<{ ok: boolean; error?: string }>,
-
-  onPacketLabLog: (handler: (msg: { stream: 'stdout' | 'stderr'; text: string }) => void) => {
-    const wrapped = (_evt: unknown, msg: unknown) => handler(msg as { stream: 'stdout' | 'stderr'; text: string })
-    ipcRenderer.on('packetlab:log', wrapped)
-    return () => ipcRenderer.removeListener('packetlab:log', wrapped)
-  },
-
-  onPacketLabStatus: (handler: (msg: { state: 'running' | 'idle' | 'error'; outDir?: string; message?: string }) => void) => {
-    const wrapped = (_evt: unknown, msg: unknown) =>
-      handler(msg as { state: 'running' | 'idle' | 'error'; outDir?: string; message?: string })
-    ipcRenderer.on('packetlab:status', wrapped)
-    return () => ipcRenderer.removeListener('packetlab:status', wrapped)
-  },
-
   pushSettings: (settings: unknown) => ipcRenderer.send('overlay:push-settings', settings),
 
   applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => {

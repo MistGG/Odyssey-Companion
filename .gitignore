@@ -10,3 +10,7 @@ bundle/python-runtime/
 
 scripts/__pycache__/
 *.pyc
+
+# Local capture / debug dumps (do not commit).
+combat_frames.jsonl
+last.json

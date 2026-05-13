@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react'
+import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ErrorBoundary } from './ErrorBoundary'
 import { getPanel } from './panel'
@@ -7,8 +7,6 @@ import TimelineApp from './TimelineApp'
 import MeterApp from './MeterApp'
 import UpdateApp from './UpdateApp'
 import './index.css'
-
-const PacketLabApp = lazy(() => import('./PacketLabApp'))
 
 const panel = getPanel()
 if (panel === 'timeline') {
@@ -20,9 +18,6 @@ if (panel === 'meter') {
 if (panel === 'update') {
   document.body.classList.add('body--update')
 }
-if (panel === 'packetlab') {
-  document.body.classList.add('body--packetlab')
-}
 
 const panelLabel =
   panel === 'timeline'
@@ -31,9 +26,7 @@ const panelLabel =
       ? 'meter'
       : panel === 'update'
         ? 'update'
-        : panel === 'packetlab'
-          ? 'packetlab'
-          : 'dungeon'
+        : 'dungeon'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -44,10 +37,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <MeterApp />
       ) : panel === 'update' ? (
         <UpdateApp />
-      ) : panel === 'packetlab' ? (
-        <Suspense fallback={null}>
-          <PacketLabApp />
-        </Suspense>
       ) : (
         <DungeonApp />
       )}

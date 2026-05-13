@@ -8,7 +8,6 @@ import {
   nativeImage,
   screen,
   shell,
-  type MenuItemConstructorOptions,
 } from 'electron'
 import type { WebContents } from 'electron'
 import electronUpdater from 'electron-updater'
@@ -23,12 +22,8 @@ import { fileURLToPath } from 'node:url'
 
 import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
 
-/** Set `ODYSSEY_START_PANEL=meter` or `packetlab` to launch only that window (UI dev). */
+/** Set `ODYSSEY_START_PANEL=meter` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
-/** Packet capture lab is dev-only — never shipped in packaged installs. */
-const PACKET_LAB_ENABLED = !app.isPackaged
-const PACKETLAB_ONLY_STARTUP =
-  PACKET_LAB_ENABLED && process.env.ODYSSEY_START_PANEL === 'packetlab'
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
@@ -83,15 +78,6 @@ let timelineWin: BrowserWindow | null = null
 let meterWin: BrowserWindow | null = null
 /** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
 let updateWin: BrowserWindow | null = null
-/** Dev / RE: guided Npcap capture (7030) — not the DPS meter. */
-let packetLabWin: BrowserWindow | null = null
-let packetLabProc: ChildProcess | null = null
-let packetLabStdoutBuf = ''
-let packetLabStderrBuf = ''
-let packetLabJsonlStream: fs.WriteStream | null = null
-let packetLabStderrStream: fs.WriteStream | null = null
-/** Last capture output directory (Documents\\OdysseyCaptures\\…). */
-let packetLabOutDir: string | null = null
 let lastUpdaterState: Record<string, unknown> | null = null
 let updateDownloadInProgress = false
 let dpsReaderProc: ChildProcess | null = null
@@ -297,12 +283,6 @@ function updateLoadUrl() {
   if (!VITE_DEV_SERVER_URL) return
   const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
   return `${base}/?panel=update`
-}
-
-function packetLabLoadUrl() {
-  if (!VITE_DEV_SERVER_URL) return
-  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
-  return `${base}/?panel=packetlab`
 }
 
 function pushUpdaterState(payload: Record<string, unknown>) {
@@ -519,62 +499,6 @@ function createMeterWindow() {
   attachWindowLayoutTracking(meterWin)
 }
 
-function createPacketLabWindow() {
-  if (!PACKET_LAB_ENABLED) return
-  packetLabWin = new BrowserWindow({
-    icon: getWindowIcon(),
-    title: 'Odyssey Companion — Packet lab',
-    width: 520,
-    height: 720,
-    minWidth: 440,
-    minHeight: 560,
-    backgroundColor: '#070a12',
-    transparent: false,
-    frame: false,
-    alwaysOnTop: false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
-  })
-  const url = packetLabLoadUrl()
-  if (url) {
-    void packetLabWin.loadURL(url)
-  } else {
-    void packetLabWin.loadFile(indexHtml, { query: { panel: 'packetlab' } })
-  }
-  packetLabWin.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:') || url.startsWith('http:')) {
-      shell.openExternal(url)
-    }
-    return { action: 'deny' }
-  })
-  packetLabWin.on('close', () => {
-    if (!quitting) {
-      stopPacketLabCapture()
-    }
-  })
-  wireHideInsteadOfClose(packetLabWin)
-  packetLabWin.on('closed', () => {
-    packetLabWin = null
-  })
-}
-
-function showPacketLabWindow() {
-  if (!PACKET_LAB_ENABLED) return
-  if (!packetLabWin || packetLabWin.isDestroyed()) {
-    createPacketLabWindow()
-  }
-  if (!packetLabWin || packetLabWin.isDestroyed()) return
-  const w = packetLabWin
-  w.show()
-  w.setSkipTaskbar(false)
-  if (w.isMinimized()) w.restore()
-  w.focus()
-}
-
 function showDungeonWindow() {
   if (!dungeonWin || dungeonWin.isDestroyed()) {
     createDungeonWindow()
@@ -662,7 +586,7 @@ function stopDpsReader() {
   dpsReaderStdoutBuf = ''
 }
 
-/** Packet capture stays CLI-only (`scripts/odyssey_packet_sniffer.py`) until opcode clustering is ready for the meter. */
+/** Meter Python reader stdout → renderer telemetry. */
 function wireMeterReaderStreams() {
   if (!dpsReaderProc) return
   dpsReaderStdoutBuf = ''
@@ -751,202 +675,6 @@ function sendDpsReaderReset() {
   }
 }
 
-function packetSnifferScriptPath(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'scripts', 'odyssey_packet_sniffer.py')
-  }
-  return path.join(process.env.APP_ROOT ?? '', 'scripts', 'odyssey_packet_sniffer.py')
-}
-
-function sanitizePacketLabSessionName(raw: unknown): string {
-  const s = typeof raw === 'string' ? raw.trim() : ''
-  const cleaned = s.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48)
-  return cleaned.length > 0 ? cleaned : 'session'
-}
-
-function summarizePacketlabLogLine(line: string): string {
-  const t = line.trim()
-  if (!t) return ''
-  if (t.length <= 220) return t
-  try {
-    const o = JSON.parse(t) as {
-      type?: string
-      dir?: string
-      total_len?: number
-      opcode_u16_le?: number | null
-      t_rel_s?: number
-    }
-    if (o.type === 'packet_frame') {
-      return `[${o.dir ?? '?'}] tl=${o.total_len ?? '?'} op=${o.opcode_u16_le ?? '—'} t=${o.t_rel_s ?? '?'}`
-    }
-    if (o.type === 'opcode_cluster_tick' || o.type === 'opcode_cluster_summary') {
-      return `[${o.type}] t=${o.t_rel_s ?? '?'} …`
-    }
-  } catch {
-    /* ignore */
-  }
-  return `${t.slice(0, 200)}…`
-}
-
-function broadcastPacketLabLog(stream: 'stdout' | 'stderr', rawLine: string) {
-  const text = summarizePacketlabLogLine(rawLine)
-  if (!text) return
-  if (packetLabWin && !packetLabWin.isDestroyed()) {
-    packetLabWin.webContents.send('packetlab:log', { stream, text })
-  }
-}
-
-function broadcastPacketLabStatus(payload: {
-  state: 'running' | 'idle' | 'error'
-  outDir?: string
-  message?: string
-}) {
-  if (packetLabWin && !packetLabWin.isDestroyed()) {
-    packetLabWin.webContents.send('packetlab:status', payload)
-  }
-}
-
-function closePacketLabFileStreams() {
-  for (const st of [packetLabJsonlStream, packetLabStderrStream]) {
-    if (st) {
-      try {
-        st.end()
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-  packetLabJsonlStream = null
-  packetLabStderrStream = null
-}
-
-function stopPacketLabCapture() {
-  if (packetLabProc && !packetLabProc.killed) {
-    try {
-      packetLabProc.kill()
-    } catch {
-      /* ignore */
-    }
-  }
-  packetLabProc = null
-  packetLabStdoutBuf = ''
-  packetLabStderrBuf = ''
-  closePacketLabFileStreams()
-  broadcastPacketLabStatus({ state: 'idle', outDir: packetLabOutDir ?? undefined })
-}
-
-function startPacketLabCapture(opts: {
-  sessionName?: unknown
-  iface?: unknown
-}): { ok: boolean; error?: string; outDir?: string } {
-  if (!PACKET_LAB_ENABLED) {
-    return { ok: false, error: 'Packet capture lab is only available in development builds.' }
-  }
-  stopPacketLabCapture()
-  const scriptPath = packetSnifferScriptPath()
-  if (!fs.existsSync(scriptPath)) {
-    return { ok: false, error: `Sniffer script not found: ${scriptPath}` }
-  }
-  const session = sanitizePacketLabSessionName(opts.sessionName)
-  const iface =
-    typeof opts.iface === 'string' && opts.iface.trim() ? opts.iface.trim() : 'Ethernet'
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const outDir = path.join(app.getPath('documents'), 'OdysseyCaptures', `${session}_${stamp}`)
-  try {
-    fs.mkdirSync(outDir, { recursive: true })
-  } catch (e) {
-    return { ok: false, error: `Could not create output folder: ${e}` }
-  }
-  const summaryJson = path.join(outDir, 'run.json')
-  const jsonlPath = path.join(outDir, 'run.jsonl')
-  const stderrPath = path.join(outDir, 'run.stderr.txt')
-
-  const { exe: py, cwd: pyCwd } = resolvePythonForDps()
-  let proc: ChildProcess
-  try {
-    proc = spawn(
-      py,
-      ['-u', scriptPath, '--iface', iface, '--jsonl', '--cluster-summary-json', summaryJson],
-      {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-        ...(pyCwd ? { cwd: pyCwd } : {}),
-      },
-    )
-  } catch (e) {
-    return { ok: false, error: String(e) }
-  }
-
-  let jsonlStream: fs.WriteStream
-  let stderrStream: fs.WriteStream
-  try {
-    jsonlStream = fs.createWriteStream(jsonlPath, { flags: 'w' })
-    stderrStream = fs.createWriteStream(stderrPath, { flags: 'w' })
-  } catch (e) {
-    try {
-      proc.kill()
-    } catch {
-      /* ignore */
-    }
-    return { ok: false, error: `Could not open output files: ${e}` }
-  }
-
-  packetLabProc = proc
-  packetLabOutDir = outDir
-  packetLabJsonlStream = jsonlStream
-  packetLabStderrStream = stderrStream
-  packetLabStdoutBuf = ''
-  packetLabStderrBuf = ''
-
-  proc.stdout?.on('data', (chunk: Buffer) => {
-    packetLabStdoutBuf += chunk.toString('utf8')
-    let nl: number
-    while ((nl = packetLabStdoutBuf.indexOf('\n')) >= 0) {
-      const line = packetLabStdoutBuf.slice(0, nl)
-      packetLabStdoutBuf = packetLabStdoutBuf.slice(nl + 1)
-      try {
-        packetLabJsonlStream?.write(`${line}\n`)
-      } catch {
-        /* ignore */
-      }
-      broadcastPacketLabLog('stdout', line)
-    }
-  })
-  proc.stderr?.on('data', (chunk: Buffer) => {
-    packetLabStderrBuf += chunk.toString('utf8')
-    let nl: number
-    while ((nl = packetLabStderrBuf.indexOf('\n')) >= 0) {
-      const line = packetLabStderrBuf.slice(0, nl)
-      packetLabStderrBuf = packetLabStderrBuf.slice(nl + 1)
-      try {
-        packetLabStderrStream?.write(`${line}\n`)
-      } catch {
-        /* ignore */
-      }
-      broadcastPacketLabLog('stderr', line)
-    }
-  })
-  proc.on('error', (err) => {
-    broadcastPacketLabLog('stderr', String(err))
-    broadcastPacketLabStatus({ state: 'error', message: String(err), outDir })
-    packetLabProc = null
-    packetLabStdoutBuf = ''
-    packetLabStderrBuf = ''
-    closePacketLabFileStreams()
-    broadcastPacketLabStatus({ state: 'idle', outDir })
-  })
-  proc.once('exit', () => {
-    packetLabProc = null
-    packetLabStdoutBuf = ''
-    packetLabStderrBuf = ''
-    closePacketLabFileStreams()
-    broadcastPacketLabStatus({ state: 'idle', outDir })
-  })
-
-  broadcastPacketLabStatus({ state: 'running', outDir })
-  return { ok: true, outDir }
-}
-
 function hideWindowToTray(win: BrowserWindow | null | undefined) {
   if (!win || win.isDestroyed()) return false
   win.hide()
@@ -958,19 +686,16 @@ function quitFromTray() {
   quitting = true
   globalShortcut.unregisterAll()
   stopDpsReader()
-  stopPacketLabCapture()
   tray?.destroy()
   tray = null
   if (dungeonWin && !dungeonWin.isDestroyed()) dungeonWin.destroy()
   if (timelineWin && !timelineWin.isDestroyed()) timelineWin.destroy()
   if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
   if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
-  if (packetLabWin && !packetLabWin.isDestroyed()) packetLabWin.destroy()
   dungeonWin = null
   timelineWin = null
   meterWin = null
   updateWin = null
-  packetLabWin = null
   app.quit()
 }
 
@@ -978,7 +703,7 @@ function createTray() {
   if (tray) return
   tray = new Tray(getTrayIcon())
   tray.setToolTip('Odyssey Companion')
-  const menuTemplate: MenuItemConstructorOptions[] = [
+  const menu = Menu.buildFromTemplate([
     {
       label: 'Open main',
       click: () => showDungeonWindow(),
@@ -991,18 +716,12 @@ function createTray() {
       label: 'Open DPS meter',
       click: () => showMeterWindow(),
     },
-  ]
-  if (PACKET_LAB_ENABLED) {
-    menuTemplate.push({
-      label: 'Packet capture lab',
-      click: () => showPacketLabWindow(),
-    })
-  }
-  menuTemplate.push({ type: 'separator' }, {
-    label: 'Quit',
-    click: () => quitFromTray(),
-  })
-  const menu = Menu.buildFromTemplate(menuTemplate)
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => quitFromTray(),
+    },
+  ])
   tray.setContextMenu(menu)
   tray.on('click', () => {
     showDungeonWindow()
@@ -1123,11 +842,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(() => {
-  if (PACKETLAB_ONLY_STARTUP) {
-    createPacketLabWindow()
-    packetLabWin?.show()
-    packetLabWin?.setSkipTaskbar(false)
-  } else if (METER_ONLY_STARTUP) {
+  if (METER_ONLY_STARTUP) {
     createMeterWindow()
     meterWin?.show()
     meterWin?.setSkipTaskbar(false)
@@ -1143,7 +858,6 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   quitting = true
   stopDpsReader()
-  stopPacketLabCapture()
   if (layoutSaveTimer) {
     clearTimeout(layoutSaveTimer)
     layoutSaveTimer = null
@@ -1164,10 +878,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    if (PACKETLAB_ONLY_STARTUP) {
-      createPacketLabWindow()
-      packetLabWin?.show()
-    } else if (METER_ONLY_STARTUP) {
+    if (METER_ONLY_STARTUP) {
       createMeterWindow()
       meterWin?.show()
     } else {
@@ -1178,9 +889,7 @@ app.on('activate', () => {
 })
 
 app.on('second-instance', () => {
-  if (PACKETLAB_ONLY_STARTUP) {
-    showPacketLabWindow()
-  } else if (METER_ONLY_STARTUP) {
+  if (METER_ONLY_STARTUP) {
     showMeterWindow()
   } else {
     showDungeonWindow()
@@ -1247,9 +956,6 @@ function windowFromSenderExact(sender: WebContents): BrowserWindow | undefined {
   if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
     return updateWin
   }
-  if (packetLabWin && !packetLabWin.isDestroyed() && packetLabWin.webContents.id === id) {
-    return packetLabWin
-  }
   return browserWindowForIpc(sender)
 }
 
@@ -1285,40 +991,6 @@ ipcMain.handle('window:show-timeline', () => {
 ipcMain.handle('window:show-meter', () => {
   showMeterWindow()
   return true
-})
-
-ipcMain.handle('window:show-packetlab', () => {
-  if (!PACKET_LAB_ENABLED) return false
-  showPacketLabWindow()
-  return true
-})
-
-ipcMain.handle('packetlab:start', (_e, opts: unknown) => {
-  if (!PACKET_LAB_ENABLED) {
-    return { ok: false as const, error: 'Packet capture lab is only available in development builds.' }
-  }
-  if (!opts || typeof opts !== 'object') {
-    return startPacketLabCapture({})
-  }
-  const o = opts as { sessionName?: unknown; iface?: unknown }
-  return startPacketLabCapture({ sessionName: o.sessionName, iface: o.iface })
-})
-
-ipcMain.handle('packetlab:stop', () => {
-  if (!PACKET_LAB_ENABLED) return { ok: true as const }
-  stopPacketLabCapture()
-  return { ok: true as const }
-})
-
-ipcMain.handle('packetlab:open-output-folder', () => {
-  if (!PACKET_LAB_ENABLED) {
-    return { ok: false as const, error: 'Packet capture lab is only available in development builds.' }
-  }
-  if (!packetLabOutDir || !fs.existsSync(packetLabOutDir)) {
-    return { ok: false as const, error: 'No capture folder yet. Start a session first.' }
-  }
-  void shell.openPath(packetLabOutDir)
-  return { ok: true as const }
 })
 
 ipcMain.on('meter:apply-options', (_e, opts: unknown) => {

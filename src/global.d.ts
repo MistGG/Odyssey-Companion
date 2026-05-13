@@ -23,17 +23,6 @@ declare global {
       showMainWindow: () => Promise<boolean>
       showTimelineWindow: () => Promise<boolean>
       showMeterWindow: () => Promise<boolean>
-      showPacketLabWindow: () => Promise<boolean>
-      startPacketLabCapture: (opts: {
-        sessionName?: string
-        iface?: string
-      }) => Promise<{ ok: boolean; error?: string; outDir?: string }>
-      stopPacketLabCapture: () => Promise<{ ok: boolean }>
-      openPacketLabOutputFolder: () => Promise<{ ok: boolean; error?: string }>
-      onPacketLabLog: (handler: (msg: { stream: 'stdout' | 'stderr'; text: string }) => void) => () => void
-      onPacketLabStatus: (
-        handler: (msg: { state: 'running' | 'idle' | 'error'; outDir?: string; message?: string }) => void,
-      ) => () => void
       pushSettings: (settings: OverlaySettings) => void
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => void
