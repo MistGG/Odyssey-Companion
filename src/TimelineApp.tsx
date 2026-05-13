@@ -26,12 +26,9 @@ export default function TimelineApp() {
   const [runSessionActive, setRunSessionActive] = useState(false)
 
   const positionLocked = settings.timelinePositionLocked
-  const lockBtnRef = useRef<HTMLButtonElement>(null)
   const titleDragRef = useRef<HTMLDivElement>(null)
-  const runToggleBtnRef = useRef<HTMLButtonElement>(null)
-  const resetBtnRef = useRef<HTMLButtonElement>(null)
-  const minimizeBtnRef = useRef<HTMLButtonElement>(null)
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  /** Timer + Start / Reset / Lock / minimize / close — one rect for click-through hit-testing. */
+  const titlebarActionsRef = useRef<HTMLDivElement>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
 
@@ -189,23 +186,27 @@ export default function TimelineApp() {
       return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
     }
 
+    /** Frameless + click-through: OS resize hits the window edge; those pixels must not be forwarded. */
+    const RESIZE_EDGE_PX = 16
+    const nearResizeEdge = (x: number, y: number) => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      return (
+        x <= RESIZE_EDGE_PX ||
+        y <= RESIZE_EDGE_PX ||
+        x >= w - RESIZE_EDGE_PX ||
+        y >= h - RESIZE_EDGE_PX
+      )
+    }
+
     const onPointer = (clientX: number, clientY: number) => {
       if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
       ignoreMouseRaf.current = requestAnimationFrame(() => {
         ignoreMouseRaf.current = null
-        const overLock = inRect(clientX, clientY, lockBtnRef.current)
-        const overTitleDrag = inRect(clientX, clientY, titleDragRef.current)
-        const overRunToggle = inRect(clientX, clientY, runToggleBtnRef.current)
-        const overReset = inRect(clientX, clientY, resetBtnRef.current)
-        const overMinimize = inRect(clientX, clientY, minimizeBtnRef.current)
-        const overClose = inRect(clientX, clientY, closeBtnRef.current)
         const interactive =
-          overLock ||
-          overTitleDrag ||
-          overRunToggle ||
-          overReset ||
-          overMinimize ||
-          overClose
+          nearResizeEdge(clientX, clientY) ||
+          inRect(clientX, clientY, titleDragRef.current) ||
+          inRect(clientX, clientY, titlebarActionsRef.current)
         setIgnore(!interactive)
       })
     }
@@ -274,8 +275,14 @@ export default function TimelineApp() {
               )}
             </div>
           </div>
-          <div className="titlebar-actions titlebar-actions--timeline">
-            <div className="timer-block" aria-live="polite">
+          <div ref={titlebarActionsRef} className="titlebar-actions titlebar-actions--timeline">
+            <div
+              className="timer-block"
+              aria-live="polite"
+              title={
+                running ? 'Running' : runSessionActive ? 'Paused' : 'Stopped'
+              }
+            >
               <span className={`timer-dot ${running ? 'on' : ''}`} />
               <code className="timer-readout">{formatMs(cappedElapsedMs)}</code>
               <span className="timer-state">
@@ -283,18 +290,16 @@ export default function TimelineApp() {
               </span>
             </div>
             <button
-              ref={runToggleBtnRef}
               type="button"
               className="btn ghost"
               onClick={toggleRunClock}
             >
               {running ? 'Pause' : 'Start'}
             </button>
-            <button ref={resetBtnRef} type="button" className="btn ghost" onClick={resetTimeline}>
+            <button type="button" className="btn ghost" onClick={resetTimeline}>
               Reset
             </button>
             <button
-              ref={lockBtnRef}
               type="button"
               className={`btn icon ${positionLocked ? 'btn-lock-active' : ''}`}
               title={
@@ -340,7 +345,6 @@ export default function TimelineApp() {
               )}
             </button>
             <button
-              ref={minimizeBtnRef}
               type="button"
               className="btn icon"
               title="Hide to system tray"
@@ -349,7 +353,6 @@ export default function TimelineApp() {
               ─
             </button>
             <button
-              ref={closeBtnRef}
               type="button"
               className="btn icon danger"
               title="Hide to system tray"

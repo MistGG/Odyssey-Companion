@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from './types'
 import { loadSettings, saveSettings } from './lib/settingsStorage'
 import { dungeonImageUrl } from './lib/dungeonImage'
 import { fetchDungeonsListCached } from './lib/dungeonsListApi'
+import { orderDungeonsByFirstSeen } from './lib/dungeonListFirstSeen'
 import { difficultyTagClassName, orderedDifficultyLabels } from './lib/dungeonDifficultyTags'
 import { bossNamesPreviewLine, dungeonDetailMatchesBossQuery } from './lib/dungeonBossPreview'
 import { fetchDungeonDetail, findDifficultyRow } from './lib/dungeonDetailApi'
@@ -102,7 +103,7 @@ export default function DungeonApp() {
       try {
         setLoading(true)
         const { response: res, stale } = await fetchDungeonsListCached()
-        setDungeons(res.data ?? [])
+        setDungeons(orderDungeonsByFirstSeen(res.data ?? []))
         setListFromCache(stale)
         setLoadError(null)
       } catch (e) {

@@ -139,10 +139,15 @@ const DEFAULT_DUNGEON_SIZE = {
   minHeight: 580,
 } as const
 
+/**
+ * Timeline window floor: must keep minimize / close and the timer row on-screen (shell + titlebar chrome).
+ */
+const TIMELINE_WINDOW_MIN_WIDTH = 432
+
 const DEFAULT_TIMELINE_SIZE = {
   width: 820,
   height: 440,
-  minWidth: 380,
+  minWidth: TIMELINE_WINDOW_MIN_WIDTH,
   minHeight: 180,
 } as const
 
@@ -423,7 +428,9 @@ function createTimelineWindow() {
      * Win11 + transparent frameless windows get DWM-rounded outer corners by default.
      * Our `.timeline-backdrop` already draws a 14px radius + border — two mismatched arcs read as a “double corner”.
      */
-    ...(os.platform() === 'win32' ? { roundedCorners: false as const } : {}),
+    ...(os.platform() === 'win32'
+      ? { roundedCorners: false as const, thickFrame: true as const }
+      : {}),
     backgroundColor: '#00000000',
     transparent: true,
     frame: false,
@@ -467,7 +474,9 @@ function createMeterWindow() {
     }),
     minWidth: DEFAULT_METER_SIZE.minWidth,
     minHeight: DEFAULT_METER_SIZE.minHeight,
-    ...(os.platform() === 'win32' ? { roundedCorners: false as const } : {}),
+    ...(os.platform() === 'win32'
+      ? { roundedCorners: false as const, thickFrame: true as const }
+      : {}),
     backgroundColor: '#00000000',
     transparent: true,
     frame: false,

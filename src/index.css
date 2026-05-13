@@ -235,8 +235,8 @@ select {
   display: flex;
   flex-direction: column;
   background: transparent;
-  /* Inset the frosted panel here — margin on `.timeline-backdrop` drew a second “ring” at the corners */
-  padding: 8px;
+  /* Tight inset so the native resize band sits closer to the visible panel (easier hit-testing). */
+  padding: 4px;
   box-sizing: border-box;
   overflow: hidden;
   user-select: none;
@@ -272,7 +272,6 @@ select {
   border-bottom-color: transparent;
 }
 
-.timeline-backdrop--ghost .titlebar--timeline .btn,
 .timeline-backdrop--ghost .titlebar--timeline .timer-readout,
 .timeline-backdrop--ghost .titlebar--timeline code,
 .timeline-backdrop--ghost .titlebar-inline-title,
@@ -309,7 +308,26 @@ select {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.92);
 }
 
-/* Live run queue: rows sit on the main backdrop — no nested “card inside card” panels */
+/* Run queue + stacked schedule: own opaque surfaces so lowering timeline backdrop opacity
+   does not wash out timers / bars (parent panel can be nearly transparent). */
+.timeline-backdrop--ghost .run-queue-mechanic-row,
+.timeline-backdrop--ghost .run-queue-mechanic-row--hero {
+  background: rgba(6, 10, 18, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.92);
+}
+
+.timeline-backdrop--ghost .timeline-carousel-stack {
+  background: rgba(6, 10, 18, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.timeline-backdrop--ghost .timeline-carousel-stack-row .timeline-carousel-bar-pct,
+.timeline-backdrop--ghost .timeline-carousel-stack-row .timeline-carousel-bar-countdown {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.92);
+}
+
+/* Live run queue: compact rows use a local opaque strip so they stay readable at low panel alpha */
 .timeline-fight--run {
   gap: 8px;
 }
@@ -320,16 +338,22 @@ select {
 }
 
 .timeline-backdrop--ghost .timer-block {
-  background: transparent !important;
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(7, 10, 18, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 .timeline-backdrop--ghost .titlebar-actions .btn {
-  background: transparent !important;
+  background: rgba(7, 10, 18, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.timeline-backdrop--ghost .titlebar-actions .btn:hover {
+  background: rgba(7, 10, 18, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
 
 .timeline-backdrop--ghost .titlebar-actions .btn.icon {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .titlebar {
@@ -356,12 +380,69 @@ select {
   /* Match `.timeline-backdrop` top radius so the header fill doesn’t read as a second curve inside the panel clip. */
   border-top-left-radius: var(--radius);
   border-top-right-radius: var(--radius);
-  background: rgba(6, 10, 18, calc(0.55 + var(--timeline-backdrop-alpha) * 0.35));
-  border-bottom-color: rgba(120, 200, 255, calc(0.08 + var(--timeline-backdrop-alpha) * 0.12));
+  /* Same alpha as the panel — timer / buttons use their own opaque surfaces below */
+  background: rgba(7, 10, 18, var(--timeline-backdrop-alpha));
+  border-bottom: 1px solid
+    rgba(120, 200, 255, calc(0.05 + var(--timeline-backdrop-alpha) * 0.2));
   min-height: 46px;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 14px;
+  /* Slightly tighter than generic titlebar so the window can shrink without clipping the control strip. */
+  gap: 10px;
+  padding: 10px 8px 10px 12px;
+  /* Drag strip may be narrower than its content; clip branding — never clip the action strip. */
+  overflow-x: hidden;
+  container-type: inline-size;
+  container-name: timeline-tbar;
+}
+
+/* Very narrow titlebar: status word off-screen (no flex width) so readout + dot stay visible; `title` on `.timer-block` for hover. */
+@container timeline-tbar (max-width: 340px) {
+  .titlebar--timeline .timer-state {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+.titlebar--timeline .titlebar-inline-title,
+.titlebar--timeline .titlebar-inline-context,
+.titlebar--timeline .titlebar-inline-sep {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+/* Dot + “Timeline” + dungeon line track the same opacity as the panel (invisible at 0). */
+.titlebar--timeline .titlebar-drag--inline > .logo-dot,
+.titlebar--timeline .titlebar-drag--inline > .titlebar-inline-brand {
+  opacity: var(--timeline-backdrop-alpha);
+}
+
+.titlebar--timeline .timer-block {
+  position: relative;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 5px 7px;
+  margin-right: 0;
+  gap: 6px;
+  background: rgba(7, 10, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.titlebar--timeline .btn {
+  background: rgba(7, 10, 18, 0.82);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.titlebar--timeline .btn:hover {
+  background: rgba(7, 10, 18, 0.94);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .titlebar-drag--inline {
@@ -370,6 +451,10 @@ select {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.titlebar--timeline .titlebar-drag--inline {
+  overflow: hidden;
 }
 
 .titlebar-drag--inline .titlebar-inline-brand,
@@ -398,6 +483,13 @@ select {
   letter-spacing: 0.02em;
 }
 
+.titlebar--timeline .titlebar-inline-title {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .titlebar-inline-sep {
   flex-shrink: 0;
   color: var(--muted);
@@ -423,6 +515,17 @@ select {
 .titlebar-actions--timeline {
   flex: 0 0 auto;
   flex-shrink: 0;
+  min-width: max-content;
+  gap: 5px;
+}
+
+.titlebar--timeline .titlebar-actions > .btn {
+  flex-shrink: 0;
+}
+
+.titlebar--timeline .titlebar-actions > .btn.ghost {
+  padding-left: 7px;
+  padding-right: 7px;
 }
 
 .titlebar-drag {
@@ -496,8 +599,8 @@ select {
   gap: 8px;
   padding: 6px 10px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(7, 10, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   margin-right: 4px;
 }
 
@@ -1725,7 +1828,7 @@ select {
 .timeline-carousel--compact-run .timeline-carousel-stack {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  /* Rest: shared opaque panel from `.timeline-carousel-stack` */
   gap: 0;
 }
 
@@ -1772,9 +1875,10 @@ select {
   column-gap: 10px;
   padding: 6px 4px;
   border-radius: 0;
-  background: transparent;
+  background: rgba(7, 10, 18, 0.9);
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  isolation: isolate;
 }
 
 .run-queue-mechanic-row:last-child {
@@ -1792,9 +1896,10 @@ select {
   column-gap: 14px;
   margin-bottom: 4px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 10, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.38);
 }
 
 .run-queue-mechanic-row--hero:last-child {
@@ -2255,6 +2360,13 @@ select {
   gap: 0;
   align-items: stretch;
   width: 100%;
+  box-sizing: border-box;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: rgba(7, 10, 18, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.32);
+  isolation: isolate;
 }
 
 .timeline-carousel-stack-row + .timeline-carousel-stack-row {

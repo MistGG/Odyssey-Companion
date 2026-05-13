@@ -1,8 +1,8 @@
-const STORAGE_PREFIX = 'dmo-wiki-cache-v1:'
+export const WIKI_LOCAL_STORAGE_PREFIX = 'dmo-wiki-cache-v1:'
 
 function cacheRead<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + key)
+    const raw = localStorage.getItem(WIKI_LOCAL_STORAGE_PREFIX + key)
     if (!raw) return null
     return JSON.parse(raw) as T
   } catch {
@@ -12,7 +12,7 @@ function cacheRead<T>(key: string): T | null {
 
 export function cacheWrite(key: string, data: unknown): void {
   try {
-    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(data))
+    localStorage.setItem(WIKI_LOCAL_STORAGE_PREFIX + key, JSON.stringify(data))
   } catch {
     /* quota or private mode */
   }
