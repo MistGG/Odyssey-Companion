@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -94,7 +94,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added support for Party DPS with a key\n- Added support for uploading DPS to Odyssey Calc site"
+      "releaseNotes": "- Updated DPS meter to reset parties in sync\n- Polished meter to clearly show party contribution"
     }
   }
 }

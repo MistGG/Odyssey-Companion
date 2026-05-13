@@ -94,7 +94,9 @@ Open the **DPS meter** → **gear** → **Parse cloud**. Sign up or sign in (sam
 
 The meter can show a **shared party list** (everyone’s live DPS) when each player uses the same **party key** under **gear** → **Party DPS (live)**. This uses **Supabase Realtime** only:
 
-- **No database rows** are written for party sync; payloads are broadcast on channels named `meter_party_{KEY}` with event `meter`.
+- **No database rows** are written for party sync; payloads are broadcast on channels named `meter_party_{KEY}`:
+  - Event **`meter`**: periodic live totals + skill snapshot per player.
+  - Event **`meter_party_sync`**: party-wide **session reset** so everyone shares the same “session clock” — sent when someone **resets** the meter or **joins** the party channel (others clear totals/time and reset the DPS reader).
 - Each client sends **`profiles.display_name`** as the visible party name (never email). If the profile row is missing or empty, the app falls back to an anonymous `Player_…` style label until the profile is fixed.
 - The client keeps the key in **sessionStorage** for the tab session and clears it on **Leave party** or **Sign out**.
 - The key string itself is **not reserved** on Supabase: when nobody is subscribed to `meter_party_{KEY}`, that room is effectively gone until someone joins again with the same letters (so prefer a long random key for private groups).

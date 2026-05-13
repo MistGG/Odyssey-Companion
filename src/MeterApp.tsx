@@ -19,15 +19,17 @@ import {
 import {
   PARTY_BROADCAST_EVENT,
   PARTY_PEER_STALE_MS,
+  PARTY_SYNC_EVENT,
   SESSION_PARTY_STORAGE_KEY,
   createRandomPartyKey,
   parsePartyBroadcast,
+  parsePartySessionSync,
   partyChannelName,
   pruneStalePeers,
   sanitizePartyKey,
   type PartyPeerState,
 } from './lib/meterPartyRealtime'
-import { partyMemberChromeStyle } from './lib/meterPartyColor'
+import { partyMemberBarBackground, partyMemberChromeStyle } from './lib/meterPartyColor'
 
 export type MeterHitRow = {
   skill: string
@@ -167,6 +169,35 @@ export default function MeterApp() {
   const prevSbUserRef = useRef<User | null>(null)
   sessionStartMsRef.current = sessionStartMs
 
+  const clearLocalSessionState = useCallback(() => {
+    setPartyDetailId(null)
+    setFrozenHits(null)
+    lastHitMsRef.current = null
+    setSessionStartMs(null)
+    setTotalDamage(0)
+    setHits([])
+    setPartyPeers({})
+    void window.odysseyCompanion?.resetMeterSession?.()
+  }, [])
+
+  /** Full meter zero + optional party broadcast (manual reset / hotkey). */
+  const resetSession = useCallback(() => {
+    clearLocalSessionState()
+    const ch = partyChannelRef.current
+    if (!activePartyKey || !ch || !sbUser) return
+    void ch.send({
+      type: 'broadcast',
+      event: PARTY_SYNC_EVENT,
+      payload: {
+        schemaVersion: 1,
+        kind: 'session_sync',
+        reason: 'manual',
+        epochMs: Date.now(),
+        fromUserId: sbUser.id,
+      },
+    })
+  }, [activePartyKey, sbUser, clearLocalSessionState])
+
   const positionLocked = settings.meterPositionLocked
 
   useEffect(() => {
@@ -208,13 +239,9 @@ export default function MeterApp() {
     const api = window.odysseyCompanion
     if (!api?.onMeterClearSessionUi) return
     return api.onMeterClearSessionUi(() => {
-      setSessionStartMs(null)
-      setTotalDamage(0)
-      setHits([])
-      setFrozenHits(null)
-      lastHitMsRef.current = null
+      resetSession()
     })
-  }, [])
+  }, [resetSession])
 
   /**
    * Locked overlay: OS click-through except title controls (same pattern as timeline).
@@ -570,6 +597,12 @@ export default function MeterApp() {
       }))
     })
 
+    ch.on('broadcast', { event: PARTY_SYNC_EVENT }, (msg: { payload?: unknown }) => {
+      const parsed = parsePartySessionSync(msg.payload)
+      if (!parsed || parsed.fromUserId === sbUser.id) return
+      clearLocalSessionState()
+    })
+
     let tick: number | undefined
     ch.subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -589,6 +622,19 @@ export default function MeterApp() {
       if (status !== 'SUBSCRIBED') return
       if (tick != null) return
       setPartyChannelError(null)
+
+      clearLocalSessionState()
+      void ch.send({
+        type: 'broadcast',
+        event: PARTY_SYNC_EVENT,
+        payload: {
+          schemaVersion: 1,
+          kind: 'session_sync',
+          reason: 'join',
+          epochMs: Date.now(),
+          fromUserId: sbUser.id,
+        },
+      })
 
       tick = window.setInterval(() => {
         const m = partyMetricsRef.current
@@ -620,7 +666,7 @@ export default function MeterApp() {
       void ch.unsubscribe()
       partyChannelRef.current = null
     }
-  }, [supabase, sbUser, activePartyKey])
+  }, [supabase, sbUser, activePartyKey, clearLocalSessionState])
 
   const partyListRows = useMemo(() => {
     if (!sbUser || !activePartyKey) return []
@@ -657,6 +703,11 @@ export default function MeterApp() {
     settings.meterPartyShowSelfDisplayName,
     meterProfileDisplayName,
   ])
+
+  const partyListDamageSum = useMemo(
+    () => partyListRows.reduce((s, r) => s + Math.max(0, r.total), 0),
+    [partyListRows],
+  )
 
   const uploadParse = useCallback(async () => {
     setSbMsg(null)
@@ -768,15 +819,6 @@ export default function MeterApp() {
   }, [partyDetailId, activePartyKey, partyPeers, breakdownDamageTotal])
 
   const showingFrozenBreakdown = hits.length === 0 && (frozenHits?.length ?? 0) > 0
-
-  const resetSession = useCallback(() => {
-    setFrozenHits(null)
-    lastHitMsRef.current = null
-    setSessionStartMs(null)
-    setTotalDamage(0)
-    setHits([])
-    void window.odysseyCompanion?.resetMeterSession?.()
-  }, [])
 
   const copyActivePartyKey = useCallback(() => {
     if (!activePartyKey) return
@@ -1048,6 +1090,10 @@ export default function MeterApp() {
                     const accentKey =
                       row.rowKey === 'self' && sbUser ? `self:${sbUser.id}` : row.userId
                     const chrome = partyMemberChromeStyle(accentKey)
+                    const sharePct =
+                      partyListDamageSum > 0
+                        ? (100 * Math.max(0, row.total)) / partyListDamageSum
+                        : 0
                     return (
                     <button
                       key={row.rowKey}
@@ -1057,20 +1103,30 @@ export default function MeterApp() {
                         borderLeftWidth: 3,
                         borderLeftStyle: 'solid',
                         borderLeftColor: chrome.borderLeftColor,
-                        background: chrome.background,
                       }}
                       onClick={() =>
                         setPartyDetailId(row.rowKey === 'self' ? 'self' : row.userId)
                       }
                     >
-                      <span className="meter-party-name" title={row.label}>
-                        {row.label}
-                      </span>
-                      <span className="meter-party-num">{formatInt(row.dps)}</span>
-                      <span className="meter-party-num">{formatInt(row.total)}</span>
-                      <span className="meter-party-num">{row.time.toFixed(0)}</span>
+                      <div
+                        className="meter-party-member-bar"
+                        style={{
+                          width: `${Math.min(100, sharePct)}%`,
+                          background: partyMemberBarBackground(accentKey),
+                        }}
+                        aria-hidden
+                      />
+                      <div className="meter-party-member-grid">
+                        <span className="meter-party-name" title={row.label}>
+                          {row.label}
+                        </span>
+                        <span className="meter-party-num">{formatInt(row.dps)}</span>
+                        <span className="meter-party-num">{formatInt(row.total)}</span>
+                        <span className="meter-party-num">{row.time.toFixed(0)}</span>
+                      </div>
                     </button>
-                  )})}
+                    )
+                  })}
                 </div>
               </div>
             </section>

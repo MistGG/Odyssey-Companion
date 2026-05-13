@@ -1,6 +1,19 @@
 /** Broadcast event name on the party channel. */
 export const PARTY_BROADCAST_EVENT = 'meter' as const
 
+/** Party-wide session reset (manual reset or member joined) — keeps everyone's timers aligned. */
+export const PARTY_SYNC_EVENT = 'meter_party_sync' as const
+
+export type PartySessionSyncReason = 'manual' | 'join'
+
+export type PartySessionSyncPayload = {
+  schemaVersion: 1
+  kind: 'session_sync'
+  reason: PartySessionSyncReason
+  epochMs: number
+  fromUserId: string
+}
+
 /** Drop party members if we have not heard from them in this long. */
 export const PARTY_PEER_STALE_MS = 20_000
 
@@ -84,6 +97,24 @@ function toFiniteNumber(v: unknown): number | null {
     if (Number.isFinite(n)) return n
   }
   return null
+}
+
+export function parsePartySessionSync(payload: unknown): PartySessionSyncPayload | null {
+  if (!payload || typeof payload !== 'object') return null
+  const p = payload as Record<string, unknown>
+  if (p.schemaVersion !== 1) return null
+  if (p.kind !== 'session_sync') return null
+  if (p.reason !== 'manual' && p.reason !== 'join') return null
+  if (typeof p.fromUserId !== 'string' || !p.fromUserId) return null
+  const epochMs = toFiniteNumber(p.epochMs)
+  if (epochMs === null) return null
+  return {
+    schemaVersion: 1,
+    kind: 'session_sync',
+    reason: p.reason as PartySessionSyncReason,
+    epochMs,
+    fromUserId: p.fromUserId,
+  }
 }
 
 export function parsePartyBroadcast(payload: unknown): PartyBroadcastV1 | null {
