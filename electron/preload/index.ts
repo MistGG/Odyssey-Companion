@@ -5,6 +5,7 @@ export type HotkeyConfig = {
   reset: string
   meterReconnect: string
   meterResetSession: string
+  meterUploadParse: string
 }
 
 contextBridge.exposeInMainWorld('odysseyCompanion', {
@@ -61,6 +62,12 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     const wrapped = () => handler()
     ipcRenderer.on('meter:clear-session-ui', wrapped)
     return () => ipcRenderer.removeListener('meter:clear-session-ui', wrapped)
+  },
+
+  onMeterTriggerUploadParse: (handler: () => void) => {
+    const wrapped = () => handler()
+    ipcRenderer.on('meter:trigger-upload-parse', wrapped)
+    return () => ipcRenderer.removeListener('meter:trigger-upload-parse', wrapped)
   },
 
   /** When locked: pass `true` so the timeline window ignores mouse (click-through); `false` receives clicks (drag strip / lock). */

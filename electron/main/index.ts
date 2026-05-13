@@ -260,6 +260,7 @@ type HotkeyPayload = {
   reset: string
   meterReconnect: string
   meterResetSession: string
+  meterUploadParse: string
 }
 
 type TimelineOptionsPayload = {
@@ -749,6 +750,12 @@ function triggerMeterResetFromHotkey() {
   }
 }
 
+function triggerMeterUploadFromHotkey() {
+  if (meterWin && !meterWin.isDestroyed()) {
+    meterWin.webContents.send('meter:trigger-upload-parse')
+  }
+}
+
 function registerHotkeys(cfg: HotkeyPayload) {
   globalShortcut.unregisterAll()
   const entries: { acc: string; action: 'toggle' | 'reset' }[] = [
@@ -768,6 +775,7 @@ function registerHotkeys(cfg: HotkeyPayload) {
   const meterEntries: { acc: string; label: string; fn: () => void }[] = [
     { acc: cfg.meterReconnect.trim(), label: 'meterReconnect', fn: triggerMeterReconnectFromHotkey },
     { acc: cfg.meterResetSession.trim(), label: 'meterResetSession', fn: triggerMeterResetFromHotkey },
+    { acc: cfg.meterUploadParse.trim(), label: 'meterUploadParse', fn: triggerMeterUploadFromHotkey },
   ]
   for (const { acc, label, fn } of meterEntries) {
     if (!acc || acc.toLowerCase() === 'none') continue
@@ -784,7 +792,7 @@ function createWindows() {
 }
 
 function releaseNotesPlain(info: {
-  releaseNotes?: string | Array<{ note?: string }> | null
+  releaseNotes?: string | Array<{ note?: string | null }> | null
 }) {
   const n = info.releaseNotes
   if (n == null) return ''
@@ -942,9 +950,17 @@ ipcMain.handle('wiki:fetch-monster', async (_evt, id: string) => {
   return res.json() as Promise<unknown>
 })
 
-ipcMain.handle('hotkeys:apply', (_evt, cfg: HotkeyPayload) => {
+ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
   try {
-    registerHotkeys(cfg)
+    const c = cfg as Partial<HotkeyPayload>
+    const normalized: HotkeyPayload = {
+      toggle: typeof c.toggle === 'string' ? c.toggle : '',
+      reset: typeof c.reset === 'string' ? c.reset : '',
+      meterReconnect: typeof c.meterReconnect === 'string' ? c.meterReconnect : 'None',
+      meterResetSession: typeof c.meterResetSession === 'string' ? c.meterResetSession : 'None',
+      meterUploadParse: typeof c.meterUploadParse === 'string' ? c.meterUploadParse : 'None',
+    }
+    registerHotkeys(normalized)
     return { ok: true as const }
   } catch (e) {
     return { ok: false as const, error: String(e) }

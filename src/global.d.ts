@@ -32,6 +32,7 @@ declare global {
       sendMeterReaderStdin: (line: string) => Promise<boolean>
       onMeterTelemetry: (handler: (msg: unknown) => void) => () => void
       onMeterClearSessionUi: (handler: () => void) => () => void
+      onMeterTriggerUploadParse: (handler: () => void) => () => void
       /** Electron timeline window only: OS-level click-through when `true`. */
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       setMeterIgnoreMouseEvents?: (ignore: boolean) => void

@@ -104,6 +104,8 @@ export type HotkeyConfig = {
   meterReconnect: string
   /** Global: reset meter session / reader cursor (`None` to disable). */
   meterResetSession: string
+  /** Global: upload current meter session to Parse cloud (`None` to disable). */
+  meterUploadParse: string
 }
 
 export type OverlaySettings = {
@@ -131,6 +133,10 @@ export type OverlaySettings = {
    * Skill breakdown is frozen until new hits arrive. `0` disables.
    */
   meterAutoResetIdleSec: number
+  /**
+   * Party meter: show your `profiles.display_name` for your own row (list and self skill breakdown) instead of "You".
+   */
+  meterPartyShowSelfDisplayName: boolean
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
@@ -139,6 +145,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
     reset: 'F11',
     meterReconnect: 'None',
     meterResetSession: 'None',
+    meterUploadParse: 'None',
   },
   timelineBackdropOpacity: 0.88,
   timelineAlwaysOnTop: true,
@@ -147,6 +154,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterAlwaysOnTop: true,
   meterPositionLocked: false,
   meterAutoResetIdleSec: 10,
+  meterPartyShowSelfDisplayName: false,
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */

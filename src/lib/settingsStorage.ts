@@ -14,6 +14,7 @@ type HotkeyConfigLike = {
   stop?: string
   meterReconnect?: string
   meterResetSession?: string
+  meterUploadParse?: string
 }
 
 function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
@@ -33,7 +34,11 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
     typeof raw.meterResetSession === 'string'
       ? raw.meterResetSession
       : DEFAULT_SETTINGS.hotkeys.meterResetSession
-  return { toggle, reset, meterReconnect, meterResetSession }
+  const meterUploadParse =
+    typeof raw.meterUploadParse === 'string'
+      ? raw.meterUploadParse
+      : DEFAULT_SETTINGS.hotkeys.meterUploadParse
+  return { toggle, reset, meterReconnect, meterResetSession, meterUploadParse }
 }
 
 function normalizeLoaded(raw: unknown): OverlaySettings {
@@ -82,6 +87,11 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
   let meterIdleReset =
     typeof raw.meterAutoResetIdleSec === 'number' ? raw.meterAutoResetIdleSec : undefined
 
+  let meterPartyShowSelf =
+    typeof raw.meterPartyShowSelfDisplayName === 'boolean'
+      ? raw.meterPartyShowSelfDisplayName
+      : undefined
+
   return {
     ...DEFAULT_SETTINGS,
     hotkeys,
@@ -111,6 +121,10 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       meterIdleReset >= 0
         ? Math.min(86400, Math.round(meterIdleReset))
         : DEFAULT_SETTINGS.meterAutoResetIdleSec,
+    meterPartyShowSelfDisplayName:
+      typeof meterPartyShowSelf === 'boolean'
+        ? meterPartyShowSelf
+        : DEFAULT_SETTINGS.meterPartyShowSelfDisplayName,
   }
 }
 

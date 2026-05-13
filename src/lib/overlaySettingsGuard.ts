@@ -7,7 +7,8 @@ function isHotkeyShape(v: unknown): boolean {
     typeof h.toggle === 'string' &&
     typeof h.reset === 'string' &&
     typeof h.meterReconnect === 'string' &&
-    typeof h.meterResetSession === 'string'
+    typeof h.meterResetSession === 'string' &&
+    typeof h.meterUploadParse === 'string'
   )
 }
 
@@ -39,6 +40,7 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     typeof o.meterAutoResetIdleSec !== 'number' ||
     !Number.isFinite(o.meterAutoResetIdleSec) ||
     o.meterAutoResetIdleSec < 0 ||
+    typeof o.meterPartyShowSelfDisplayName !== 'boolean' ||
     !isHotkeyShape(o.hotkeys)
   ) {
     return false

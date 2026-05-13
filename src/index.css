@@ -1452,7 +1452,12 @@ select {
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.92);
   outline: none;
+}
+
+.field input.mono::placeholder {
+  color: rgba(255, 255, 255, 0.38);
 }
 
 /* Number fields: explicit dark text — avoids white-on-white when `color` inherits from chrome */
@@ -1469,6 +1474,32 @@ select {
 }
 
 .field input[type='number']:focus {
+  border-color: rgba(62, 224, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(62, 224, 255, 0.15);
+}
+
+/* Email / password / text: force readable colors — Electron can use a light native field while `color` inherits from the dark panel (white-on-white). */
+.field input[type='email'],
+.field input[type='password']:not(.mono),
+.field input[type='text'] {
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0d1117;
+  outline: none;
+  font-size: 13px;
+}
+
+.field input[type='email']::placeholder,
+.field input[type='password']:not(.mono)::placeholder,
+.field input[type='text']::placeholder {
+  color: rgba(13, 17, 23, 0.45);
+}
+
+.field input[type='email']:focus,
+.field input[type='password']:not(.mono):focus,
+.field input[type='text']:focus {
   border-color: rgba(62, 224, 255, 0.55);
   box-shadow: 0 0 0 3px rgba(62, 224, 255, 0.15);
 }
@@ -3130,6 +3161,120 @@ select {
   max-width: 19rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+.meter-party-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 8px 2px;
+}
+
+.meter-party-code {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.meter-party-key-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meter-party-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 3px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.82;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.meter-party-copy:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.meter-party-copy:active {
+  background: rgba(62, 224, 255, 0.15);
+}
+
+.meter-party-colhead {
+  grid-template-columns: minmax(0, 1fr) 3.25rem 3.25rem 2rem;
+}
+
+.meter-party-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.25rem 3.25rem 2rem;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 3px;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.meter-party-member:hover {
+  filter: brightness(1.14);
+}
+
+.meter-party-member:active {
+  filter: brightness(1.08);
+}
+
+.meter-party-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meter-party-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 11px;
+}
+
+.meter-party-back-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 6px;
+  flex-wrap: wrap;
+}
+
+.meter-party-back {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.meter-party-detail-label {
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meter-stats-row {

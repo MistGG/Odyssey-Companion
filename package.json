@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -15,6 +15,7 @@
     "release:overwrite": "cross-env EP_GH_IGNORE_TIME=true npm run release"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "electron-updater": "^6.6.2"
   },
   "devDependencies": {
