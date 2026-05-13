@@ -1,12 +1,13 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
     "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
+    "dev:packetlab": "cross-env ODYSSEY_START_PANEL=packetlab vite",
     "build": "vite build",
     "preview": "vite preview",
     "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",

@@ -1534,12 +1534,12 @@ select {
   width: 100%;
 }
 
-/* One line per mechanic: cue · timer · targets · name · damage */
+/* One line per mechanic: timer · targets · name · damage (no cue column — keeps the queue readable). */
 .run-queue-mechanic-row {
   display: grid;
-  grid-template-columns: 1.75rem minmax(2.5rem, auto) auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(2.75rem, auto) auto minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 10px;
   padding: 6px 4px;
   border-radius: 0;
   background: transparent;
@@ -1554,20 +1554,21 @@ select {
 .run-queue-mechanic-row--compact {
   padding: 3px 5px;
   column-gap: 6px;
-  grid-template-columns: 1.75rem minmax(2.25rem, auto) auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(2.35rem, auto) auto minmax(0, 1fr) auto;
 }
 
-.run-queue-row-cue {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-align: center;
-  line-height: 1.15;
+.run-queue-mechanic-row--hero {
+  padding: 12px 10px 14px;
+  column-gap: 14px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.run-queue-row-cue--empty {
-  visibility: hidden;
+.run-queue-mechanic-row--hero:last-child {
+  margin-bottom: 0;
 }
 
 .run-queue-row-timer {
@@ -1597,6 +1598,20 @@ select {
   font-weight: 700;
   color: var(--accent);
   margin-left: 1px;
+}
+
+.run-queue-mechanic-row--hero .run-queue-row-timer__value {
+  font-size: 34px;
+  text-shadow: 0 0 28px rgba(62, 224, 255, 0.35);
+}
+
+.run-queue-mechanic-row--hero .run-queue-row-timer__value--clock {
+  font-size: 30px;
+}
+
+.run-queue-mechanic-row--hero .run-queue-row-timer__unit {
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .run-queue-row-timer--compact .run-queue-row-timer__value {
@@ -1629,6 +1644,12 @@ select {
   color: var(--muted);
 }
 
+.run-queue-mechanic-row--hero .run-queue-row-target-dash {
+  min-width: 1.65em;
+  height: 1.65em;
+  font-size: 15px;
+}
+
 .run-queue-mechanic-row .target-bubble {
   flex-shrink: 0;
 }
@@ -1643,9 +1664,20 @@ select {
   white-space: nowrap;
 }
 
+.run-queue-mechanic-row--hero .run-queue-row-mechanic {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .run-queue-row-boss {
   font-size: 10px;
   font-weight: 600;
+}
+
+.run-queue-mechanic-row--hero .run-queue-row-boss {
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .run-queue-row-action {
@@ -1659,6 +1691,11 @@ select {
   color: var(--accent);
   text-align: right;
   letter-spacing: -0.02em;
+}
+
+.run-queue-mechanic-row--hero .run-queue-row-damage {
+  font-size: 26px;
+  letter-spacing: -0.03em;
 }
 
 .run-queue-mechanic-row--compact .run-queue-row-mechanic {
@@ -2517,4 +2554,154 @@ select {
   display: block;
   margin-top: 6px;
   font-size: 11px;
+}
+
+/* --- Packet lab (7030 capture assistant) --- */
+.body--packetlab {
+  margin: 0;
+  min-height: 100vh;
+  background: #070a12;
+}
+
+.shell--packetlab {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #070a12;
+  color: var(--text);
+}
+
+.packetlab-titlebar {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.packetlab-titlebar-drag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  -webkit-app-region: drag;
+}
+
+.packetlab-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.packetlab-card {
+  background: rgba(12, 18, 32, 0.92);
+  border: 1px solid rgba(62, 224, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.packetlab-h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.packetlab-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(230, 238, 255, 0.92);
+}
+
+.packetlab-steps li {
+  margin-bottom: 6px;
+}
+
+.packetlab-code {
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px 6px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.packetlab-controls .packetlab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.packetlab-controls input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.packetlab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.packetlab-outdir {
+  margin: 10px 0 0;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.packetlab-banner--error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: rgba(255, 80, 110, 0.12);
+  border: 1px solid rgba(255, 120, 140, 0.35);
+}
+
+.packetlab-log-card {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.packetlab-log-hint {
+  margin: 0 0 8px;
+  font-size: 11px;
+}
+
+.packetlab-log {
+  flex: 1;
+  min-height: 160px;
+  max-height: 280px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+.packetlab-log-line--stderr {
+  color: rgba(255, 200, 120, 0.95);
+}
+
+.packetlab-log-line--stdout {
+  color: rgba(200, 235, 255, 0.95);
 }

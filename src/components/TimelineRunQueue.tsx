@@ -78,8 +78,7 @@ function RunQueueMechanicRow({
   tagBoss,
   fireAt,
   elapsedMs,
-  compact,
-  rowCue,
+  density,
   ariaLabel,
 }: {
   fight: TimelineFightPayload
@@ -87,9 +86,7 @@ function RunQueueMechanicRow({
   tagBoss: boolean
   fireAt: number
   elapsedMs: number
-  compact?: boolean
-  /** One column label for the first row of a stacked group (Next / Then). */
-  rowCue?: string
+  density: 'hero' | 'compact'
   ariaLabel: string
 }) {
   const b = skillBrief(q.entry.skill)
@@ -98,22 +95,17 @@ function RunQueueMechanicRow({
   const label = formatCountdownLabel(fireAt, elapsedMs)
   const spoken = `${ariaLabel}: ${label}; ${b.attack}; ${b.damage} damage${tagBoss && ob ? ` (${ob.monster_name})` : ''}`
 
+  const rowCls = [
+    'run-queue-mechanic-row',
+    density === 'hero' ? 'run-queue-mechanic-row--hero' : 'run-queue-mechanic-row--compact',
+  ].join(' ')
+
   return (
-    <div
-      className={`run-queue-mechanic-row ${compact ? 'run-queue-mechanic-row--compact' : ''}`}
-      aria-label={spoken}
-    >
-      {rowCue ? (
-        <span className="run-queue-row-cue muted" aria-hidden>
-          {rowCue}
-        </span>
-      ) : (
-        <span className="run-queue-row-cue run-queue-row-cue--empty" aria-hidden />
-      )}
-      <CountdownInline fireAt={fireAt} elapsedMs={elapsedMs} compact={compact} />
+    <div className={rowCls} aria-label={spoken}>
+      <CountdownInline fireAt={fireAt} elapsedMs={elapsedMs} compact={density === 'compact'} />
       <span className="run-queue-row-target">
         {n > 0 ? (
-          <TargetBubble count={n} />
+          <TargetBubble count={n} prominent={density === 'hero'} />
         ) : (
           <span className="run-queue-row-target-dash" title="No target count in data">
             —
@@ -171,7 +163,8 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
               tagBoss={showBossTag(upcoming.entries)}
               fireAt={upcoming.fireAt}
               elapsedMs={elapsedMs}
-              ariaLabel="Upcoming mechanic"
+              density="hero"
+              ariaLabel="Next mechanic"
             />
           ))}
         </div>
@@ -179,11 +172,11 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
 
       {stackGroups.length > 0 ? (
         <div className="timeline-carousel-stack">
-          {stackGroups.map((g, gi) => {
+          {stackGroups.map((g) => {
             return (
               <div key={groupDomKey(g)} className="timeline-carousel-stack-row">
                 <div className="timeline-carousel-group-lines timeline-carousel-group-lines--inline-rows">
-                  {g.entries.map((q, idx) => (
+                  {g.entries.map((q) => (
                     <RunQueueMechanicRow
                       key={q.entry.key}
                       fight={fight}
@@ -191,9 +184,8 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
                       tagBoss={showBossTag(g.entries)}
                       fireAt={g.fireAt}
                       elapsedMs={elapsedMs}
-                      compact
-                      rowCue={idx === 0 ? (gi === 0 ? 'Next' : 'Then') : undefined}
-                      ariaLabel={gi === 0 ? 'Next wave' : 'Later wave'}
+                      density="compact"
+                      ariaLabel="Later mechanic"
                     />
                   ))}
                 </div>

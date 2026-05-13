@@ -110,8 +110,8 @@ export function groupProgress(group: QueuedGroup, elapsedMs: number): number {
 }
 
 /**
- * Progress for the Nth wave group: **Upcoming** uses each line’s cooldown window.
- * **Next / Then** use progress toward this wave’s `fireAt` from fight start (`elapsedMs / fireAt`)
+ * Progress for the Nth wave group: the first (**Upcoming**) uses each line’s cooldown window.
+ * Later stacked groups use progress toward that wave’s `fireAt` from fight start (`elapsedMs / fireAt`)
  * so those bars move while Upcoming is still filling — the old “wait until previous wave fires”
  * segment left them at 0% until the first wave resolved.
  */
