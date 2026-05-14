@@ -41,6 +41,7 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     !Number.isFinite(o.meterAutoResetIdleSec) ||
     o.meterAutoResetIdleSec < 0 ||
     typeof o.meterPartyShowSelfDisplayName !== 'boolean' ||
+    typeof o.hotkeysOnlyWhenCompanionFocused !== 'boolean' ||
     !isHotkeyShape(o.hotkeys)
   ) {
     return false

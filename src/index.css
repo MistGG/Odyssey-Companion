@@ -2806,6 +2806,27 @@ select {
   border-color: rgba(255, 255, 255, 0.06);
 }
 
+.meter-upload-toast {
+  flex-shrink: 0;
+  padding: 3px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.meter-upload-toast--success {
+  color: rgba(187, 247, 208, 0.96);
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.meter-upload-toast--warn {
+  color: rgba(254, 243, 199, 0.96);
+  background: rgba(251, 191, 36, 0.12);
+}
+
 .titlebar--meter {
   border-top-left-radius: var(--radius);
   border-top-right-radius: var(--radius);

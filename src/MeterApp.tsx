@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { RealtimeChannel, User } from '@supabase/supabase-js'
 import type { HotkeyConfig, OverlaySettings } from './types'
-import { loadSettings, saveSettings } from './lib/settingsStorage'
+import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
@@ -41,6 +41,9 @@ export type MeterHitRow = {
 function formatInt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
+
+/** After a successful cloud parse upload, block another upload to reduce duplicates / spam. */
+const METER_UPLOAD_COOLDOWN_MS = 30_000
 
 /** Party broadcast label from `profiles.display_name` only (never email). */
 function partyBroadcastLabel(profileDisplayName: string | undefined, userId: string): string {
@@ -145,6 +148,11 @@ export default function MeterApp() {
   const [sbUser, setSbUser] = useState<User | null>(null)
   const [sbMsg, setSbMsg] = useState<string | null>(null)
   const [sbBusy, setSbBusy] = useState(false)
+  const [uploadCooldownUntilMs, setUploadCooldownUntilMs] = useState<number | null>(null)
+  const [uploadCooldownTick, setUploadCooldownTick] = useState(0)
+  const [uploadToast, setUploadToast] = useState<{ text: string; kind: 'success' | 'warn' } | null>(
+    null,
+  )
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authDisplayName, setAuthDisplayName] = useState('')
@@ -214,7 +222,7 @@ export default function MeterApp() {
     lastPushedSettingsJson.current = json
     saveSettings(settings)
     api.pushSettings(settings)
-    void api.applyHotkeys(settings.hotkeys)
+    void api.applyHotkeys(hotkeysApplyPayload(settings))
     api.applyMeterWindowOptions?.({ alwaysOnTop: settings.meterAlwaysOnTop })
   }, [settings])
 
@@ -227,7 +235,7 @@ export default function MeterApp() {
         if (!merged) return prev
         saveSettings(merged)
         lastPushedSettingsJson.current = JSON.stringify(merged)
-        void api.applyHotkeys(merged.hotkeys)
+        void api.applyHotkeys(hotkeysApplyPayload(merged))
         api.applyMeterWindowOptions?.({ alwaysOnTop: merged.meterAlwaysOnTop })
         return merged
       })
@@ -709,8 +717,36 @@ export default function MeterApp() {
     [partyListRows],
   )
 
+  useEffect(() => {
+    if (uploadCooldownUntilMs == null) return
+    const id = window.setInterval(() => {
+      setUploadCooldownTick((t) => t + 1)
+      setUploadCooldownUntilMs((until) => (until != null && Date.now() >= until ? null : until))
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [uploadCooldownUntilMs])
+
+  useEffect(() => {
+    if (!uploadToast) return
+    const ms = uploadToast.kind === 'success' ? 4500 : 3200
+    const t = window.setTimeout(() => setUploadToast(null), ms)
+    return () => window.clearTimeout(t)
+  }, [uploadToast])
+
+  const uploadCooldownSecondsLeft = useMemo(() => {
+    if (uploadCooldownUntilMs == null) return 0
+    return Math.max(0, Math.ceil((uploadCooldownUntilMs - Date.now()) / 1000))
+  }, [uploadCooldownUntilMs, uploadCooldownTick])
+
+  const uploadOnCooldown = uploadCooldownSecondsLeft > 0
+
   const uploadParse = useCallback(async () => {
     setSbMsg(null)
+    if (uploadCooldownUntilMs != null && Date.now() < uploadCooldownUntilMs) {
+      const sec = Math.max(1, Math.ceil((uploadCooldownUntilMs - Date.now()) / 1000))
+      setUploadToast({ text: `Cannot upload for ${sec}s`, kind: 'warn' })
+      return
+    }
     if (!supabase || !sbUser) {
       setSbMsg('Sign in first.')
       return
@@ -760,6 +796,8 @@ export default function MeterApp() {
         if (error) setSbMsg(error)
         else {
           setSbMsg('Party parse uploaded. View it under Party on the Meter page on Odyssey Calc.')
+          setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
+          setUploadToast({ text: 'Upload complete', kind: 'success' })
         }
         return
       }
@@ -778,6 +816,8 @@ export default function MeterApp() {
       if (error) setSbMsg(error)
       else {
         setSbMsg('Parse uploaded. Visit the Meter page on Odyssey Calc to see your history.')
+        setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
+        setUploadToast({ text: 'Upload complete', kind: 'success' })
       }
     } finally {
       setSbBusy(false)
@@ -785,6 +825,7 @@ export default function MeterApp() {
   }, [
     supabase,
     sbUser,
+    uploadCooldownUntilMs,
     activePartyKey,
     partyListRows,
     partyPeers,
@@ -925,10 +966,14 @@ export default function MeterApp() {
                 type="button"
                 className="btn meter-icon-tile"
                 title={
-                  sbUser ? 'Upload session to cloud' : 'Sign in via settings (gear) to upload'
+                  !sbUser
+                    ? 'Sign in via settings (gear) to upload'
+                    : uploadOnCooldown
+                      ? `Cannot upload for ${uploadCooldownSecondsLeft}s`
+                      : 'Upload session to cloud'
                 }
                 aria-label="Upload parse to cloud"
-                disabled={!sbUser || sbBusy}
+                disabled={!sbUser || sbBusy || uploadOnCooldown}
                 onClick={() => void uploadParse()}
               >
                 <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
@@ -1003,6 +1048,16 @@ export default function MeterApp() {
           </div>
         </header>
 
+        {uploadToast ? (
+          <div
+            className={`meter-upload-toast meter-upload-toast--${uploadToast.kind}`}
+            role="status"
+            aria-live="polite"
+          >
+            {uploadToast.text}
+          </div>
+        ) : null}
+
         <main ref={meterBodyRef} className="meter-body meter-body--compact">
           {readerError ? (
             <p className="meter-banner meter-banner--error meter-banner--compact" role="alert">
@@ -1012,8 +1067,7 @@ export default function MeterApp() {
                 {/could not open|attach to client/i.test(readerError) ? (
                   <>
                     This is usually <strong>Windows blocking access</strong> to the game (run Companion as admin,
-                    match elevation with the game, or allow in antivirus)—not a missing Python install; the installer
-                    bundles Python.
+                    match elevation with the game, or allow in antivirus).
                   </>
                 ) : (
                   <>
@@ -1374,8 +1428,8 @@ export default function MeterApp() {
                 <section className="field-group">
                   <h3>Global hotkeys</h3>
                   <p className="hint muted" style={{ marginTop: 0 }}>
-                    Work even when this window is not focused. Use <strong>None</strong> or Clear to disable. Esc
-                    cancels capture.
+                    By default these are registered with Windows even when another app is focused (so they work over
+                    the game). Use <strong>None</strong> or Clear to disable a slot. Esc cancels capture.
                   </p>
                   {hotkeyListening ? (
                     <p className="hint hotkey-listen-hint">Press a key combination…</p>
@@ -1410,6 +1464,23 @@ export default function MeterApp() {
                       </div>
                     </label>
                   ))}
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settings.hotkeysOnlyWhenCompanionFocused}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          hotkeysOnlyWhenCompanionFocused: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>Only while Companion is focused</span>
+                  </label>
+                  <p className="hint muted" style={{ marginTop: 6 }}>
+                    Same option as in main Settings. When on, hotkeys are unregistered while you are in other apps so
+                    those keys work for typing; timeline/meter shortcuts only work when a Companion window is active.
+                  </p>
                 </section>
 
                 <section className="field-group">
@@ -1432,10 +1503,19 @@ export default function MeterApp() {
                         <button
                           type="button"
                           className="btn primary"
-                          disabled={sbBusy}
+                          disabled={sbBusy || uploadOnCooldown}
+                          title={
+                            uploadOnCooldown
+                              ? `Cannot upload for ${uploadCooldownSecondsLeft}s`
+                              : undefined
+                          }
                           onClick={() => void uploadParse()}
                         >
-                          {sbBusy ? 'Working…' : 'Upload current session'}
+                          {sbBusy
+                            ? 'Working…'
+                            : uploadOnCooldown
+                              ? `Wait ${uploadCooldownSecondsLeft}s`
+                              : 'Upload current session'}
                         </button>
                         <button
                           type="button"

@@ -263,6 +263,74 @@ type HotkeyPayload = {
   meterUploadParse: string
 }
 
+let storedHotkeys: HotkeyPayload | null = null
+let hotkeysWhenCompanionFocused = false
+let hotkeyFocusDebounce: ReturnType<typeof setTimeout> | null = null
+
+function companionHotkeyWindowHasFocus(): boolean {
+  const w = BrowserWindow.getFocusedWindow()
+  if (!w || w.isDestroyed()) return false
+  const id = w.id
+  if (dungeonWin && !dungeonWin.isDestroyed() && dungeonWin.id === id) return true
+  if (timelineWin && !timelineWin.isDestroyed() && timelineWin.id === id) return true
+  if (meterWin && !meterWin.isDestroyed() && meterWin.id === id) return true
+  return false
+}
+
+/** Register shortcuts from `cfg` without calling `unregisterAll` first. */
+function registerHotkeysDirect(cfg: HotkeyPayload) {
+  const entries: { acc: string; action: 'toggle' | 'reset' }[] = [
+    { acc: cfg.toggle.trim(), action: 'toggle' },
+    { acc: cfg.reset.trim(), action: 'reset' },
+  ]
+  for (const { acc, action } of entries) {
+    if (!acc || acc.toLowerCase() === 'none') continue
+    const ok = globalShortcut.register(acc, () => {
+      const target = timelineWin ?? dungeonWin
+      target?.webContents.send('timeline-action', action)
+    })
+    if (!ok) {
+      console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${action})`)
+    }
+  }
+  const meterEntries: { acc: string; label: string; fn: () => void }[] = [
+    { acc: cfg.meterReconnect.trim(), label: 'meterReconnect', fn: triggerMeterReconnectFromHotkey },
+    { acc: cfg.meterResetSession.trim(), label: 'meterResetSession', fn: triggerMeterResetFromHotkey },
+    { acc: cfg.meterUploadParse.trim(), label: 'meterUploadParse', fn: triggerMeterUploadFromHotkey },
+  ]
+  for (const { acc, label, fn } of meterEntries) {
+    if (!acc || acc.toLowerCase() === 'none') continue
+    const ok = globalShortcut.register(acc, fn)
+    if (!ok) {
+      console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${label})`)
+    }
+  }
+}
+
+function applyHotkeysForCurrentPolicy() {
+  if (!storedHotkeys) return
+  globalShortcut.unregisterAll()
+  if (hotkeysWhenCompanionFocused && !companionHotkeyWindowHasFocus()) {
+    return
+  }
+  registerHotkeysDirect(storedHotkeys)
+}
+
+function setHotkeysFromRenderer(cfg: HotkeyPayload, whenCompanionFocusedOnly: boolean) {
+  storedHotkeys = cfg
+  hotkeysWhenCompanionFocused = whenCompanionFocusedOnly
+  applyHotkeysForCurrentPolicy()
+}
+
+function scheduleHotkeysFocusRefresh() {
+  if (!storedHotkeys || !hotkeysWhenCompanionFocused) return
+  if (hotkeyFocusDebounce != null) clearTimeout(hotkeyFocusDebounce)
+  hotkeyFocusDebounce = setTimeout(() => {
+    hotkeyFocusDebounce = null
+    applyHotkeysForCurrentPolicy()
+  }, 40)
+}
+
 type TimelineOptionsPayload = {
   alwaysOnTop: boolean
 }
@@ -756,36 +824,6 @@ function triggerMeterUploadFromHotkey() {
   }
 }
 
-function registerHotkeys(cfg: HotkeyPayload) {
-  globalShortcut.unregisterAll()
-  const entries: { acc: string; action: 'toggle' | 'reset' }[] = [
-    { acc: cfg.toggle.trim(), action: 'toggle' },
-    { acc: cfg.reset.trim(), action: 'reset' },
-  ]
-  for (const { acc, action } of entries) {
-    if (!acc || acc.toLowerCase() === 'none') continue
-    const ok = globalShortcut.register(acc, () => {
-      const target = timelineWin ?? dungeonWin
-      target?.webContents.send('timeline-action', action)
-    })
-    if (!ok) {
-      console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${action})`)
-    }
-  }
-  const meterEntries: { acc: string; label: string; fn: () => void }[] = [
-    { acc: cfg.meterReconnect.trim(), label: 'meterReconnect', fn: triggerMeterReconnectFromHotkey },
-    { acc: cfg.meterResetSession.trim(), label: 'meterResetSession', fn: triggerMeterResetFromHotkey },
-    { acc: cfg.meterUploadParse.trim(), label: 'meterUploadParse', fn: triggerMeterUploadFromHotkey },
-  ]
-  for (const { acc, label, fn } of meterEntries) {
-    if (!acc || acc.toLowerCase() === 'none') continue
-    const ok = globalShortcut.register(acc, fn)
-    if (!ok) {
-      console.warn(`[odyssey-companion] Could not register global shortcut: ${acc} (${label})`)
-    }
-  }
-}
-
 function createWindows() {
   createDungeonWindow()
   createTimelineWindow()
@@ -859,6 +897,9 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.whenReady().then(() => {
+  app.on('browser-window-focus', scheduleHotkeysFocusRefresh)
+  app.on('browser-window-blur', scheduleHotkeysFocusRefresh)
+
   if (METER_ONLY_STARTUP) {
     createMeterWindow()
     meterWin?.show()
@@ -952,7 +993,7 @@ ipcMain.handle('wiki:fetch-monster', async (_evt, id: string) => {
 
 ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
   try {
-    const c = cfg as Partial<HotkeyPayload>
+    const c = cfg as Partial<HotkeyPayload> & { hotkeysOnlyWhenCompanionFocused?: boolean }
     const normalized: HotkeyPayload = {
       toggle: typeof c.toggle === 'string' ? c.toggle : '',
       reset: typeof c.reset === 'string' ? c.reset : '',
@@ -960,7 +1001,7 @@ ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
       meterResetSession: typeof c.meterResetSession === 'string' ? c.meterResetSession : 'None',
       meterUploadParse: typeof c.meterUploadParse === 'string' ? c.meterUploadParse : 'None',
     }
-    registerHotkeys(normalized)
+    setHotkeysFromRenderer(normalized, Boolean(c.hotkeysOnlyWhenCompanionFocused))
     return { ok: true as const }
   } catch (e) {
     return { ok: false as const, error: String(e) }

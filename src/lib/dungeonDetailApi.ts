@@ -11,7 +11,7 @@ import type {
   DungeonRaidRankingBand,
   DungeonRaidRewardRoll,
 } from '../types'
-import { fetchWithWikiCache } from './wikiCache'
+import { fetchWithWikiCache, wikiCacheRead } from './wikiCache'
 
 function parseDungeonDetail(raw: unknown): DungeonDetail {
   if (!raw || typeof raw !== 'object') {
@@ -148,6 +148,12 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
   }
 }
 
+function isDungeonDetailCached(v: unknown): v is DungeonDetail {
+  if (!v || typeof v !== 'object') return false
+  const o = v as Record<string, unknown>
+  return typeof o.id === 'string' && Array.isArray(o.difficulties)
+}
+
 async function fetchDungeonDetailLive(safe: string): Promise<DungeonDetail> {
   let raw: unknown
   if (window.odysseyCompanion) {
@@ -176,6 +182,24 @@ export async function fetchDungeonDetail(id: string): Promise<DungeonDetail> {
   const key = `dungeon:v2:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchDungeonDetailLive(safe))
   return value
+}
+
+/** Wiki cache key for a dungeon detail (same as `fetchDungeonDetail`). */
+export function dungeonDetailCacheKey(id: string): string {
+  return `dungeon:v2:${id.trim()}`
+}
+
+/** Load cached dungeon details from localStorage (no network). Used to hydrate list cards + search after reload or when rate-limited. */
+export function readCachedDungeonDetails(ids: string[]): Record<string, DungeonDetail> {
+  const out: Record<string, DungeonDetail> = {}
+  for (const rawId of ids) {
+    const safe = rawId.trim()
+    if (!safe) continue
+    const row = wikiCacheRead<unknown>(dungeonDetailCacheKey(safe))
+    if (!isDungeonDetailCached(row)) continue
+    out[row.id] = row
+  }
+  return out
 }
 
 /** Match list/detail difficulty labels (wiki strings can differ slightly in spacing/case). */

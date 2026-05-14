@@ -8,6 +8,10 @@ export type HotkeyConfig = {
   meterUploadParse: string
 }
 
+export type HotkeysApplyPayload = HotkeyConfig & {
+  hotkeysOnlyWhenCompanionFocused: boolean
+}
+
 contextBridge.exposeInMainWorld('odysseyCompanion', {
   fetchDungeons: () => ipcRenderer.invoke('wiki:fetch-dungeons'),
 
@@ -15,7 +19,7 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   fetchMonsterDetail: (id: string) => ipcRenderer.invoke('wiki:fetch-monster', id),
 
-  applyHotkeys: (cfg: HotkeyConfig) =>
+  applyHotkeys: (cfg: HotkeysApplyPayload) =>
     ipcRenderer.invoke('hotkeys:apply', cfg) as Promise<{ ok: boolean; error?: string }>,
 
   minimize: () => ipcRenderer.invoke('window:minimize'),

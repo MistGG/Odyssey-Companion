@@ -108,6 +108,11 @@ export type HotkeyConfig = {
   meterUploadParse: string
 }
 
+/** Payload for `applyHotkeys` IPC — hotkeys plus focus gating flag. */
+export type HotkeysApplyPayload = HotkeyConfig & {
+  hotkeysOnlyWhenCompanionFocused: boolean
+}
+
 export type OverlaySettings = {
   hotkeys: HotkeyConfig
   /**
@@ -137,6 +142,12 @@ export type OverlaySettings = {
    * Party meter: show your `profiles.display_name` for your own row (list and self skill breakdown) instead of "You".
    */
   meterPartyShowSelfDisplayName: boolean
+  /**
+   * When true: timeline/meter hotkeys are registered only while a Companion window
+   * (dungeon, timeline, or meter) is focused, so keys remain available for typing in other apps.
+   * When false (default): hotkeys work globally, including while the game is focused.
+   */
+  hotkeysOnlyWhenCompanionFocused: boolean
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
@@ -155,6 +166,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterPositionLocked: false,
   meterAutoResetIdleSec: 10,
   meterPartyShowSelfDisplayName: false,
+  hotkeysOnlyWhenCompanionFocused: false,
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */

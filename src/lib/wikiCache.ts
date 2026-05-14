@@ -18,6 +18,10 @@ export function cacheWrite(key: string, data: unknown): void {
   }
 }
 
+export function wikiCacheRead<T>(key: string): T | null {
+  return cacheRead<T>(key)
+}
+
 /**
  * On success: writes through to localStorage.
  * On failure: returns last cached value so the UI stays usable offline / when the wiki is down.

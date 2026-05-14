@@ -2,7 +2,7 @@ import type {
   AppVersionInfo,
   DownloadUpdateResult,
   DungeonListResponse,
-  HotkeyConfig,
+  HotkeysApplyPayload,
   LatestReleaseResult,
   OverlaySettings,
   UpdateCheckResult,
@@ -17,7 +17,7 @@ declare global {
       fetchDungeons: () => Promise<DungeonListResponse>
       fetchDungeonDetail: (id: string) => Promise<unknown>
       fetchMonsterDetail: (id: string) => Promise<unknown>
-      applyHotkeys: (cfg: HotkeyConfig) => Promise<{ ok: boolean; error?: string }>
+      applyHotkeys: (cfg: HotkeysApplyPayload) => Promise<{ ok: boolean; error?: string }>
       minimize: () => Promise<unknown>
       close: () => Promise<unknown>
       showMainWindow: () => Promise<boolean>

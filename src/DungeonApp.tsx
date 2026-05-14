@@ -9,13 +9,13 @@ import type {
   OverlaySettings,
 } from './types'
 import { DEFAULT_SETTINGS } from './types'
-import { loadSettings, saveSettings } from './lib/settingsStorage'
+import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { dungeonImageUrl } from './lib/dungeonImage'
 import { fetchDungeonsListCached } from './lib/dungeonsListApi'
 import { orderDungeonsByFirstSeen } from './lib/dungeonListFirstSeen'
 import { difficultyTagClassName, orderedDifficultyLabels } from './lib/dungeonDifficultyTags'
-import { bossNamesPreviewLine, dungeonDetailMatchesBossQuery } from './lib/dungeonBossPreview'
-import { fetchDungeonDetail, findDifficultyRow } from './lib/dungeonDetailApi'
+import { bossNamesPreviewLine, dungeonDetailMatchesBrowserSearch } from './lib/dungeonBossPreview'
+import { fetchDungeonDetail, findDifficultyRow, readCachedDungeonDetails } from './lib/dungeonDetailApi'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
 import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
@@ -83,7 +83,7 @@ export default function DungeonApp() {
     return dungeons.filter((d) => {
       if (d.name.toLowerCase().includes(q)) return true
       const det = detailById[d.id]
-      return det ? dungeonDetailMatchesBossQuery(det, q) : false
+      return det ? dungeonDetailMatchesBrowserSearch(det, q) : false
     })
   }, [dungeons, query, detailById])
 
@@ -95,7 +95,7 @@ export default function DungeonApp() {
     if (lastPushedSettingsJson.current === json) return
     lastPushedSettingsJson.current = json
     api.pushSettings(settings)
-    void api.applyHotkeys(settings.hotkeys)
+    void api.applyHotkeys(hotkeysApplyPayload(settings))
   }, [settings])
 
   useEffect(() => {
@@ -118,7 +118,16 @@ export default function DungeonApp() {
   /**
    * List API has no boss names — only `?id=` detail does. Prefetch details in the background
    * (low concurrency) so cards can show bosses and search can match them without opening first.
+   * Successful responses are persisted in localStorage (`fetchWithWikiCache`); we also hydrate
+   * from that cache on load so boss lines and reward search survive rate limits / offline starts.
    */
+  useEffect(() => {
+    if (dungeons.length === 0) return
+    const cached = readCachedDungeonDetails(dungeons.map((d) => d.id))
+    if (Object.keys(cached).length === 0) return
+    setDetailById((prev) => ({ ...cached, ...prev }))
+  }, [dungeons])
+
   useEffect(() => {
     if (loading || loadError || dungeons.length === 0) return
     let cancelled = false
@@ -203,7 +212,7 @@ export default function DungeonApp() {
         const merged = mergeOverlaySettings(prev, patch)
         if (!merged) return prev
         saveSettings(merged)
-        void api.applyHotkeys(merged.hotkeys)
+        void api.applyHotkeys(hotkeysApplyPayload(merged))
         return merged
       })
     })
@@ -338,9 +347,9 @@ export default function DungeonApp() {
       alert('Each hotkey must be unique (or set to None).')
       return
     }
-    const r = await window.odysseyCompanion?.applyHotkeys(h)
+    const r = await window.odysseyCompanion?.applyHotkeys(hotkeysApplyPayload(settings))
     if (r && !r.ok) alert(`Hotkeys: ${r.error ?? 'could not register'}`)
-  }, [settings.hotkeys])
+  }, [settings])
 
   const handleCheckForUpdates = useCallback(async () => {
     const api = window.odysseyCompanion
@@ -463,7 +472,7 @@ export default function DungeonApp() {
           <div className="toolbar">
             <input
               className="search"
-              placeholder="Search by dungeon or boss name…"
+              placeholder="Search by dungeon, boss, map, or reward…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -667,6 +676,10 @@ export default function DungeonApp() {
 
             <section className="field-group">
               <h3>Hotkeys (timeline)</h3>
+              <p className="hint muted" style={{ marginTop: 0 }}>
+                Registered globally with Windows by default (including over the game). Use the option below if you
+                need the same keys for typing elsewhere.
+              </p>
               {hotkeyListening ? (
                 <p className="hint hotkey-listen-hint">Esc cancels · pressing a modifier alone does nothing</p>
               ) : null}
@@ -700,6 +713,23 @@ export default function DungeonApp() {
                   </div>
                 </label>
               ))}
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.hotkeysOnlyWhenCompanionFocused}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      hotkeysOnlyWhenCompanionFocused: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Only while Companion is focused</span>
+              </label>
+              <p className="hint muted" style={{ marginTop: 6 }}>
+                Leave off so hotkeys work while the game is focused. Turn on if you need the same keys for typing in
+                other apps when a Companion window is not active.
+              </p>
               <button type="button" className="btn secondary" onClick={applyHotkeysNow}>
                 Save
               </button>

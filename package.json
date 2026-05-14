@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -94,7 +94,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated DPS meter to reset parties in sync\n- Polished meter to clearly show party contribution"
+      "releaseNotes": "- Added a cooldown for uploads\n- Added the ability to search the dungeon browser by rewards and optimized cacheing"
     }
   }
 }

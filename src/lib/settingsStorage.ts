@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type HotkeyConfig, type OverlaySettings } from '../types'
+import { DEFAULT_SETTINGS, type HotkeyConfig, type HotkeysApplyPayload, type OverlaySettings } from '../types'
 
 const KEY = 'dmo-overlay-settings-v1'
 
@@ -92,6 +92,11 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       ? raw.meterPartyShowSelfDisplayName
       : undefined
 
+  let hotkeysFocusOnly =
+    typeof raw.hotkeysOnlyWhenCompanionFocused === 'boolean'
+      ? raw.hotkeysOnlyWhenCompanionFocused
+      : undefined
+
   return {
     ...DEFAULT_SETTINGS,
     hotkeys,
@@ -125,6 +130,10 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof meterPartyShowSelf === 'boolean'
         ? meterPartyShowSelf
         : DEFAULT_SETTINGS.meterPartyShowSelfDisplayName,
+    hotkeysOnlyWhenCompanionFocused:
+      typeof hotkeysFocusOnly === 'boolean'
+        ? hotkeysFocusOnly
+        : DEFAULT_SETTINGS.hotkeysOnlyWhenCompanionFocused,
   }
 }
 
@@ -140,4 +149,11 @@ export function loadSettings(): OverlaySettings {
 
 export function saveSettings(s: OverlaySettings) {
   localStorage.setItem(KEY, JSON.stringify(s))
+}
+
+export function hotkeysApplyPayload(settings: OverlaySettings): HotkeysApplyPayload {
+  return {
+    ...settings.hotkeys,
+    hotkeysOnlyWhenCompanionFocused: settings.hotkeysOnlyWhenCompanionFocused,
+  }
 }
