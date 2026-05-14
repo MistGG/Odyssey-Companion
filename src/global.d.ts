@@ -17,15 +17,21 @@ declare global {
       fetchDungeons: () => Promise<DungeonListResponse>
       fetchDungeonDetail: (id: string) => Promise<unknown>
       fetchMonsterDetail: (id: string) => Promise<unknown>
+      fetchWikiNpc: (id: string) => Promise<unknown>
+      fetchWikiItem: (id: string) => Promise<unknown>
       applyHotkeys: (cfg: HotkeysApplyPayload) => Promise<{ ok: boolean; error?: string }>
       minimize: () => Promise<unknown>
       close: () => Promise<unknown>
       showMainWindow: () => Promise<boolean>
       showTimelineWindow: () => Promise<boolean>
       showMeterWindow: () => Promise<boolean>
+      showTimersWindow: () => Promise<boolean>
+      openSettings: (section?: string) => Promise<boolean>
+      onSettingsNavigate: (handler: (section: string) => void) => () => void
       pushSettings: (settings: OverlaySettings) => void
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => void
+      applyTimersWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       startMeterReader: () => Promise<{ ok: boolean; error?: string }>
       stopMeterReader: () => Promise<boolean>
       resetMeterSession: () => Promise<boolean>
@@ -36,6 +42,7 @@ declare global {
       /** Electron timeline window only: OS-level click-through when `true`. */
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       setMeterIgnoreMouseEvents?: (ignore: boolean) => void
+      setTimersIgnoreMouseEvents?: (ignore: boolean) => void
       loadFightIntoTimeline: (payload: unknown) => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>
@@ -51,6 +58,10 @@ declare global {
       confirmUpdaterDownload: () => Promise<{ ok: true } | { ok: false; error: string }>
       quitAndInstall: () => Promise<boolean>
       dismissUpdateWindow: () => Promise<boolean>
+      bossTimerTestToast: () => Promise<{ ok: true } | { ok: false; error: string }>
+      bossTimerTestSound: (
+        style?: 'off' | 'gentle' | 'standard',
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
     }
   }
 }

@@ -1,12 +1,14 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
     "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
+    "dev:timers": "cross-env ODYSSEY_START_PANEL=timers vite",
+    "dev:settings": "cross-env ODYSSEY_START_PANEL=settings vite",
     "build": "vite build",
     "preview": "vite preview",
     "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",
@@ -94,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added a cooldown for uploads\n- Added the ability to search the dungeon browser by rewards and optimized cacheing"
+      "releaseNotes": "- Added a world boss timer and updated settings"
     }
   }
 }

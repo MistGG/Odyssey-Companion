@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   fetchMonsterDetail: (id: string) => ipcRenderer.invoke('wiki:fetch-monster', id),
 
+  fetchWikiNpc: (id: string) => ipcRenderer.invoke('wiki:fetch-npc', id),
+
+  fetchWikiItem: (id: string) => ipcRenderer.invoke('wiki:fetch-item', id),
+
   applyHotkeys: (cfg: HotkeysApplyPayload) =>
     ipcRenderer.invoke('hotkeys:apply', cfg) as Promise<{ ok: boolean; error?: string }>,
 
@@ -34,6 +38,19 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   showMeterWindow: () =>
     ipcRenderer.invoke('window:show-meter') as Promise<boolean>,
 
+  showTimersWindow: () =>
+    ipcRenderer.invoke('window:show-timers') as Promise<boolean>,
+
+  openSettings: (section?: string) =>
+    ipcRenderer.invoke('window:open-settings', section ?? 'general') as Promise<boolean>,
+
+  onSettingsNavigate: (handler: (section: string) => void) => {
+    const wrapped = (_evt: unknown, section: unknown) =>
+      handler(typeof section === 'string' ? section : 'general')
+    ipcRenderer.on('settings:navigate', wrapped)
+    return () => ipcRenderer.removeListener('settings:navigate', wrapped)
+  },
+
   pushSettings: (settings: unknown) => ipcRenderer.send('overlay:push-settings', settings),
 
   applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => {
@@ -42,6 +59,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => {
     ipcRenderer.send('meter:apply-options', opts)
+  },
+
+  applyTimersWindowOptions: (opts: { alwaysOnTop: boolean }) => {
+    ipcRenderer.send('timers:apply-options', opts)
   },
 
   startMeterReader: () =>
@@ -81,6 +102,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   setMeterIgnoreMouseEvents: (ignore: boolean) => {
     ipcRenderer.send('meter:set-ignore-mouse-events', ignore)
+  },
+
+  setTimersIgnoreMouseEvents: (ignore: boolean) => {
+    ipcRenderer.send('timers:set-ignore-mouse-events', ignore)
   },
 
   loadFightIntoTimeline: (payload: unknown) =>
@@ -138,4 +163,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   quitAndInstall: () => ipcRenderer.invoke('updater:quit-and-install') as Promise<boolean>,
 
   dismissUpdateWindow: () => ipcRenderer.invoke('updater:dismiss-update-window') as Promise<boolean>,
+
+  bossTimerTestToast: () =>
+    ipcRenderer.invoke('boss-timer:test-toast') as Promise<{ ok: true } | { ok: false; error: string }>,
+
+  bossTimerTestSound: (style?: 'off' | 'gentle' | 'standard') =>
+    ipcRenderer.invoke('boss-timer:test-sound', style) as Promise<{ ok: true } | { ok: false; error: string }>,
 })

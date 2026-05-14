@@ -301,6 +301,15 @@ export default function TimelineApp() {
             </button>
             <button
               type="button"
+              className="btn ghost"
+              title="Companion settings (timeline section)"
+              aria-label="Open Companion settings"
+              onClick={() => void window.odysseyCompanion?.openSettings?.('timeline')}
+            >
+              ⚙
+            </button>
+            <button
+              type="button"
               className={`btn icon ${positionLocked ? 'btn-lock-active' : ''}`}
               title={
                 positionLocked

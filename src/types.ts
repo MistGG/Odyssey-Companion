@@ -148,6 +148,26 @@ export type OverlaySettings = {
    * When false (default): hotkeys work globally, including while the game is focused.
    */
   hotkeysOnlyWhenCompanionFocused: boolean
+  /** Boss timers overlay — panel opacity (0–1). */
+  timersBackdropOpacity: number
+  /** Keep boss timers window above other apps. */
+  timersAlwaysOnTop: boolean
+  /**
+   * When true: window stays put; pointer passes through except title strip and interactive panel
+   * (same pattern as the DPS meter overlay).
+   */
+  timersPositionLocked: boolean
+  /** Fire a reminder this many minutes before Neptunemon spawns (1–120). */
+  bossTimerNotifyLeadMin: number
+  /** How to alert before spawn (Windows toast and/or a short ring-style chime). */
+  bossTimerNotifyMethod: 'toast' | 'sound' | 'both'
+  /**
+   * When true, main-process reminders still run while the timers window is hidden to tray
+   * (otherwise alerts only fire while the timers overlay is visible).
+   */
+  bossTimerNotifyWhenUiClosed: boolean
+  /** Chime used for pre-spawn sound alerts (short multi-note ring on Windows + browser fallback). */
+  bossTimerChimeStyle: 'off' | 'gentle' | 'standard'
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
@@ -167,6 +187,13 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterAutoResetIdleSec: 10,
   meterPartyShowSelfDisplayName: false,
   hotkeysOnlyWhenCompanionFocused: false,
+  timersBackdropOpacity: 0.86,
+  timersAlwaysOnTop: true,
+  timersPositionLocked: false,
+  bossTimerNotifyLeadMin: 15,
+  bossTimerNotifyMethod: 'toast',
+  bossTimerNotifyWhenUiClosed: true,
+  bossTimerChimeStyle: 'gentle',
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */
@@ -214,3 +241,18 @@ export type DownloadUpdateResult =
 export type LatestReleaseResult =
   | { ok: true; tag: string; publishedAt: string; body: string; url: string }
   | { ok: false; error: string }
+
+/** `GET …/api/wiki/npcs?id=` — fields used by boss timers / portraits. */
+export type WikiNpcDetail = {
+  id: string
+  name: string
+  pen_name: string
+  model_id: string
+}
+
+/** `GET …/api/wiki/items?id=` — fields used for reward icon URLs. */
+export type WikiItemDetail = {
+  id: string
+  name: string
+  icon_id: string
+}

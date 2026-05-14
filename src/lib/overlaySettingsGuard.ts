@@ -42,6 +42,20 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     o.meterAutoResetIdleSec < 0 ||
     typeof o.meterPartyShowSelfDisplayName !== 'boolean' ||
     typeof o.hotkeysOnlyWhenCompanionFocused !== 'boolean' ||
+    typeof o.timersBackdropOpacity !== 'number' ||
+    typeof o.timersAlwaysOnTop !== 'boolean' ||
+    typeof o.timersPositionLocked !== 'boolean' ||
+    typeof o.bossTimerNotifyLeadMin !== 'number' ||
+    !Number.isFinite(o.bossTimerNotifyLeadMin) ||
+    o.bossTimerNotifyLeadMin < 1 ||
+    o.bossTimerNotifyLeadMin > 120 ||
+    typeof o.bossTimerNotifyWhenUiClosed !== 'boolean' ||
+    (o.bossTimerNotifyMethod !== 'toast' &&
+      o.bossTimerNotifyMethod !== 'sound' &&
+      o.bossTimerNotifyMethod !== 'both') ||
+    (o.bossTimerChimeStyle !== 'off' &&
+      o.bossTimerChimeStyle !== 'gentle' &&
+      o.bossTimerChimeStyle !== 'standard') ||
     !isHotkeyShape(o.hotkeys)
   ) {
     return false

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { RealtimeChannel, User } from '@supabase/supabase-js'
-import type { HotkeyConfig, OverlaySettings } from './types'
+import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
-import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
 import {
   aggregateHitsForParse,
@@ -86,15 +85,6 @@ type SkillBreakdownRow = {
 
 const SESSION_HITS_CAP = 2000
 
-const METER_HOTKEY_FIELDS: {
-  label: string
-  slot: 'meterReconnect' | 'meterResetSession' | 'meterUploadParse'
-}[] = [
-  { label: 'Reconnect reader', slot: 'meterReconnect' },
-  { label: 'Reset session', slot: 'meterResetSession' },
-  { label: 'Upload parse to cloud', slot: 'meterUploadParse' },
-]
-
 function isHitMessage(m: unknown): m is { type: 'hit' } & MeterHitRow {
   if (!m || typeof m !== 'object') return false
   const o = m as Record<string, unknown>
@@ -110,13 +100,11 @@ function isHitMessage(m: unknown): m is { type: 'hit' } & MeterHitRow {
 export default function MeterApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [hotkeyListening, setHotkeyListening] = useState<
-    keyof Pick<HotkeyConfig, 'meterReconnect' | 'meterResetSession' | 'meterUploadParse'> | null
-  >(null)
+  const [cloudOpen, setCloudOpen] = useState(false)
 
   const titleDragRef = useRef<HTMLDivElement>(null)
   const lockBtnRef = useRef<HTMLButtonElement>(null)
+  const cloudBtnRef = useRef<HTMLButtonElement>(null)
   const gearBtnRef = useRef<HTMLButtonElement>(null)
   const uploadBtnRef = useRef<HTMLButtonElement>(null)
   const reconnectBtnRef = useRef<HTMLButtonElement>(null)
@@ -253,7 +241,7 @@ export default function MeterApp() {
 
   /**
    * Locked overlay: OS click-through except title controls (same pattern as timeline).
-   * Disabled while settings modal is open.
+   * Disabled while the cloud & party panel is open.
    */
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -263,7 +251,7 @@ export default function MeterApp() {
       api?.setMeterIgnoreMouseEvents?.(ignore)
     }
 
-    if (!positionLocked || settingsOpen) {
+    if (!positionLocked || cloudOpen) {
       if (ignoreMouseRaf.current != null) {
         cancelAnimationFrame(ignoreMouseRaf.current)
         ignoreMouseRaf.current = null
@@ -286,6 +274,7 @@ export default function MeterApp() {
         const interactive =
           inRect(clientX, clientY, titleDragRef.current) ||
           inRect(clientX, clientY, lockBtnRef.current) ||
+          inRect(clientX, clientY, cloudBtnRef.current) ||
           inRect(clientX, clientY, gearBtnRef.current) ||
           inRect(clientX, clientY, uploadBtnRef.current) ||
           inRect(clientX, clientY, reconnectBtnRef.current) ||
@@ -333,32 +322,7 @@ export default function MeterApp() {
       lastIgnoreSent.current = null
       setIgnore(false)
     }
-  }, [positionLocked, settingsOpen])
-
-  useEffect(() => {
-    if (!settingsOpen) setHotkeyListening(null)
-  }, [settingsOpen])
-
-  useEffect(() => {
-    if (!hotkeyListening) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      if (e.key === 'Escape') {
-        setHotkeyListening(null)
-        return
-      }
-      const acc = keyboardEventToAccelerator(e)
-      if (!acc) return
-      setSettings((s) => ({
-        ...s,
-        hotkeys: { ...s.hotkeys, [hotkeyListening]: acc },
-      }))
-      setHotkeyListening(null)
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [hotkeyListening])
+  }, [positionLocked, cloudOpen])
 
   /**
    * After `meterAutoResetIdleSec` with no damage lines, zero live DPS/total/time only.
@@ -946,12 +910,27 @@ export default function MeterApp() {
               )}
             </button>
             <button
+              ref={cloudBtnRef}
+              type="button"
+              className="btn meter-icon-tile"
+              title="Cloud sign-in &amp; party"
+              aria-label="Cloud sign-in and party"
+              onClick={() => setCloudOpen(true)}
+            >
+              <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  fill="currentColor"
+                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                />
+              </svg>
+            </button>
+            <button
               ref={gearBtnRef}
               type="button"
               className="btn meter-icon-tile"
-              title="Meter settings"
-              aria-label="Meter settings"
-              onClick={() => setSettingsOpen(true)}
+              title="Companion settings (DPS meter section)"
+              aria-label="Open Companion settings"
+              onClick={() => void window.odysseyCompanion?.openSettings?.('meter')}
             >
               <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
                 <path
@@ -967,7 +946,7 @@ export default function MeterApp() {
                 className="btn meter-icon-tile"
                 title={
                   !sbUser
-                    ? 'Sign in via settings (gear) to upload'
+                    ? 'Sign in via Companion settings or the cloud panel (☁) to upload'
                     : uploadOnCooldown
                       ? `Cannot upload for ${uploadCooldownSecondsLeft}s`
                       : 'Upload session to cloud'
@@ -1327,161 +1306,29 @@ export default function MeterApp() {
           )}
         </main>
 
-        {settingsOpen ? (
+        {cloudOpen ? (
           <>
             <div
               className="modal-backdrop modal-backdrop--solid"
               role="presentation"
-              onClick={() => {
-                setHotkeyListening(null)
-                setSettingsOpen(false)
-              }}
+              onClick={() => setCloudOpen(false)}
             >
               <aside
                 className="settings-panel settings-panel--solid meter-settings-panel"
                 role="dialog"
-                aria-label="Meter settings"
+                aria-label="Cloud and party"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="settings-head">
-                  <h2>Meter settings</h2>
-                  <button
-                    type="button"
-                    className="btn icon"
-                    onClick={() => {
-                      setHotkeyListening(null)
-                      setSettingsOpen(false)
-                    }}
-                  >
+                  <h2>Cloud &amp; party</h2>
+                  <button type="button" className="btn icon" onClick={() => setCloudOpen(false)}>
                     ✕
                   </button>
                 </div>
-
-                <section className="field-group">
-                  <h3>Appearance</h3>
-                  <label className="field">
-                    <span>Panel opacity</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={settings.meterBackdropOpacity}
-                      onChange={(e) =>
-                        setSettings((s) => ({
-                          ...s,
-                          meterBackdropOpacity: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={settings.meterAlwaysOnTop}
-                      onChange={(e) =>
-                        setSettings((s) => ({
-                          ...s,
-                          meterAlwaysOnTop: e.target.checked,
-                        }))
-                      }
-                    />
-                    Keep meter above other apps
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={settings.meterPositionLocked}
-                      onChange={(e) =>
-                        setSettings((s) => ({
-                          ...s,
-                          meterPositionLocked: e.target.checked,
-                        }))
-                      }
-                    />
-                    Lock overlay — clicks pass through except title controls
-                  </label>
-                  <label className="field">
-                    <span>Reset current DPS after no hits (seconds)</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={86400}
-                      step={1}
-                      value={settings.meterAutoResetIdleSec}
-                      onChange={(e) => {
-                        const n = Number(e.target.value)
-                        if (!Number.isFinite(n)) return
-                        setSettings((s) => ({
-                          ...s,
-                          meterAutoResetIdleSec: Math.min(86400, Math.max(0, Math.round(n))),
-                        }))
-                      }}
-                    />
-                    <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                      0 = off. Clears live totals only; skill list stays until new damage (full reset still uses
-                      the button / hotkey).
-                    </span>
-                  </label>
-                </section>
-
-                <section className="field-group">
-                  <h3>Global hotkeys</h3>
-                  <p className="hint muted" style={{ marginTop: 0 }}>
-                    By default these are registered with Windows even when another app is focused (so they work over
-                    the game). Use <strong>None</strong> or Clear to disable a slot. Esc cancels capture.
-                  </p>
-                  {hotkeyListening ? (
-                    <p className="hint hotkey-listen-hint">Press a key combination…</p>
-                  ) : null}
-                  {METER_HOTKEY_FIELDS.map(({ label, slot }) => (
-                    <label key={slot} className="field">
-                      <span>{label}</span>
-                      <div className="hotkey-row">
-                        <button
-                          type="button"
-                          className={`hotkey-capture ${
-                            hotkeyListening === slot ? 'hotkey-capture--listening' : ''
-                          }`}
-                          onClick={() => setHotkeyListening(slot)}
-                        >
-                          {hotkeyListening === slot
-                            ? 'Listening…'
-                            : settings.hotkeys[slot]}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost hotkey-clear"
-                          onClick={() =>
-                            setSettings((s) => ({
-                              ...s,
-                              hotkeys: { ...s.hotkeys, [slot]: 'None' },
-                            }))
-                          }
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </label>
-                  ))}
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={settings.hotkeysOnlyWhenCompanionFocused}
-                      onChange={(e) =>
-                        setSettings((s) => ({
-                          ...s,
-                          hotkeysOnlyWhenCompanionFocused: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span>Only while Companion is focused</span>
-                  </label>
-                  <p className="hint muted" style={{ marginTop: 6 }}>
-                    Same option as in main Settings. When on, hotkeys are unregistered while you are in other apps so
-                    those keys work for typing; timeline/meter shortcuts only work when a Companion window is active.
-                  </p>
-                </section>
+                <p className="hint muted" style={{ marginTop: 0 }}>
+                  Meter overlay options and hotkeys are in Companion settings — use the gear icon, or open the{' '}
+                  <strong>DPS meter</strong> section there.
+                </p>
 
                 <section className="field-group">
                   <h3>Parse cloud</h3>

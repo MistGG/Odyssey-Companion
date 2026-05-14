@@ -1,0 +1,16 @@
+/** Sections in the unified Companion settings window (query + IPC). */
+export type SettingsSectionId = 'general' | 'timeline' | 'meter' | 'timers' | 'updates'
+
+export function normalizeSettingsSection(raw: unknown): SettingsSectionId {
+  if (raw === 'timeline' || raw === 'meter' || raw === 'timers' || raw === 'updates') return raw
+  return 'general'
+}
+
+export function readInitialSettingsSection(): SettingsSectionId {
+  try {
+    const q = new URLSearchParams(window.location.search).get('section')
+    return normalizeSettingsSection(q)
+  } catch {
+    return 'general'
+  }
+}

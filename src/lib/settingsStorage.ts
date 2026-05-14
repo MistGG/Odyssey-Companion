@@ -97,6 +97,28 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       ? raw.hotkeysOnlyWhenCompanionFocused
       : undefined
 
+  let timersBackdrop =
+    typeof raw.timersBackdropOpacity === 'number' ? raw.timersBackdropOpacity : undefined
+  let timersTop = typeof raw.timersAlwaysOnTop === 'boolean' ? raw.timersAlwaysOnTop : undefined
+  let timersLocked =
+    typeof raw.timersPositionLocked === 'boolean' ? raw.timersPositionLocked : undefined
+  let bossLead =
+    typeof raw.bossTimerNotifyLeadMin === 'number' ? raw.bossTimerNotifyLeadMin : undefined
+  const methodRaw = raw.bossTimerNotifyMethod
+  let bossMethod: OverlaySettings['bossTimerNotifyMethod'] | undefined
+  if (methodRaw === 'toast' || methodRaw === 'sound' || methodRaw === 'both') {
+    bossMethod = methodRaw
+  }
+  let bossWhenClosed =
+    typeof raw.bossTimerNotifyWhenUiClosed === 'boolean'
+      ? raw.bossTimerNotifyWhenUiClosed
+      : undefined
+  const chimeRaw = raw.bossTimerChimeStyle
+  let bossChime: OverlaySettings['bossTimerChimeStyle'] | undefined
+  if (chimeRaw === 'off' || chimeRaw === 'gentle' || chimeRaw === 'standard') {
+    bossChime = chimeRaw
+  }
+
   return {
     ...DEFAULT_SETTINGS,
     hotkeys,
@@ -134,6 +156,29 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof hotkeysFocusOnly === 'boolean'
         ? hotkeysFocusOnly
         : DEFAULT_SETTINGS.hotkeysOnlyWhenCompanionFocused,
+    timersBackdropOpacity:
+      typeof timersBackdrop === 'number'
+        ? Math.min(1, Math.max(0, timersBackdrop))
+        : DEFAULT_SETTINGS.timersBackdropOpacity,
+    timersAlwaysOnTop:
+      typeof timersTop === 'boolean' ? timersTop : DEFAULT_SETTINGS.timersAlwaysOnTop,
+    timersPositionLocked:
+      typeof timersLocked === 'boolean'
+        ? timersLocked
+        : DEFAULT_SETTINGS.timersPositionLocked,
+    bossTimerNotifyLeadMin:
+      typeof bossLead === 'number' &&
+      Number.isFinite(bossLead) &&
+      bossLead >= 1 &&
+      bossLead <= 120
+        ? Math.round(bossLead)
+        : DEFAULT_SETTINGS.bossTimerNotifyLeadMin,
+    bossTimerNotifyMethod: bossMethod ?? DEFAULT_SETTINGS.bossTimerNotifyMethod,
+    bossTimerNotifyWhenUiClosed:
+      typeof bossWhenClosed === 'boolean'
+        ? bossWhenClosed
+        : DEFAULT_SETTINGS.bossTimerNotifyWhenUiClosed,
+    bossTimerChimeStyle: bossChime ?? DEFAULT_SETTINGS.bossTimerChimeStyle,
   }
 }
 

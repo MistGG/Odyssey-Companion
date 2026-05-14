@@ -21,9 +21,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
+import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
+import { normalizeSettingsSection } from '../../src/lib/settingsSection'
+import type { OverlaySettings } from '../../src/types'
+import { bossTimerAlertTick, tryShowBossTimerTestNotification } from './bossTimerAlerts'
 
-/** Set `ODYSSEY_START_PANEL=meter` to launch only that window (UI dev). */
+/** Set `ODYSSEY_START_PANEL=meter`, `=timers`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
+const TIMERS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'timers'
+const SETTINGS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'settings'
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
@@ -60,6 +66,16 @@ function monsterDetailUrl(id: string) {
   return `https://thedigitalodyssey.com/api/wiki/monsters?${q}`
 }
 
+function npcDetailUrl(id: string) {
+  const q = new URLSearchParams({ id })
+  return `https://thedigitalodyssey.com/api/wiki/npcs?${q}`
+}
+
+function wikiItemDetailUrl(id: string) {
+  const q = new URLSearchParams({ id })
+  return `https://thedigitalodyssey.com/api/wiki/items?${q}`
+}
+
 const FETCH_HEADERS = {
   Accept: 'application/json',
   'User-Agent':
@@ -76,6 +92,9 @@ function wikiLog(label: string, url: string) {
 let dungeonWin: BrowserWindow | null = null
 let timelineWin: BrowserWindow | null = null
 let meterWin: BrowserWindow | null = null
+let timersWin: BrowserWindow | null = null
+/** Unified settings (fixed layout; not tied to overlay size). */
+let settingsWin: BrowserWindow | null = null
 /** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
 let updateWin: BrowserWindow | null = null
 let lastUpdaterState: Record<string, unknown> | null = null
@@ -126,10 +145,17 @@ function getTrayIcon(): Electron.NativeImage {
 /** Latest fight payload — survives IPC race when `fight:loaded` fires before the timeline mounts listeners. */
 let lastFightPayload: unknown | undefined
 
+/** Latest overlay settings from any renderer — used for boss timer tray alerts. */
+let lastOverlaySettings: OverlaySettings | null = null
+
+const BOSS_TIMER_ALERT_INTERVAL_MS = 15_000
+
 type WindowLayoutFile = {
   dungeon?: Electron.Rectangle
   timeline?: Electron.Rectangle
   meter?: Electron.Rectangle
+  timers?: Electron.Rectangle
+  settings?: Electron.Rectangle
 }
 
 const DEFAULT_DUNGEON_SIZE = {
@@ -156,6 +182,20 @@ const DEFAULT_METER_SIZE = {
   height: 220,
   minWidth: 260,
   minHeight: 160,
+} as const
+
+const DEFAULT_TIMERS_SIZE = {
+  width: 300,
+  height: 128,
+  minWidth: 260,
+  minHeight: 108,
+} as const
+
+const DEFAULT_SETTINGS_SIZE = {
+  width: 620,
+  height: 760,
+  minWidth: 480,
+  minHeight: 520,
 } as const
 
 function layoutFilePath(): string {
@@ -216,6 +256,30 @@ function normalizeMeterBounds(
   }
 }
 
+function normalizeTimersBounds(
+  r?: Electron.Rectangle,
+): Pick<Electron.Rectangle, 'x' | 'y' | 'width' | 'height'> | undefined {
+  if (!r || typeof r.width !== 'number' || typeof r.height !== 'number') return undefined
+  return {
+    x: typeof r.x === 'number' ? Math.round(r.x) : 0,
+    y: typeof r.y === 'number' ? Math.round(r.y) : 0,
+    width: Math.max(DEFAULT_TIMERS_SIZE.minWidth, Math.round(r.width)),
+    height: Math.max(DEFAULT_TIMERS_SIZE.minHeight, Math.round(r.height)),
+  }
+}
+
+function normalizeSettingsBounds(
+  r?: Electron.Rectangle,
+): Pick<Electron.Rectangle, 'x' | 'y' | 'width' | 'height'> | undefined {
+  if (!r || typeof r.width !== 'number' || typeof r.height !== 'number') return undefined
+  return {
+    x: typeof r.x === 'number' ? Math.round(r.x) : 0,
+    y: typeof r.y === 'number' ? Math.round(r.y) : 0,
+    width: Math.max(DEFAULT_SETTINGS_SIZE.minWidth, Math.round(r.width)),
+    height: Math.max(DEFAULT_SETTINGS_SIZE.minHeight, Math.round(r.height)),
+  }
+}
+
 let layoutSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 function persistWindowLayout(): void {
@@ -228,6 +292,12 @@ function persistWindowLayout(): void {
   }
   if (meterWin && !meterWin.isDestroyed()) {
     layout.meter = meterWin.getBounds()
+  }
+  if (timersWin && !timersWin.isDestroyed()) {
+    layout.timers = timersWin.getBounds()
+  }
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    layout.settings = settingsWin.getBounds()
   }
   writeWindowLayout(layout)
 }
@@ -274,6 +344,8 @@ function companionHotkeyWindowHasFocus(): boolean {
   if (dungeonWin && !dungeonWin.isDestroyed() && dungeonWin.id === id) return true
   if (timelineWin && !timelineWin.isDestroyed() && timelineWin.id === id) return true
   if (meterWin && !meterWin.isDestroyed() && meterWin.id === id) return true
+  if (timersWin && !timersWin.isDestroyed() && timersWin.id === id) return true
+  if (settingsWin && !settingsWin.isDestroyed() && settingsWin.id === id) return true
   return false
 }
 
@@ -353,10 +425,99 @@ function meterLoadUrl() {
   return `${base}/?panel=meter`
 }
 
+function timersLoadUrl() {
+  if (!VITE_DEV_SERVER_URL) return
+  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
+  return `${base}/?panel=timers`
+}
+
 function updateLoadUrl() {
   if (!VITE_DEV_SERVER_URL) return
   const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
   return `${base}/?panel=update`
+}
+
+function settingsLoadUrl(section: string) {
+  if (!VITE_DEV_SERVER_URL) return
+  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
+  const sec = encodeURIComponent(section)
+  return `${base}/?panel=settings&section=${sec}`
+}
+
+function centerSettingsWindow(win: BrowserWindow) {
+  const { width, height } = win.getBounds()
+  const wa = screen.getPrimaryDisplay().workArea
+  const x = Math.round(wa.x + (wa.width - width) / 2)
+  const y = Math.round(wa.y + (wa.height - height) / 2)
+  win.setPosition(x, y)
+}
+
+function createSettingsWindow(sectionRaw?: unknown) {
+  const section = normalizeSettingsSection(sectionRaw)
+  const layout = readWindowLayout()
+  const b = normalizeSettingsBounds(layout.settings)
+  settingsWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey Companion — Settings',
+    ...(b ?? {
+      width: DEFAULT_SETTINGS_SIZE.width,
+      height: DEFAULT_SETTINGS_SIZE.height,
+    }),
+    minWidth: DEFAULT_SETTINGS_SIZE.minWidth,
+    minHeight: DEFAULT_SETTINGS_SIZE.minHeight,
+    ...(os.platform() === 'win32'
+      ? { roundedCorners: false as const, thickFrame: true as const }
+      : {}),
+    show: false,
+    resizable: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#0a0e16',
+    transparent: false,
+    frame: false,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+  setWinAlwaysOnTop(settingsWin, false)
+  const url = settingsLoadUrl(section)
+  if (url) {
+    void settingsWin.loadURL(url)
+  } else {
+    void settingsWin.loadFile(indexHtml, { query: { panel: 'settings', section } })
+  }
+  settingsWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+  settingsWin.once('ready-to-show', () => {
+    if (!settingsWin || settingsWin.isDestroyed()) return
+    if (!b) centerSettingsWindow(settingsWin)
+    settingsWin.show()
+    settingsWin.setSkipTaskbar(false)
+    settingsWin.focus()
+  })
+  settingsWin.on('closed', () => {
+    settingsWin = null
+  })
+  attachWindowLayoutTracking(settingsWin)
+}
+
+function showSettingsWindow(sectionRaw?: unknown) {
+  const section = normalizeSettingsSection(sectionRaw)
+  if (!settingsWin || settingsWin.isDestroyed()) {
+    createSettingsWindow(section)
+    return
+  }
+  settingsWin.webContents.send('settings:navigate', section)
+  const w = settingsWin
+  w.show()
+  w.setSkipTaskbar(false)
+  if (w.isMinimized()) w.restore()
+  w.focus()
 }
 
 function pushUpdaterState(payload: Record<string, unknown>) {
@@ -577,6 +738,52 @@ function createMeterWindow() {
   attachWindowLayoutTracking(meterWin)
 }
 
+function createTimersWindow() {
+  const layout = readWindowLayout()
+  const b = normalizeTimersBounds(layout.timers)
+  timersWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey Companion — Boss timers',
+    ...(b ?? {
+      width: DEFAULT_TIMERS_SIZE.width,
+      height: DEFAULT_TIMERS_SIZE.height,
+    }),
+    minWidth: DEFAULT_TIMERS_SIZE.minWidth,
+    minHeight: DEFAULT_TIMERS_SIZE.minHeight,
+    ...(os.platform() === 'win32'
+      ? { roundedCorners: false as const, thickFrame: true as const }
+      : {}),
+    backgroundColor: '#00000000',
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+
+  const url = timersLoadUrl()
+  if (url) {
+    timersWin.loadURL(url)
+  } else {
+    timersWin.loadFile(indexHtml, { query: { panel: 'timers' } })
+  }
+
+  timersWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  setWinAlwaysOnTop(timersWin, true)
+  wireHideInsteadOfClose(timersWin)
+  attachWindowLayoutTracking(timersWin)
+}
+
 function showDungeonWindow() {
   if (!dungeonWin || dungeonWin.isDestroyed()) {
     createDungeonWindow()
@@ -606,6 +813,18 @@ function showMeterWindow() {
     createMeterWindow()
   }
   const w = meterWin!
+  w.show()
+  w.setSkipTaskbar(false)
+  if (w.isMinimized()) w.restore()
+  w.focus()
+  setWinAlwaysOnTop(w, true)
+}
+
+function showTimersWindow() {
+  if (!timersWin || timersWin.isDestroyed()) {
+    createTimersWindow()
+  }
+  const w = timersWin!
   w.show()
   w.setSkipTaskbar(false)
   if (w.isMinimized()) w.restore()
@@ -769,10 +988,14 @@ function quitFromTray() {
   if (dungeonWin && !dungeonWin.isDestroyed()) dungeonWin.destroy()
   if (timelineWin && !timelineWin.isDestroyed()) timelineWin.destroy()
   if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
+  if (timersWin && !timersWin.isDestroyed()) timersWin.destroy()
+  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy()
   if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
   dungeonWin = null
   timelineWin = null
   meterWin = null
+  timersWin = null
+  settingsWin = null
   updateWin = null
   app.quit()
 }
@@ -793,6 +1016,14 @@ function createTray() {
     {
       label: 'Open DPS meter',
       click: () => showMeterWindow(),
+    },
+    {
+      label: 'Open boss timers',
+      click: () => showTimersWindow(),
+    },
+    {
+      label: 'Settings',
+      click: () => showSettingsWindow('general'),
     },
     { type: 'separator' },
     {
@@ -904,12 +1135,22 @@ app.whenReady().then(() => {
     createMeterWindow()
     meterWin?.show()
     meterWin?.setSkipTaskbar(false)
+  } else if (TIMERS_ONLY_STARTUP) {
+    createTimersWindow()
+    timersWin?.show()
+    timersWin?.setSkipTaskbar(false)
+  } else if (SETTINGS_ONLY_STARTUP) {
+    showSettingsWindow('general')
   } else {
     createWindows()
     showDungeonWindow()
   }
   createTray()
   setupAutoUpdater()
+
+  setInterval(() => {
+    bossTimerAlertTick(lastOverlaySettings, timersWin)
+  }, BOSS_TIMER_ALERT_INTERVAL_MS)
 })
 
 /** Allow real quit (Cmd+Q, Alt+F4 chain, etc.) — without this, `close` handlers would hide instead of exiting. */
@@ -928,6 +1169,8 @@ app.on('window-all-closed', () => {
     dungeonWin = null
     timelineWin = null
     meterWin = null
+    timersWin = null
+    settingsWin = null
     return
   }
   // Windows are hidden to tray, not destroyed — if we ever end up with zero
@@ -939,6 +1182,11 @@ app.on('activate', () => {
     if (METER_ONLY_STARTUP) {
       createMeterWindow()
       meterWin?.show()
+    } else if (TIMERS_ONLY_STARTUP) {
+      createTimersWindow()
+      timersWin?.show()
+    } else if (SETTINGS_ONLY_STARTUP) {
+      showSettingsWindow('general')
     } else {
       createWindows()
       showDungeonWindow()
@@ -949,6 +1197,10 @@ app.on('activate', () => {
 app.on('second-instance', () => {
   if (METER_ONLY_STARTUP) {
     showMeterWindow()
+  } else if (TIMERS_ONLY_STARTUP) {
+    showTimersWindow()
+  } else if (SETTINGS_ONLY_STARTUP) {
+    showSettingsWindow('general')
   } else {
     showDungeonWindow()
   }
@@ -991,6 +1243,41 @@ ipcMain.handle('wiki:fetch-monster', async (_evt, id: string) => {
   return res.json() as Promise<unknown>
 })
 
+ipcMain.handle('wiki:fetch-npc', async (_evt, id: string) => {
+  const safe = typeof id === 'string' ? id.trim() : ''
+  if (!safe) throw new Error('Missing npc id')
+  const url = npcDetailUrl(safe)
+  wikiLog('GET', url)
+  const res = await fetch(url, { headers: FETCH_HEADERS })
+  if (!res.ok) {
+    throw new Error(`NPC detail returned ${res.status}`)
+  }
+  return res.json() as Promise<unknown>
+})
+
+ipcMain.handle('wiki:fetch-item', async (_evt, id: string) => {
+  const safe = typeof id === 'string' ? id.trim() : ''
+  if (!safe) throw new Error('Missing item id')
+  const url = wikiItemDetailUrl(safe)
+  wikiLog('GET', url)
+  const res = await fetch(url, { headers: FETCH_HEADERS })
+  if (!res.ok) {
+    throw new Error(`Item detail returned ${res.status}`)
+  }
+  return res.json() as Promise<unknown>
+})
+
+ipcMain.handle('boss-timer:test-toast', () => {
+  return tryShowBossTimerTestNotification()
+})
+
+ipcMain.handle('boss-timer:test-sound', () => {
+  return {
+    ok: false as const,
+    error: 'Sound spawn alerts are temporarily disabled — use Test toast to preview reminders.',
+  }
+})
+
 ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
   try {
     const c = cfg as Partial<HotkeyPayload> & { hotkeysOnlyWhenCompanionFocused?: boolean }
@@ -1019,6 +1306,12 @@ function windowFromSenderExact(sender: WebContents): BrowserWindow | undefined {
   if (meterWin && !meterWin.isDestroyed() && meterWin.webContents.id === id) {
     return meterWin
   }
+  if (timersWin && !timersWin.isDestroyed() && timersWin.webContents.id === id) {
+    return timersWin
+  }
+  if (settingsWin && !settingsWin.isDestroyed() && settingsWin.webContents.id === id) {
+    return settingsWin
+  }
   if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
     return updateWin
   }
@@ -1031,6 +1324,10 @@ ipcMain.handle('window:minimize', (e) => {
     updateWin.minimize()
     return true
   }
+  if (settingsWin && !settingsWin.isDestroyed() && settingsWin.webContents.id === id) {
+    settingsWin.minimize()
+    return true
+  }
   return hideWindowToTray(windowFromSenderExact(e.sender))
 })
 
@@ -1039,6 +1336,11 @@ ipcMain.handle('window:close', (e) => {
   if (updateWin && !updateWin.isDestroyed() && updateWin.webContents.id === id) {
     updateWin.destroy()
     updateWin = null
+    return true
+  }
+  if (settingsWin && !settingsWin.isDestroyed() && settingsWin.webContents.id === id) {
+    settingsWin.destroy()
+    settingsWin = null
     return true
   }
   return hideWindowToTray(windowFromSenderExact(e.sender))
@@ -1059,11 +1361,29 @@ ipcMain.handle('window:show-meter', () => {
   return true
 })
 
+ipcMain.handle('window:show-timers', () => {
+  showTimersWindow()
+  return true
+})
+
+ipcMain.handle('window:open-settings', (_e, sectionArg: unknown) => {
+  showSettingsWindow(sectionArg)
+  return true
+})
+
 ipcMain.on('meter:apply-options', (_e, opts: unknown) => {
   if (!opts || typeof opts !== 'object') return
   const v = (opts as { alwaysOnTop?: unknown }).alwaysOnTop
   if (typeof v === 'boolean') {
     setWinAlwaysOnTop(meterWin, v)
+  }
+})
+
+ipcMain.on('timers:apply-options', (_e, opts: unknown) => {
+  if (!opts || typeof opts !== 'object') return
+  const v = (opts as { alwaysOnTop?: unknown }).alwaysOnTop
+  if (typeof v === 'boolean') {
+    setWinAlwaysOnTop(timersWin, v)
   }
 })
 
@@ -1112,11 +1432,23 @@ ipcMain.on('meter:set-ignore-mouse-events', (_e, ignore: unknown) => {
   }
 })
 
+ipcMain.on('timers:set-ignore-mouse-events', (_e, ignore: unknown) => {
+  if (!timersWin || timersWin.isDestroyed()) return
+  if (ignore === true) {
+    timersWin.setIgnoreMouseEvents(true, { forward: true })
+  } else {
+    timersWin.setIgnoreMouseEvents(false)
+  }
+})
+
 ipcMain.on('timeline:apply-options', (_e, opts: TimelineOptionsPayload) => {
   setWinAlwaysOnTop(timelineWin, !!opts.alwaysOnTop)
 })
 
 ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
+  if (isOverlaySettings(payload)) {
+    lastOverlaySettings = payload
+  }
   if (payload && typeof payload === 'object' && 'timelineAlwaysOnTop' in payload) {
     const v = (payload as { timelineAlwaysOnTop: unknown }).timelineAlwaysOnTop
     if (typeof v === 'boolean') {
@@ -1129,7 +1461,13 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
       setWinAlwaysOnTop(meterWin, v)
     }
   }
-  // Never echo `settings:patch` back to the sender — causes an infinite loop in DungeonApp
+  if (payload && typeof payload === 'object' && 'timersAlwaysOnTop' in payload) {
+    const v = (payload as { timersAlwaysOnTop: unknown }).timersAlwaysOnTop
+    if (typeof v === 'boolean') {
+      setWinAlwaysOnTop(timersWin, v)
+    }
+  }
+  // Never echo `settings:patch` back to the sender — causes an infinite loop in renderers
   // (useEffect → pushSettings → patch → setSettings → useEffect …) and freezes the UI.
   const senderId = event.sender.id
   if (
@@ -1152,6 +1490,20 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
     meterWin.webContents.id !== senderId
   ) {
     meterWin.webContents.send('settings:patch', payload)
+  }
+  if (
+    timersWin &&
+    !timersWin.isDestroyed() &&
+    timersWin.webContents.id !== senderId
+  ) {
+    timersWin.webContents.send('settings:patch', payload)
+  }
+  if (
+    settingsWin &&
+    !settingsWin.isDestroyed() &&
+    settingsWin.webContents.id !== senderId
+  ) {
+    settingsWin.webContents.send('settings:patch', payload)
   }
 })
 
