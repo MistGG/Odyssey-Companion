@@ -1,5 +1,6 @@
 import type { DungeonClearReward, DungeonDetailDifficulty } from '../types'
 import { wikiItemIconUrl } from '../lib/dungeonImage'
+import { formatDropRatePermille } from '../lib/wikiDropRateFormat'
 
 const CLEAR_RANK_LABELS = ['Base', 'F', 'E', 'D', 'C', 'B', 'A', 'S'] as const
 
@@ -49,12 +50,6 @@ function groupClearRewardsByTier(
       clearRewardTierSortKey(a[0]) - clearRewardTierSortKey(b[0]) ||
       a[0].localeCompare(b[0]),
   )
-}
-
-/** Wiki uses `rate_permil / 100` as the displayed percent. */
-function formatDropRatePermille(permil: number): string {
-  const p = permil / 100
-  return `${p.toFixed(permil % 100 ? 1 : 0)}%`
 }
 
 function formatDurationSec(sec: number): string {

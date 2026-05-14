@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added a world boss timer and updated settings"
+      "releaseNotes": "- Adjusted World Boss Timer\n- Added full loot table for Neptunemon with rates"
     }
   }
 }

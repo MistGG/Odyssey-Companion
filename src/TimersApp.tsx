@@ -17,6 +17,12 @@ export default function TimersApp() {
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
 
+  const [timersLootExpanded, setTimersLootExpanded] = useState(false)
+
+  const onLootRatesExpandedChange = useCallback((expanded: boolean) => {
+    setTimersLootExpanded(expanded)
+  }, [])
+
   const positionLocked = settings.timersPositionLocked
 
   useEffect(() => {
@@ -134,6 +140,7 @@ export default function TimersApp() {
     'shell--timers',
     ghostChrome ? 'timers-shell--ghost' : '',
     positionLocked ? 'timers-position-locked' : 'timers-position-unlocked',
+    timersLootExpanded ? 'shell--timers-loot-expanded' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -218,8 +225,11 @@ export default function TimersApp() {
           </div>
         </header>
 
-        <main ref={timersBodyRef} className="timers-body timers-body--compact">
-          <BossTimersView variant="overlay" />
+        <main
+          ref={timersBodyRef}
+          className={`timers-body timers-body--compact${timersLootExpanded ? ' timers-body--loot-expanded' : ''}`}
+        >
+          <BossTimersView variant="overlay" onLootRatesExpandedChange={onLootRatesExpandedChange} />
         </main>
       </div>
     </div>

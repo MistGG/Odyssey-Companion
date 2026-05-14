@@ -108,6 +108,14 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.send('timers:set-ignore-mouse-events', ignore)
   },
 
+  /** Grow / restore timers window when overlay loot drop table is toggled. */
+  setTimersLootDetailExpanded: (expanded: boolean, contentHeightPx?: number | null) =>
+    ipcRenderer.invoke(
+      'timers:set-loot-detail-expanded',
+      expanded,
+      contentHeightPx ?? null,
+    ) as Promise<{ ok: true } | { ok: false; error?: string }>,
+
   loadFightIntoTimeline: (payload: unknown) =>
     ipcRenderer.invoke('timeline:load-fight', payload) as Promise<boolean>,
 

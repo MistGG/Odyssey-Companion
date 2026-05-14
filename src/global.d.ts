@@ -43,6 +43,11 @@ declare global {
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       setMeterIgnoreMouseEvents?: (ignore: boolean) => void
       setTimersIgnoreMouseEvents?: (ignore: boolean) => void
+      /** Timers overlay: resize window to fit drop table, restore prior bounds when collapsed. */
+      setTimersLootDetailExpanded?: (
+        expanded: boolean,
+        contentHeightPx?: number | null,
+      ) => Promise<{ ok: true } | { ok: false; error?: string }>,
       loadFightIntoTimeline: (payload: unknown) => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>

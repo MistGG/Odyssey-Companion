@@ -87,6 +87,13 @@ export type MonsterSkill = {
   max_uses?: number
 }
 
+/** `GET …/api/wiki/monsters` — map rows on the monster payload. */
+export type MonsterLocation = {
+  map_id: string
+  map_name: string
+  count: number
+}
+
 export type MonsterDetail = {
   id: string
   name: string
@@ -94,6 +101,10 @@ export type MonsterDetail = {
   model_id: string
   level: number
   skills: MonsterSkill[]
+  /** World / field boss loot bands from `GET …/api/wiki/monsters?id=` (optional). */
+  raid_rankings?: DungeonRaidRankingBand[]
+  /** Spawn / field locations from the monsters API (optional). */
+  locations?: MonsterLocation[]
 }
 
 export type HotkeyConfig = {

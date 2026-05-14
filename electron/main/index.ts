@@ -9,7 +9,7 @@ import {
   screen,
   shell,
 } from 'electron'
-import type { WebContents } from 'electron'
+import type { Rectangle, WebContents } from 'electron'
 import electronUpdater from 'electron-updater'
 
 /** CJS package — use default import; named `autoUpdater` breaks in packaged ESM main. */
@@ -93,6 +93,8 @@ let dungeonWin: BrowserWindow | null = null
 let timelineWin: BrowserWindow | null = null
 let meterWin: BrowserWindow | null = null
 let timersWin: BrowserWindow | null = null
+/** Bounds before expanding loot drop table — restored on collapse or tray hide. */
+let timersLootDetailSavedBounds: Rectangle | null = null
 /** Unified settings (fixed layout; not tied to overlay size). */
 let settingsWin: BrowserWindow | null = null
 /** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
@@ -739,6 +741,7 @@ function createMeterWindow() {
 }
 
 function createTimersWindow() {
+  timersLootDetailSavedBounds = null
   const layout = readWindowLayout()
   const b = normalizeTimersBounds(layout.timers)
   timersWin = new BrowserWindow({
@@ -781,6 +784,13 @@ function createTimersWindow() {
 
   setWinAlwaysOnTop(timersWin, true)
   wireHideInsteadOfClose(timersWin)
+  timersWin.on('hide', () => {
+    if (!timersWin || timersWin.isDestroyed()) return
+    if (timersLootDetailSavedBounds) {
+      timersWin.setBounds(timersLootDetailSavedBounds)
+      timersLootDetailSavedBounds = null
+    }
+  })
   attachWindowLayoutTracking(timersWin)
 }
 
@@ -983,6 +993,7 @@ function quitFromTray() {
   quitting = true
   globalShortcut.unregisterAll()
   stopDpsReader()
+  timersLootDetailSavedBounds = null
   tray?.destroy()
   tray = null
   if (dungeonWin && !dungeonWin.isDestroyed()) dungeonWin.destroy()
@@ -1386,6 +1397,43 @@ ipcMain.on('timers:apply-options', (_e, opts: unknown) => {
     setWinAlwaysOnTop(timersWin, v)
   }
 })
+
+ipcMain.handle(
+  'timers:set-loot-detail-expanded',
+  (_evt, expanded: unknown, contentHeightPx: unknown) => {
+    if (!timersWin || timersWin.isDestroyed()) {
+      return { ok: false as const, error: 'No timers window' }
+    }
+    if (expanded === true) {
+      if (!timersLootDetailSavedBounds) {
+        timersLootDetailSavedBounds = timersWin.getBounds()
+      }
+      if (typeof contentHeightPx === 'number' && Number.isFinite(contentHeightPx) && contentHeightPx > 0) {
+        const [, ch] = timersWin.getContentSize()
+        const target = Math.ceil(contentHeightPx)
+        if (target > ch) {
+          const b = timersWin.getBounds()
+          const wa = screen.getDisplayMatching(b).workArea
+          const maxOuterH = Math.max(1, wa.y + wa.height - b.y - 12)
+          const dh = target - ch
+          const newH = Math.min(b.height + dh, maxOuterH)
+          if (newH > b.height) {
+            timersWin.setBounds({ ...b, height: newH })
+          }
+        }
+      }
+      return { ok: true as const }
+    }
+    if (expanded === false) {
+      if (timersLootDetailSavedBounds) {
+        timersWin.setBounds(timersLootDetailSavedBounds)
+        timersLootDetailSavedBounds = null
+      }
+      return { ok: true as const }
+    }
+    return { ok: false as const, error: 'Invalid expanded flag' }
+  },
+)
 
 ipcMain.handle(
   'meter:start-reader',

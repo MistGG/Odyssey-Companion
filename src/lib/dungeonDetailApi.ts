@@ -8,10 +8,9 @@ import type {
   DungeonDetailDifficulty,
   DungeonEnterCondition,
   DungeonObjective,
-  DungeonRaidRankingBand,
-  DungeonRaidRewardRoll,
 } from '../types'
 import { fetchWithWikiCache, wikiCacheRead } from './wikiCache'
+import { parseWikiRaidRankings } from './wikiRaidRankingsParse'
 
 function parseDungeonDetail(raw: unknown): DungeonDetail {
   if (!raw || typeof raw !== 'object') {
@@ -30,38 +29,6 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
   const difficultiesRaw = o.difficulties
   if (!Array.isArray(difficultiesRaw)) {
     throw new Error('Invalid dungeon difficulties')
-  }
-  const parseRaidRewards = (raw: unknown): DungeonRaidRewardRoll[] => {
-    if (!Array.isArray(raw)) return []
-    const out: DungeonRaidRewardRoll[] = []
-    for (const r of raw) {
-      if (!r || typeof r !== 'object') continue
-      const o = r as Record<string, unknown>
-      out.push({
-        item_id: String(o.item_id ?? ''),
-        item_name: String(o.item_name ?? ''),
-        item_icon_id: String(o.item_icon_id ?? ''),
-        rate_permil: Number(o.rate_permil ?? 0),
-        min: Number(o.min ?? 1),
-        max: Number(o.max ?? o.min ?? 1),
-      })
-    }
-    return out
-  }
-
-  const parseRaidRankings = (raw: unknown): DungeonRaidRankingBand[] => {
-    if (!Array.isArray(raw)) return []
-    const out: DungeonRaidRankingBand[] = []
-    for (const rk of raw) {
-      if (!rk || typeof rk !== 'object') continue
-      const o = rk as Record<string, unknown>
-      out.push({
-        start: Number(o.start ?? 0),
-        end: Number(o.end ?? 0),
-        rewards: parseRaidRewards(o.rewards),
-      })
-    }
-    return out
   }
 
   const parseEnterConditions = (raw: unknown): DungeonEnterCondition[] => {
@@ -106,7 +73,7 @@ function parseDungeonDetail(raw: unknown): DungeonDetail {
       for (const ob of objectivesRaw) {
         if (!ob || typeof ob !== 'object') continue
         const x = ob as Record<string, unknown>
-        const raidRankings = parseRaidRankings(x.raid_rankings)
+        const raidRankings = parseWikiRaidRankings(x.raid_rankings)
         objectives.push({
           step: Number(x.step ?? 0),
           monster_id: String(x.monster_id ?? ''),

@@ -1,6 +1,22 @@
 /** Monster timeline — matches `GET …/api/wiki/monsters?id={id}` (`skills` → timeline rows). */
-import type { MonsterDetail, MonsterSkill } from '../types'
+import type { MonsterDetail, MonsterLocation, MonsterSkill } from '../types'
 import { fetchWithWikiCache } from './wikiCache'
+import { parseWikiRaidRankings } from './wikiRaidRankingsParse'
+
+function parseMonsterLocations(raw: unknown): MonsterLocation[] {
+  if (!Array.isArray(raw)) return []
+  const out: MonsterLocation[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const lo = row as Record<string, unknown>
+    out.push({
+      map_id: String(lo.map_id ?? ''),
+      map_name: String(lo.map_name ?? ''),
+      count: Number(lo.count ?? 0),
+    })
+  }
+  return out
+}
 
 function parseMonsterDetail(raw: unknown): MonsterDetail {
   if (!raw || typeof raw !== 'object') {
@@ -28,7 +44,9 @@ function parseMonsterDetail(raw: unknown): MonsterDetail {
       })
     }
   }
-  return {
+  const raidRankings = parseWikiRaidRankings(o.raid_rankings)
+  const locations = parseMonsterLocations(o.locations)
+  const row: MonsterDetail = {
     id: String(o.id ?? ''),
     name: String(o.name ?? ''),
     pen_name: String(o.pen_name ?? ''),
@@ -36,6 +54,9 @@ function parseMonsterDetail(raw: unknown): MonsterDetail {
     level: Number(o.level ?? 0),
     skills,
   }
+  if (raidRankings.length) row.raid_rankings = raidRankings
+  if (locations.length) row.locations = locations
+  return row
 }
 
 async function fetchMonsterDetailLive(safe: string): Promise<MonsterDetail> {
@@ -62,7 +83,7 @@ async function fetchMonsterDetailLive(safe: string): Promise<MonsterDetail> {
 export async function fetchMonsterDetail(id: string): Promise<MonsterDetail> {
   const safe = id.trim()
   if (!safe) throw new Error('Missing monster id')
-  const key = `monster:${safe}`
+  const key = `monster:v2:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchMonsterDetailLive(safe))
   return value
 }

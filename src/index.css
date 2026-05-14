@@ -331,6 +331,10 @@ select {
   background: rgba(0, 0, 0, 0.28);
 }
 
+.boss-timer-card__body {
+  min-width: 0;
+}
+
 .boss-timer-card__media {
   border-radius: 10px;
   overflow: hidden;
@@ -401,6 +405,11 @@ select {
   color: rgba(120, 230, 255, 0.98);
 }
 
+.boss-timer-countdown__value--alive {
+  color: rgba(134, 239, 172, 0.98);
+  text-shadow: 0 0 14px rgba(34, 197, 94, 0.3);
+}
+
 .boss-timer-countdown__local {
   display: block;
   font-size: 12px;
@@ -437,6 +446,122 @@ select {
 .boss-timer-reward__name {
   font-size: 15px;
   font-weight: 600;
+}
+
+.boss-timer-drops {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.boss-timer-drops__table-wrap {
+  margin-top: 8px;
+  max-height: min(320px, 55vh);
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 200, 255, 0.14);
+  background: rgba(4, 8, 14, 0.55);
+}
+
+.boss-timer-drops__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.boss-timer-drops__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(160, 190, 230, 0.75);
+  background: rgba(8, 12, 20, 0.96);
+  border-bottom: 1px solid rgba(120, 200, 255, 0.18);
+}
+
+.boss-timer-drops__th-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.boss-timer-drops__th-qty-col {
+  min-width: 3.25rem;
+}
+
+.boss-timer-drops__th-rate-col {
+  min-width: 4.5rem;
+}
+
+.boss-timer-drops__table tbody td {
+  padding: 8px 10px;
+  vertical-align: middle;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.boss-timer-drops__td-item {
+  min-width: 0;
+}
+
+.boss-timer-drops__item-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.boss-timer-drops__row-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+
+.boss-timer-drops__row-icon-fallback {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.boss-timer-drops__row-name {
+  font-weight: 600;
+  color: rgba(230, 242, 255, 0.94);
+  word-break: break-word;
+}
+
+.boss-timer-drops__td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.boss-timer-drops__td-qty {
+  color: rgba(180, 205, 235, 0.72);
+  font-size: 12px;
+}
+
+.boss-timer-drops__td-rate {
+  font-weight: 700;
+  font-size: 13px;
+  color: rgba(120, 230, 255, 0.95);
+}
+
+.boss-timer-drops__empty {
+  margin: 6px 0 0;
 }
 
 .boss-timer-card__wiki-hint {
@@ -517,25 +642,176 @@ select {
   flex-shrink: 0;
 }
 
-.boss-timer-overlay-strip__meta {
-  font-size: 10px;
-  line-height: 1.35;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
+.boss-timer-overlay-strip--alive {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.08);
 }
 
-.boss-timer-overlay-strip__reward-ico {
+.boss-timer-overlay-strip__countdown--alive {
+  color: rgba(134, 239, 172, 0.98);
+  text-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+}
+
+.boss-timer-overlay-strip__meta {
+  font-size: 10px;
+  line-height: 1.25;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.boss-timer-overlay-strip__loc-line {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.boss-timer-overlay-strip__loot {
+  list-style: none;
+  margin: 1px 0 0;
+  padding: 0;
+  max-height: 72px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.boss-timer-overlay-strip__loot-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(2.75rem, auto);
+  gap: 4px 6px;
+  align-items: center;
+}
+
+.boss-timer-overlay-strip__loot-ico {
   width: 14px;
   height: 14px;
   object-fit: contain;
   border-radius: 3px;
-  vertical-align: middle;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
 }
 
-.boss-timer-overlay-strip__next {
+.boss-timer-overlay-strip__loot-ico-fallback {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.boss-timer-overlay-strip__loot-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.2;
+  color: rgba(210, 225, 250, 0.88);
+}
+
+.boss-timer-overlay-strip__loot-rate {
+  font-size: 9px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: rgba(120, 230, 255, 0.95);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.boss-timer-overlay-strip__next-line {
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+  opacity: 0.88;
+  font-size: 9px;
+}
+
+/* Overlay loot: icon strip + optional drop-rate table */
+.boss-timer-loot-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.boss-timer-loot-bar--overlay {
+  margin-top: 3px;
+  gap: 6px;
+}
+
+.boss-timer-loot-icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.boss-timer-loot-icons__ico {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.boss-timer-loot-icons__fallback {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.boss-timer-loot-bar__btn {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 3px 8px;
+  line-height: 1.2;
+}
+
+.boss-timer-loot-bar--overlay .boss-timer-loot-bar__btn {
+  padding: 2px 7px;
+  font-size: 9px;
+}
+
+/* Let the table use its natural height so the window can grow; no inner scroll trap. */
+.boss-timer-drops__table-wrap--overlay {
+  margin-top: 4px;
+  max-height: none;
+  overflow: visible;
+}
+
+.boss-timer-drops__table--overlay {
+  font-size: 11px;
+}
+
+.boss-timer-drops__table--overlay .boss-timer-drops__row-icon,
+.boss-timer-drops__table--overlay .boss-timer-drops__row-icon-fallback {
+  width: 22px;
+  height: 22px;
+}
+
+.boss-timer-drops__table--overlay thead th {
+  position: static;
+  padding: 6px 8px;
+  font-size: 9px;
+}
+
+.boss-timer-drops__table--overlay tbody td {
+  padding: 5px 8px;
 }
 
 .shell--timeline {
@@ -3111,6 +3387,32 @@ select {
 
 .shell--timers.timers-position-locked .titlebar-drag--timers:active {
   cursor: grabbing;
+}
+
+.shell--timers-loot-expanded {
+  height: auto;
+  min-height: 100%;
+}
+
+.shell--timers-loot-expanded .timers-backdrop {
+  flex: none;
+  height: auto;
+  overflow: visible;
+}
+
+.timers-body--loot-expanded {
+  flex: none;
+  height: auto;
+  min-height: min-content;
+  overflow: visible;
+}
+
+html:has(.shell--timers-loot-expanded),
+body.body--timers:has(.shell--timers-loot-expanded),
+body.body--timers:has(.shell--timers-loot-expanded) #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 .timers-shell--ghost .timers-backdrop {
