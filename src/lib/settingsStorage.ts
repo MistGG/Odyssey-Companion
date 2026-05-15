@@ -115,8 +115,20 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       : undefined
   const chimeRaw = raw.bossTimerChimeStyle
   let bossChime: OverlaySettings['bossTimerChimeStyle'] | undefined
-  if (chimeRaw === 'off' || chimeRaw === 'gentle' || chimeRaw === 'standard') {
+  if (chimeRaw === 'off' || chimeRaw === 'warmDuo' || chimeRaw === 'airy') {
     bossChime = chimeRaw
+  } else if (chimeRaw === 'gentle' || chimeRaw === 'standard') {
+    bossChime = 'warmDuo'
+  }
+
+  let bossChimeVol: number | undefined
+  if (typeof raw.bossTimerChimeVolume === 'number' && Number.isFinite(raw.bossTimerChimeVolume)) {
+    bossChimeVol = Math.min(1, Math.max(0, raw.bossTimerChimeVolume))
+  }
+
+  let bossChimeRepeats: number | undefined
+  if (typeof raw.bossTimerChimeRepeats === 'number' && Number.isFinite(raw.bossTimerChimeRepeats)) {
+    bossChimeRepeats = Math.min(5, Math.max(1, Math.round(raw.bossTimerChimeRepeats)))
   }
 
   return {
@@ -179,6 +191,8 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
         ? bossWhenClosed
         : DEFAULT_SETTINGS.bossTimerNotifyWhenUiClosed,
     bossTimerChimeStyle: bossChime ?? DEFAULT_SETTINGS.bossTimerChimeStyle,
+    bossTimerChimeVolume: bossChimeVol ?? DEFAULT_SETTINGS.bossTimerChimeVolume,
+    bossTimerChimeRepeats: bossChimeRepeats ?? DEFAULT_SETTINGS.bossTimerChimeRepeats,
   }
 }
 

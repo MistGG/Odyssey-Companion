@@ -177,8 +177,12 @@ export type OverlaySettings = {
    * (otherwise alerts only fire while the timers overlay is visible).
    */
   bossTimerNotifyWhenUiClosed: boolean
-  /** Chime used for pre-spawn sound alerts (short multi-note ring on Windows + browser fallback). */
-  bossTimerChimeStyle: 'off' | 'gentle' | 'standard'
+  /** Chime voice for pre-spawn sound alerts (Web Audio in the timers window). */
+  bossTimerChimeStyle: 'off' | 'warmDuo' | 'airy'
+  /** Chime loudness 0–1 (Web Audio master trim). */
+  bossTimerChimeVolume: number
+  /** How many times to play the chime in a row (1–5). */
+  bossTimerChimeRepeats: number
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
@@ -204,7 +208,9 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   bossTimerNotifyLeadMin: 15,
   bossTimerNotifyMethod: 'toast',
   bossTimerNotifyWhenUiClosed: true,
-  bossTimerChimeStyle: 'gentle',
+  bossTimerChimeStyle: 'warmDuo',
+  bossTimerChimeVolume: 0.45,
+  bossTimerChimeRepeats: 1,
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */

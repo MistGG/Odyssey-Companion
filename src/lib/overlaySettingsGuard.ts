@@ -54,8 +54,17 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
       o.bossTimerNotifyMethod !== 'sound' &&
       o.bossTimerNotifyMethod !== 'both') ||
     (o.bossTimerChimeStyle !== 'off' &&
-      o.bossTimerChimeStyle !== 'gentle' &&
-      o.bossTimerChimeStyle !== 'standard') ||
+      o.bossTimerChimeStyle !== 'warmDuo' &&
+      o.bossTimerChimeStyle !== 'airy') ||
+    typeof o.bossTimerChimeVolume !== 'number' ||
+    !Number.isFinite(o.bossTimerChimeVolume) ||
+    o.bossTimerChimeVolume < 0 ||
+    o.bossTimerChimeVolume > 1 ||
+    typeof o.bossTimerChimeRepeats !== 'number' ||
+    !Number.isFinite(o.bossTimerChimeRepeats) ||
+    !Number.isInteger(o.bossTimerChimeRepeats) ||
+    o.bossTimerChimeRepeats < 1 ||
+    o.bossTimerChimeRepeats > 5 ||
     !isHotkeyShape(o.hotkeys)
   ) {
     return false

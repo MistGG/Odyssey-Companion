@@ -1282,13 +1282,6 @@ ipcMain.handle('boss-timer:test-toast', () => {
   return tryShowBossTimerTestNotification()
 })
 
-ipcMain.handle('boss-timer:test-sound', () => {
-  return {
-    ok: false as const,
-    error: 'Sound spawn alerts are temporarily disabled — use Test toast to preview reminders.',
-  }
-})
-
 ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
   try {
     const c = cfg as Partial<HotkeyPayload> & { hotkeysOnlyWhenCompanionFocused?: boolean }

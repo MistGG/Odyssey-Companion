@@ -4,22 +4,34 @@ import type { OverlaySettings } from '../../src/types'
 
 let lastNotifiedSpawnEndMs = 0
 
-export type ParsedChimeStyle = 'off' | 'gentle' | 'standard'
+export type ParsedChimeStyle = 'off' | 'warmDuo' | 'airy'
 
 export function parseBossTimerChimeStyle(raw: unknown): ParsedChimeStyle {
-  if (raw === 'off' || raw === 'gentle' || raw === 'standard') return raw
-  return 'gentle'
+  if (raw === 'off' || raw === 'warmDuo' || raw === 'airy') return raw
+  if (raw === 'gentle' || raw === 'standard') return 'warmDuo'
+  return 'warmDuo'
 }
 
-/** Sound spawn alerts are temporarily disabled (no-op; kept for API compatibility). */
-export function playBossTimerChime(_style: ParsedChimeStyle): void {}
-
-export function playBossTimerTestBeep(_style: ParsedChimeStyle) {}
+function dispatchTimersWebChime(
+  win: BrowserWindow | null,
+  style: Exclude<ParsedChimeStyle, 'off'>,
+  volume: number,
+  repeats: number,
+): void {
+  if (!win || win.isDestroyed()) return
+  const v = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 0.45
+  const r = Number.isFinite(repeats) ? Math.min(5, Math.max(1, Math.round(repeats))) : 1
+  try {
+    win.webContents.send('boss-timer:chime', { style, volume: v, repeats: r })
+  } catch {
+    /* ignore */
+  }
+}
 
 function relaxedNeptunemonCopy(minsApprox: number): { title: string; body: string } {
   return {
     title: 'Neptunemon',
-    body: `About ${minsApprox} min until the next window. Bottom-right on Olympos festival isle — Olympian token when you get there. No rush.`,
+    body: `About ${minsApprox} min until the next window. Bottom-right on Olympos Festival Island.`,
   }
 }
 
@@ -78,11 +90,15 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const mins = Math.max(1, Math.ceil(remaining / 60_000))
   const { title, body } = relaxedNeptunemonCopy(mins)
 
-  /** Sound alerts are off for now — desktop toast for all methods that expect an alert. */
-  const showToast = method === 'toast' || method === 'both' || method === 'sound'
-  if (showToast) {
-    if (Notification.isSupported()) {
-      void new Notification({ title, body }).show()
-    }
+  const chime = parseBossTimerChimeStyle(settings.bossTimerChimeStyle)
+  const wantToast = method === 'toast' || method === 'both'
+  const wantSound = (method === 'sound' || method === 'both') && chime !== 'off'
+
+  if (wantToast && Notification.isSupported()) {
+    void new Notification({ title, body }).show()
+  }
+
+  if (wantSound) {
+    dispatchTimersWebChime(timersWin, chime, settings.bossTimerChimeVolume, settings.bossTimerChimeRepeats)
   }
 }

@@ -1,5 +1,8 @@
 /** Preview Neptunemon toast (Electron IPC or browser fallbacks). */
 
+import { loadSettings } from './settingsStorage'
+import { playBossTimerWebChimeFromSetting } from './bossTimerWebChime'
+
 export async function runBossTimerTestToast(): Promise<{ ok: boolean; error?: string }> {
   const api = window.odysseyCompanion
   if (api?.bossTimerTestToast) {
@@ -28,15 +31,20 @@ export async function runBossTimerTestToast(): Promise<{ ok: boolean; error?: st
   }
 }
 
-/** Kept for API compatibility; sound alerts are off for now. */
+/** Plays the current chime style in this renderer (Web Audio). */
 export async function runBossTimerTestSound(): Promise<{ ok: boolean; error?: string }> {
-  const api = window.odysseyCompanion
-  if (api?.bossTimerTestSound) {
-    const r = await api.bossTimerTestSound()
-    return r.ok ? { ok: true } : { ok: false, error: r.error }
-  }
-  return {
-    ok: false,
-    error: 'Sound spawn alerts are temporarily disabled — use Test toast to preview reminders.',
+  try {
+    const s = loadSettings()
+    const chime = s.bossTimerChimeStyle
+    if (chime === 'off') {
+      return {
+        ok: false,
+        error: 'Chime is Off — pick Warm Duo or Airy to hear a preview.',
+      }
+    }
+    await playBossTimerWebChimeFromSetting(chime, s.bossTimerChimeVolume, s.bossTimerChimeRepeats)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }

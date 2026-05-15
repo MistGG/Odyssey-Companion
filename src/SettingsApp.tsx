@@ -5,7 +5,7 @@ import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsS
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
-import { runBossTimerTestToast } from './lib/bossTimerClientTest'
+import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -71,7 +71,7 @@ export default function SettingsApp() {
   const [releaseNotesOpen, setReleaseNotesOpen] = useState(false)
   const [releaseNotesContent, setReleaseNotesContent] = useState<LatestReleaseResult | undefined>(undefined)
 
-  const [timerTestBusy, setTimerTestBusy] = useState<'toast' | null>(null)
+  const [timerTestBusy, setTimerTestBusy] = useState<'toast' | 'sound' | null>(null)
   const [timerTestHint, setTimerTestHint] = useState<string | null>(null)
   const [timerTestHintIsError, setTimerTestHintIsError] = useState(false)
 
@@ -583,12 +583,88 @@ export default function SettingsApp() {
                 />
                 Notify while timers window is hidden (tray)
               </label>
+              <label className="field">
+                <span>Notify with</span>
+                <select
+                  value={settings.bossTimerNotifyMethod}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bossTimerNotifyMethod: e.target.value as OverlaySettings['bossTimerNotifyMethod'],
+                    }))
+                  }
+                >
+                  <option value="toast">Toast only</option>
+                  <option value="sound">Sound only</option>
+                  <option value="both">Toast and sound</option>
+                </select>
+                <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  Sound plays in the timers window (Web Audio). If the timers process is not running, you may only get
+                  a toast.
+                </span>
+              </label>
+              <label className="field">
+                <span>Chime style</span>
+                <select
+                  value={settings.bossTimerChimeStyle}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bossTimerChimeStyle: e.target.value as OverlaySettings['bossTimerChimeStyle'],
+                    }))
+                  }
+                >
+                  <option value="off">Off</option>
+                  <option value="warmDuo">Warm Duo</option>
+                  <option value="airy">Airy</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Chime volume</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={settings.bossTimerChimeVolume}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bossTimerChimeVolume: Number(e.target.value),
+                    }))
+                  }
+                />
+                <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  {Math.round(settings.bossTimerChimeVolume * 100)}% — applies to sound and both; toast volume follows
+                  Windows.
+                </span>
+              </label>
+              <label className="field">
+                <span>Chime repeats</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={settings.bossTimerChimeRepeats}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bossTimerChimeRepeats: Math.min(5, Math.max(1, Math.round(Number(e.target.value)))),
+                    }))
+                  }
+                />
+                <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  {settings.bossTimerChimeRepeats}× in a row — applies to sound and both.
+                </span>
+              </label>
             </section>
 
             <section className="field-group">
               <h3 className="settings-app-subhead">Try it</h3>
               <p className="hint muted" style={{ marginTop: 0 }}>
-                Soft copy on toasts — same relaxed style as real spawn reminders.
+                Soft copy on toasts — same relaxed style as real spawn reminders. Chimes use Web Audio in this window
+                at the volume and repeat count above.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button
@@ -611,6 +687,27 @@ export default function SettingsApp() {
                   }}
                 >
                   {timerTestBusy === 'toast' ? 'Sending…' : 'Test toast'}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={timerTestBusy !== null}
+                  onClick={() => {
+                    setTimerTestHint(null)
+                    setTimerTestBusy('sound')
+                    void runBossTimerTestSound().then((r) => {
+                      setTimerTestBusy(null)
+                      if (r.ok) {
+                        setTimerTestHintIsError(false)
+                        setTimerTestHint('Played chime with your style, volume, and repeat count.')
+                      } else {
+                        setTimerTestHintIsError(true)
+                        setTimerTestHint(r.error ?? 'Failed')
+                      }
+                    })
+                  }}
+                >
+                  {timerTestBusy === 'sound' ? 'Playing…' : 'Test chime'}
                 </button>
               </div>
               {timerTestHint ? (

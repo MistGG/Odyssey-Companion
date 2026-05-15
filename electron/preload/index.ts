@@ -175,6 +175,21 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   bossTimerTestToast: () =>
     ipcRenderer.invoke('boss-timer:test-toast') as Promise<{ ok: true } | { ok: false; error: string }>,
 
-  bossTimerTestSound: (style?: 'off' | 'gentle' | 'standard') =>
-    ipcRenderer.invoke('boss-timer:test-sound', style) as Promise<{ ok: true } | { ok: false; error: string }>,
+  /** Main sends this when a real pre-spawn sound cue should play (timers window only). */
+  onBossTimerChime: (handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const p = payload as { style?: unknown; volume?: unknown; repeats?: unknown }
+      if (p.style !== 'warmDuo' && p.style !== 'airy') return
+      const volume =
+        typeof p.volume === 'number' && Number.isFinite(p.volume) ? Math.min(1, Math.max(0, p.volume)) : 0.45
+      const repeats =
+        typeof p.repeats === 'number' && Number.isFinite(p.repeats)
+          ? Math.min(5, Math.max(1, Math.round(p.repeats)))
+          : 1
+      handler({ style: p.style, volume, repeats })
+    }
+    ipcRenderer.on('boss-timer:chime', wrapped)
+    return () => ipcRenderer.removeListener('boss-timer:chime', wrapped)
+  },
 })
