@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
+  NEPTUNEMON_ANCHOR_LABEL,
   NEPTUNEMON_SCHEDULE_TIMEZONE,
   NEPTUNEMON_SPAWN_PERIOD_MS,
   formatDurationCountdown,
@@ -234,6 +235,9 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   }, [nextMs])
 
   const periodMin = NEPTUNEMON_SPAWN_PERIOD_MS / 60_000
+  const periodLabel = Number.isInteger(periodMin)
+    ? `${periodMin} min`
+    : `${Math.floor(periodMin)}m ${Math.round((periodMin % 1) * 60)}s`
   const tzLabel = NEPTUNEMON_SCHEDULE_TIMEZONE.replace(/_/g, ' ')
 
   const lootBar = (opts: { overlay?: boolean }) => (
@@ -328,8 +332,8 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       </section>
 
       <p className="timers-intro muted">
-        Every {periodMin} min · anchored to <strong>01:21 {tzLabel}</strong> so everyone shares the same countdown;
-        next line is your local time.
+        About every {periodLabel} · anchored to <strong>{NEPTUNEMON_ANCHOR_LABEL} {tzLabel}</strong>; next line is
+        your local time.
       </p>
 
       <article className="boss-timer-card">

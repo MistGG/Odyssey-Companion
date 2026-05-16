@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added sound notification option"
+      "releaseNotes": "- Updated Neptunemon spawn timer. and added a 30s drift due to the window shifting over time"
     }
   }
 }

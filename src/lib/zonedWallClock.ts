@@ -9,6 +9,7 @@ export function utcMillisForWallClockInZone(
   hour: number,
   minute: number,
   timeZone: string,
+  second = 0,
 ): number {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -29,8 +30,8 @@ export function utcMillisForWallClockInZone(
   const end = Date.UTC(year, month - 1, day + 2, 12, 0, 0, 0)
   while (t < end) {
     const p = read(t)
-    if (p.y === year && p.mo === month && p.d === day && p.h === hour && p.m === minute) return t
+    if (p.y === year && p.mo === month && p.d === day && p.h === hour && p.m === minute) return t + second * 1000
     t += 60_000
   }
-  throw new Error(`Could not resolve wall clock ${year}-${month}-${day} ${hour}:${minute} in ${timeZone}`)
+  throw new Error(`Could not resolve wall clock ${year}-${month}-${day} ${hour}:${minute}:${second} in ${timeZone}`)
 }
