@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added a basic market search\n- Added an Olympian:Seal converter"
+      "releaseNotes": "- Fixed an issue with Olympian Token - Seal exchange ticket conversion ratio"
     }
   }
 }

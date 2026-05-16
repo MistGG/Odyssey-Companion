@@ -8,6 +8,9 @@ import {
   marketItemIconUrl,
 } from '../lib/marketApi'
 
+const OLYMPIAN_TOKENS_PER_EXCHANGE = 50
+const SEAL_TICKETS_PER_EXCHANGE = 3
+
 function cleanName(name: string): string {
   return name.replace(/\s+/g, ' ').trim()
 }
@@ -128,7 +131,8 @@ type SealConversionPlan = {
 
 function tokensNeededForSealCount(seals: number, sealsPerTicket: number): number {
   if (seals <= 0) return 0
-  return Math.ceil(seals / Math.max(1, sealsPerTicket)) * 50
+  const ticketsNeeded = Math.ceil(seals / Math.max(1, sealsPerTicket))
+  return Math.ceil(ticketsNeeded / SEAL_TICKETS_PER_EXCHANGE) * OLYMPIAN_TOKENS_PER_EXCHANGE
 }
 
 function highestUnitPriceUsed(listings: MarketListing[], desiredQty: number): number | null {
@@ -164,7 +168,10 @@ function breakEvenTokenUnitPriceForSealPrice(
   sealsPerTicket: number,
 ): number | null {
   if (sealUnitPrice === null || sealUnitPrice <= 0) return null
-  return (sealUnitPrice * Math.max(1, sealsPerTicket)) / 50
+  return (
+    (sealUnitPrice * Math.max(1, sealsPerTicket) * SEAL_TICKETS_PER_EXCHANGE) /
+    OLYMPIAN_TOKENS_PER_EXCHANGE
+  )
 }
 
 function findBestSealPlan(
@@ -251,7 +258,8 @@ function findBestPartialSealPlan(
     tokenListings,
     tokensNeededForSealCount(sealsWanted, sealsPerTicket),
   )
-  const exchangeTickets = Math.floor(fullTokenEstimate.filled / 50)
+  const exchangeTickets =
+    Math.floor(fullTokenEstimate.filled / OLYMPIAN_TOKENS_PER_EXCHANGE) * SEAL_TICKETS_PER_EXCHANGE
   const exchangeSeals = Math.min(sealsWanted, exchangeTickets * Math.max(1, sealsPerTicket))
   if (exchangeSeals > 0) {
     const tokensNeeded = tokensNeededForSealCount(exchangeSeals, sealsPerTicket)
@@ -465,8 +473,9 @@ function MarketConverter() {
         <div>
           <h3 className="market-converter__title">Olympian:Seal Converter</h3>
           <p className="hint muted">
-            Seal Exchange Tickets cost <strong>50 Olympian Tokens each</strong>. Costs consume the cheapest visible
-            sell listings first.
+            <strong>50 Olympian Tokens</strong> exchange into{' '}
+            <strong>{SEAL_TICKETS_PER_EXCHANGE} Seal Exchange Tickets</strong>. Costs consume the cheapest visible sell
+            listings first.
           </p>
         </div>
         <span className="market-converter-toggle__state">{expanded ? 'Hide' : 'Open converter'}</span>
