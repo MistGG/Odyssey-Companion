@@ -5,8 +5,8 @@ export const NEPTUNEMON_SCHEDULE_TIMEZONE = 'America/Phoenix'
 
 /**
  * Observed spawn phase: 12:07:45 PM Arizona time on 2026-05-16.
- * Neptunemon's next 90-minute timer starts when it dies, so model observed
- * spawn-to-spawn spacing as roughly 90 minutes plus a 30-second alive window.
+ * Neptunemon is alive for roughly 20 seconds, then the next 90-minute timer starts.
+ * That makes observed spawn-to-spawn spacing roughly 90m20s.
  */
 export const NEPTUNEMON_ANCHOR_YEAR = 2026
 export const NEPTUNEMON_ANCHOR_MONTH = 5
@@ -15,10 +15,10 @@ export const NEPTUNEMON_ANCHOR_HOUR = 12
 export const NEPTUNEMON_ANCHOR_MINUTE = 7
 export const NEPTUNEMON_ANCHOR_SECOND = 45
 
-export const NEPTUNEMON_SPAWN_PERIOD_MS = (90 * 60 + 30) * 1000
+export const NEPTUNEMON_SPAWN_PERIOD_MS = (90 * 60 + 20) * 1000
 export const NEPTUNEMON_ANCHOR_LABEL = '12:07:45 PM'
 
-/** UTC instant of one spawn; every spawn is this + n × roughly 90m30s. */
+/** UTC instant of one spawn; every spawn is this + n × roughly 90m20s. */
 export const NEPTUNEMON_GRID_ANCHOR_UTC_MS = utcMillisForWallClockInZone(
   NEPTUNEMON_ANCHOR_YEAR,
   NEPTUNEMON_ANCHOR_MONTH,
@@ -30,7 +30,7 @@ export const NEPTUNEMON_GRID_ANCHOR_UTC_MS = utcMillisForWallClockInZone(
 )
 
 /** After each spawn instant, show the green “alive” state while Neptunemon is expected to be alive. */
-export const NEPTUNEMON_ALIVE_WINDOW_MS = 30 * 1000
+export const NEPTUNEMON_ALIVE_WINDOW_MS = 20 * 1000
 
 /** UTC instant of the most recent spawn at or before `atMs` (null if before the grid anchor). */
 export function lastNeptunemonSpawnUtcMs(atMs: number): number | null {
