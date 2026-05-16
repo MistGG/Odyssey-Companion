@@ -19,6 +19,9 @@ declare global {
       fetchMonsterDetail: (id: string) => Promise<unknown>
       fetchWikiNpc: (id: string) => Promise<unknown>
       fetchWikiItem: (id: string) => Promise<unknown>
+      openMarketLogin?: () => Promise<boolean>
+      fetchMarketSearch?: (query: string) => Promise<unknown>
+      fetchMarketListings?: (item: string, side?: 'sell' | 'buy', limit?: number) => Promise<unknown>
       applyHotkeys: (cfg: HotkeysApplyPayload) => Promise<{ ok: boolean; error?: string }>
       minimize: () => Promise<unknown>
       close: () => Promise<unknown>

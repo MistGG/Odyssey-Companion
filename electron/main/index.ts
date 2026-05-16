@@ -7,6 +7,7 @@ import {
   ipcMain,
   nativeImage,
   screen,
+  session,
   shell,
 } from 'electron'
 import type { Rectangle, WebContents } from 'electron'
@@ -76,6 +77,16 @@ function wikiItemDetailUrl(id: string) {
   return `https://thedigitalodyssey.com/api/wiki/items?${q}`
 }
 
+function marketItemsUrl(query: string) {
+  const q = new URLSearchParams({ q: query })
+  return `https://thedigitalodyssey.com/api/market/items?${q}`
+}
+
+function marketListingsUrl(item: string, side: string, limit: number) {
+  const q = new URLSearchParams({ item, side, limit: String(limit) })
+  return `https://thedigitalodyssey.com/api/market/listings?${q}`
+}
+
 const FETCH_HEADERS = {
   Accept: 'application/json',
   'User-Agent':
@@ -99,6 +110,7 @@ let timersLootDetailSavedBounds: Rectangle | null = null
 let settingsWin: BrowserWindow | null = null
 /** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
 let updateWin: BrowserWindow | null = null
+let marketLoginWin: BrowserWindow | null = null
 let lastUpdaterState: Record<string, unknown> | null = null
 let updateDownloadInProgress = false
 let dpsReaderProc: ChildProcess | null = null
@@ -830,6 +842,41 @@ function showMeterWindow() {
   setWinAlwaysOnTop(w, true)
 }
 
+function showMarketLoginWindow() {
+  if (marketLoginWin && !marketLoginWin.isDestroyed()) {
+    marketLoginWin.show()
+    if (marketLoginWin.isMinimized()) marketLoginWin.restore()
+    marketLoginWin.focus()
+    return true
+  }
+
+  marketLoginWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey market login',
+    width: 1100,
+    height: 760,
+    minWidth: 760,
+    minHeight: 560,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+  marketLoginWin.loadURL('https://thedigitalodyssey.com/auth/login')
+  marketLoginWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      return { action: 'allow' }
+    }
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  marketLoginWin.on('closed', () => {
+    marketLoginWin = null
+  })
+  return true
+}
+
 function showTimersWindow() {
   if (!timersWin || timersWin.isDestroyed()) {
     createTimersWindow()
@@ -1002,12 +1049,14 @@ function quitFromTray() {
   if (timersWin && !timersWin.isDestroyed()) timersWin.destroy()
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy()
   if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
+  if (marketLoginWin && !marketLoginWin.isDestroyed()) marketLoginWin.destroy()
   dungeonWin = null
   timelineWin = null
   meterWin = null
   timersWin = null
   settingsWin = null
   updateWin = null
+  marketLoginWin = null
   app.quit()
 }
 
@@ -1182,6 +1231,7 @@ app.on('window-all-closed', () => {
     meterWin = null
     timersWin = null
     settingsWin = null
+    marketLoginWin = null
     return
   }
   // Windows are hidden to tray, not destroyed — if we ever end up with zero
@@ -1220,6 +1270,36 @@ app.on('second-instance', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
 })
+
+async function marketCookieHeader(): Promise<string> {
+  const cookies = await session.defaultSession.cookies.get({
+    url: 'https://thedigitalodyssey.com',
+  })
+  return cookies.map((c) => `${c.name}=${c.value}`).join('; ')
+}
+
+async function fetchMarketJson(url: string): Promise<unknown> {
+  wikiLog('MARKET', url)
+  const cookie = await marketCookieHeader()
+  const headers: Record<string, string> = { ...FETCH_HEADERS }
+  if (cookie) headers.Cookie = cookie
+  const res = await fetch(url, { headers })
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        'Market API requires a logged-in Odyssey website session. Use Open market login, then try again.',
+      )
+    }
+    throw new Error(`Market API returned ${res.status}`)
+  }
+  const type = res.headers.get('content-type') ?? ''
+  if (!type.toLowerCase().includes('application/json')) {
+    throw new Error(
+      'Market API did not return JSON. Use Open market login to refresh your Odyssey website session.',
+    )
+  }
+  return res.json() as Promise<unknown>
+}
 
 ipcMain.handle('wiki:fetch-dungeons', async () => {
   wikiLog('GET', DUNGEONS_URL)
@@ -1276,6 +1356,25 @@ ipcMain.handle('wiki:fetch-item', async (_evt, id: string) => {
     throw new Error(`Item detail returned ${res.status}`)
   }
   return res.json() as Promise<unknown>
+})
+
+ipcMain.handle('market:open-login', () => showMarketLoginWindow())
+
+ipcMain.handle('market:search-items', async (_evt, query: string) => {
+  const safe = typeof query === 'string' ? query.trim() : ''
+  if (!safe) return []
+  return fetchMarketJson(marketItemsUrl(safe))
+})
+
+ipcMain.handle('market:fetch-listings', async (_evt, item: string, side: string, limit: unknown) => {
+  const safeItem = typeof item === 'string' ? item.trim() : ''
+  const safeSide = side === 'buy' ? 'buy' : 'sell'
+  const safeLimit =
+    typeof limit === 'number' && Number.isFinite(limit)
+      ? Math.min(100, Math.max(1, Math.round(limit)))
+      : 50
+  if (!safeItem) throw new Error('Missing market item id')
+  return fetchMarketJson(marketListingsUrl(safeItem, safeSide, safeLimit))
 })
 
 ipcMain.handle('boss-timer:test-toast', () => {

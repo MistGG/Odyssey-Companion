@@ -10,6 +10,7 @@ import { fetchDungeonDetail, findDifficultyRow, readCachedDungeonDetails } from 
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
 import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
 import { DungeonDifficultyDetail } from './components/DungeonDifficultyDetail'
+import { MarketLookup } from './components/MarketLookup'
 
 function hashHue(s: string) {
   let h = 0
@@ -35,6 +36,7 @@ export default function DungeonApp() {
   const [prefetchLoading, setPrefetchLoading] = useState(false)
   /** Dungeon list was served from localStorage cache (wiki unreachable). */
   const [listFromCache, setListFromCache] = useState(false)
+  const [toolView, setToolView] = useState<'dungeons' | 'market'>('dungeons')
 
   const pickedDungeon = useMemo(
     () => dungeons.find((d) => d.id === pickedDungeonId) ?? null,
@@ -234,7 +236,8 @@ export default function DungeonApp() {
     [pickedDungeonId, pickedDungeon, detailById, monsterById],
   )
 
-  const browseMode = !pickedDungeonId
+  const browseMode = toolView === 'dungeons' && !pickedDungeonId
+  const marketMode = toolView === 'market'
 
   return (
     <div className="shell shell--dungeon">
@@ -242,16 +245,20 @@ export default function DungeonApp() {
         <div className="titlebar-drag">
           <span className="logo-dot" aria-hidden />
           <div className="title-text">
-            <strong>{browseMode ? 'Odyssey Companion' : pickedDungeon?.name ?? 'Dungeon'}</strong>
+            <strong>
+              {marketMode ? 'Market lookup' : browseMode ? 'Odyssey Companion' : pickedDungeon?.name ?? 'Dungeon'}
+            </strong>
             <span className="subtitle">
-              {browseMode
+              {marketMode
+                ? 'Search listings · compare unit prices'
+                : browseMode
                 ? 'Pick a dungeon · search and select a fight'
                 : 'Objectives & rewards · open timeline when ready'}
             </span>
           </div>
         </div>
         <div className="titlebar-actions">
-          {!browseMode && (
+          {toolView === 'dungeons' && pickedDungeonId && (
             <button
               type="button"
               className="btn ghost"
@@ -263,9 +270,37 @@ export default function DungeonApp() {
               ← All dungeons
             </button>
           )}
+          <div className="titlebar-main-tabs" role="tablist" aria-label="Main tools">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!marketMode}
+              className={`main-tool-tab${marketMode ? '' : ' main-tool-tab--active'}`}
+              onClick={() => {
+                setToolView('dungeons')
+                setPickedDungeonId(null)
+                setFightPanelError(null)
+              }}
+            >
+              Dungeons
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={marketMode}
+              className={`main-tool-tab${marketMode ? ' main-tool-tab--active' : ''}`}
+              onClick={() => {
+                setToolView('market')
+                setPickedDungeonId(null)
+                setFightPanelError(null)
+              }}
+            >
+              Market
+            </button>
+          </div>
           <button
             type="button"
-            className="btn primary"
+            className="btn ghost"
             onClick={() => void window.odysseyCompanion?.openSettings?.('general')}
           >
             Settings
@@ -313,7 +348,9 @@ export default function DungeonApp() {
         </div>
       </header>
 
-      {browseMode ? (
+      {marketMode ? (
+        <MarketLookup />
+      ) : browseMode ? (
         <main className="main main--dungeon">
           <div className="toolbar">
             <input

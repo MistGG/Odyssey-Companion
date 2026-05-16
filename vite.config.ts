@@ -12,6 +12,11 @@ const wikiProxy = {
     changeOrigin: true,
     secure: true,
   },
+  '/api/market': {
+    target: 'https://thedigitalodyssey.com',
+    changeOrigin: true,
+    secure: true,
+  },
 } as const
 
 export default defineConfig(({ command }) => {

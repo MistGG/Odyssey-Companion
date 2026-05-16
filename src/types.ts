@@ -14,6 +14,27 @@ export type DungeonListResponse = {
   total_pages: number
 }
 
+export type MarketSearchItem = {
+  item: string
+  name: string
+  icon: string
+}
+
+export type MarketListing = {
+  item: string
+  name: string
+  icon: string
+  qty: number
+  price: number
+  total: string
+  created: number
+  expires: number
+}
+
+export type MarketListingsResponse = {
+  listings: MarketListing[]
+}
+
 export type DungeonEnterCondition = {
   type: string
   description: string

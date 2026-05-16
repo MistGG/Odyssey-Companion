@@ -23,6 +23,14 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   fetchWikiItem: (id: string) => ipcRenderer.invoke('wiki:fetch-item', id),
 
+  openMarketLogin: () => ipcRenderer.invoke('market:open-login') as Promise<boolean>,
+
+  fetchMarketSearch: (query: string) =>
+    ipcRenderer.invoke('market:search-items', query) as Promise<unknown>,
+
+  fetchMarketListings: (item: string, side: 'sell' | 'buy' = 'sell', limit = 50) =>
+    ipcRenderer.invoke('market:fetch-listings', item, side, limit) as Promise<unknown>,
+
   applyHotkeys: (cfg: HotkeysApplyPayload) =>
     ipcRenderer.invoke('hotkeys:apply', cfg) as Promise<{ ok: boolean; error?: string }>,
 
