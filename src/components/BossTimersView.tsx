@@ -1,12 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   NEPTUNEMON_ANCHOR_LABEL,
+  NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
   NEPTUNEMON_SCHEDULE_TIMEZONE,
-  NEPTUNEMON_SPAWN_PERIOD_MS,
   formatDurationCountdown,
+  getDefaultNeptunemonSchedule,
   isNeptunemonAliveWindow,
+  lastNeptunemonSpawnUtcMs,
   msUntilNextNeptunemon,
+  neptunemonSpawnPeriodMs,
   nextNeptunemonSpawnUtcMs,
+  normalizeNeptunemonSchedule,
+  type NeptunemonScheduleSnapshot,
 } from '../lib/neptunemonSchedule'
 import type { MonsterDetail } from '../types'
 import { fetchMonsterDetail } from '../lib/monsterDetailApi'
@@ -14,6 +19,14 @@ import { wikiItemIconUrl } from '../lib/wikiItemDetailApi'
 import { wikiNpcModelImageUrl } from '../lib/wikiNpcDetailApi'
 import { formatDropRatePermille } from '../lib/wikiDropRateFormat'
 import { runBossTimerTestToast } from '../lib/bossTimerClientTest'
+import {
+  fetchRemoteNeptunemonSchedule,
+  pickEffectiveNeptunemonSchedule,
+  publishRemoteNeptunemonSchedule,
+  readLocalNeptunemonSchedule,
+  type ScheduleSource,
+  writeLocalNeptunemonSchedule,
+} from '../lib/bossTimerScheduleSync'
 
 /** Neptunemon — `GET …/api/wiki/monsters?id=` (drops + locations + portrait `model_id`). */
 const NEPTUNEMON_MONSTER_ID = 'm4vc8mv'
@@ -68,6 +81,17 @@ function flattenMonsterRewards(monster: MonsterDetail | null): BossTimerReward[]
 function qtyRange(min: number, max: number): string {
   if (min === max) return `×${min}`
   return `×${min}–${max}`
+}
+
+function formatTimeStamp(ms: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: NEPTUNEMON_SCHEDULE_TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(ms))
 }
 
 /** Full timers webContents height (titlebar + body) for Electron resize; avoids inner scroll traps. */
@@ -168,6 +192,7 @@ type BossTimersViewProps = {
 
 export default function BossTimersView({ variant = 'page', onLootRatesExpandedChange }: BossTimersViewProps) {
   const overlayStripRef = useRef<HTMLDivElement>(null)
+  const scheduleRef = useRef<NeptunemonScheduleSnapshot>(getDefaultNeptunemonSchedule())
   const [tick, setTick] = useState(0)
   const [testBusy, setTestBusy] = useState<'toast' | null>(null)
   const [testHint, setTestHint] = useState<string | null>(null)
@@ -175,6 +200,9 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   const [monster, setMonster] = useState<MonsterDetail | null>(null)
   const [monsterErr, setMonsterErr] = useState<string | null>(null)
   const [lootRatesOpen, setLootRatesOpen] = useState(false)
+  const [schedule, setSchedule] = useState<NeptunemonScheduleSnapshot>(() => scheduleRef.current)
+  const [scheduleSource, setScheduleSource] = useState<ScheduleSource>('default')
+  const [scheduleActionUpdated, setScheduleActionUpdated] = useState<'spawn' | 'death' | null>(null)
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((t) => t + 1), 1000)
@@ -184,6 +212,48 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   useEffect(() => {
     onLootRatesExpandedChange?.(lootRatesOpen)
   }, [lootRatesOpen, onLootRatesExpandedChange])
+
+  useEffect(() => {
+    scheduleRef.current = schedule
+    window.odysseyCompanion?.pushBossTimerSchedule?.(schedule)
+  }, [schedule])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const applyEffective = (remote: NeptunemonScheduleSnapshot | null, remoteError: string | null) => {
+      const local = readLocalNeptunemonSchedule()
+      const effective = pickEffectiveNeptunemonSchedule(local, remote)
+      if (cancelled) return
+      setSchedule(effective.schedule)
+      setScheduleSource(effective.source)
+      if (effective.source === 'remote') {
+        writeLocalNeptunemonSchedule(effective.schedule)
+      }
+      void remoteError
+    }
+
+    const local = readLocalNeptunemonSchedule()
+    if (local) {
+      setSchedule(local)
+      setScheduleSource('local')
+    }
+
+    const refreshRemote = () => {
+      void fetchRemoteNeptunemonSchedule().then((res) => {
+        if (cancelled) return
+        if (!res.enabled) return
+        applyEffective(res.schedule, res.error)
+      })
+    }
+
+    refreshRemote()
+    const id = window.setInterval(refreshRemote, 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -257,10 +327,64 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   const mapDisplayName = monster?.locations?.[0]?.map_name?.trim() || 'Olympos Festival Island'
   const locationLine = `${mapDisplayName} (Bottom Right)`
 
-  const nextMs = useMemo(() => nextNeptunemonSpawnUtcMs(Date.now()), [tick])
-  const remainingMs = useMemo(() => msUntilNextNeptunemon(Date.now()), [tick])
+  const flashUpdated = useCallback((action: 'spawn' | 'death') => {
+    setScheduleActionUpdated(action)
+    window.setTimeout(() => {
+      setScheduleActionUpdated((current) => (current === action ? null : current))
+    }, 1400)
+  }, [])
+
+  const saveUserSchedule = useCallback((nextRaw: NeptunemonScheduleSnapshot) => {
+    const next = normalizeNeptunemonSchedule(nextRaw)
+    if (!next) {
+      return false
+    }
+    writeLocalNeptunemonSchedule(next)
+    setSchedule(next)
+    setScheduleSource('local')
+    void publishRemoteNeptunemonSchedule(next)
+    return true
+  }, [])
+
+  const markSpawnNow = useCallback(() => {
+    const now = Date.now()
+    const ok = saveUserSchedule(
+      {
+        ...scheduleRef.current,
+        anchorUtcMs: now,
+        updatedAtMs: now,
+      },
+    )
+    if (ok) flashUpdated('spawn')
+  }, [flashUpdated, saveUserSchedule])
+
+  const markDeathNow = useCallback(() => {
+    const now = Date.now()
+    const active = scheduleRef.current
+    const lastSpawn = lastNeptunemonSpawnUtcMs(now, active)
+    if (lastSpawn === null) {
+      return
+    }
+    const aliveMs = Math.round((now - lastSpawn) / 1000) * 1000
+    if (aliveMs < 5_000 || aliveMs > 15 * 60_000) {
+      return
+    }
+    const ok = saveUserSchedule(
+      {
+        ...active,
+        anchorUtcMs: lastSpawn,
+        aliveWindowMs: aliveMs,
+        respawnWaitMs: NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
+        updatedAtMs: now,
+      },
+    )
+    if (ok) flashUpdated('death')
+  }, [flashUpdated, saveUserSchedule])
+
+  const nextMs = useMemo(() => nextNeptunemonSpawnUtcMs(Date.now(), schedule), [tick, schedule])
+  const remainingMs = useMemo(() => msUntilNextNeptunemon(Date.now(), schedule), [tick, schedule])
   const countdownLabel = formatDurationCountdown(remainingMs)
-  const alive = useMemo(() => isNeptunemonAliveWindow(Date.now()), [tick])
+  const alive = useMemo(() => isNeptunemonAliveWindow(Date.now(), schedule), [tick, schedule])
 
   const nextLocalLabel = useMemo(() => {
     return new Intl.DateTimeFormat(undefined, {
@@ -272,11 +396,31 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
     }).format(new Date(nextMs))
   }, [nextMs])
 
-  const periodMin = NEPTUNEMON_SPAWN_PERIOD_MS / 60_000
+  const periodMin = neptunemonSpawnPeriodMs(schedule) / 60_000
   const periodLabel = Number.isInteger(periodMin)
     ? `${periodMin} min`
     : `${Math.floor(periodMin)}m ${Math.round((periodMin % 1) * 60)}s`
   const tzLabel = NEPTUNEMON_SCHEDULE_TIMEZONE.replace(/_/g, ' ')
+
+  const scheduleControls = (compact = false) => (
+    <div className={compact ? 'boss-timer-sync boss-timer-sync--compact' : 'boss-timer-sync'}>
+      <div className="boss-timer-sync__actions">
+        <button type="button" className="btn boss-timer-sync__btn boss-timer-sync__btn--spawn" onClick={markSpawnNow}>
+          {scheduleActionUpdated === 'spawn' ? 'Updated' : 'Spawn now'}
+        </button>
+        <button type="button" className="btn boss-timer-sync__btn boss-timer-sync__btn--death" onClick={markDeathNow}>
+          {scheduleActionUpdated === 'death' ? 'Updated' : 'Death now'}
+        </button>
+      </div>
+    </div>
+  )
+
+  const nextLine = (compact = false) => (
+    <div className={compact ? 'boss-timer-next-row boss-timer-next-row--compact' : 'boss-timer-next-row'}>
+      <span className="boss-timer-overlay-strip__next-line">Next {nextLocalLabel}</span>
+      {scheduleControls(compact)}
+    </div>
+  )
 
   const lootBar = (opts: { overlay?: boolean }) => (
     <div className={opts.overlay ? 'boss-timer-loot-bar boss-timer-loot-bar--overlay' : 'boss-timer-loot-bar'}>
@@ -319,7 +463,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
             <div className="boss-timer-overlay-strip__loc-line">{locationLine}</div>
             {lootBar({ overlay: true })}
             {lootRatesOpen && raidRewards.length > 0 ? <RaidDropsTable rewards={raidRewards} compact /> : null}
-            <div className="boss-timer-overlay-strip__next-line">Next {nextLocalLabel}</div>
+            {nextLine(true)}
           </div>
           {monsterErr ? (
             <p className="hint error" style={{ margin: '6px 0 0', fontSize: 10 }}>
@@ -370,8 +514,11 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       </section>
 
       <p className="timers-intro muted">
-        About every {periodLabel} · anchored to <strong>{NEPTUNEMON_ANCHOR_LABEL} {tzLabel}</strong>; next line is
-        your local time.
+        About every {periodLabel} · anchored to{' '}
+        <strong>
+          {scheduleSource === 'default' ? NEPTUNEMON_ANCHOR_LABEL : formatTimeStamp(schedule.anchorUtcMs)} {tzLabel}
+        </strong>
+        ; next line is your local time.
       </p>
 
       <article className="boss-timer-card">
@@ -399,6 +546,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
             </span>
             <span className="boss-timer-countdown__local muted">({nextLocalLabel} your time)</span>
           </div>
+          {nextLine(false)}
           <div className="boss-timer-drops">
             <span className="boss-timer-card__label">Wiki loot</span>
             {raidRewards.length ? (

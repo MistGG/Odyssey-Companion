@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed Neptunemons drop table not getting new information\n- Adjusted time for new start time"
+      "releaseNotes": "- Updated Neptunemon timer\n- Added a spawn now and death now button to update timers locally\n- An online checker was also put in place to ensure that it is updated regularly for all users in case of a large drift\n- The default death timer is now an average of 1 minute and 45s\n- Moved DPS meter online settings to the main Settings UI"
     }
   }
 }

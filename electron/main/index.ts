@@ -25,7 +25,11 @@ import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
 import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
 import { normalizeSettingsSection } from '../../src/lib/settingsSection'
 import type { OverlaySettings } from '../../src/types'
-import { bossTimerAlertTick, tryShowBossTimerTestNotification } from './bossTimerAlerts'
+import {
+  bossTimerAlertTick,
+  setActiveNeptunemonSchedule,
+  tryShowBossTimerTestNotification,
+} from './bossTimerAlerts'
 
 /** Set `ODYSSEY_START_PANEL=meter`, `=timers`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
@@ -1379,6 +1383,10 @@ ipcMain.handle('market:fetch-listings', async (_evt, item: string, side: string,
 
 ipcMain.handle('boss-timer:test-toast', () => {
   return tryShowBossTimerTestNotification()
+})
+
+ipcMain.on('boss-timer:push-schedule', (_event, payload: unknown) => {
+  setActiveNeptunemonSchedule(payload)
 })
 
 ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {

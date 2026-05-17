@@ -52,6 +52,40 @@ create policy "meter_parses_select_own"
 create policy "meter_parses_insert_own"
   on public.meter_parses for insert
   with check (auth.uid() = user_id);
+
+-- Shared boss timer schedule (public app-wide timer corrections)
+create table if not exists public.boss_schedules (
+  boss_id text primary key,
+  anchor_utc_ms bigint not null,
+  alive_window_ms integer not null,
+  respawn_wait_ms integer not null,
+  updated_at_ms bigint not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.boss_schedules enable row level security;
+
+drop policy if exists "boss_schedules_select_all" on public.boss_schedules;
+drop policy if exists "boss_schedules_insert_all" on public.boss_schedules;
+drop policy if exists "boss_schedules_update_all" on public.boss_schedules;
+
+create policy "boss_schedules_select_all"
+  on public.boss_schedules for select
+  using (true);
+
+-- Timer admins. Add your auth user id to this table.
+create table if not exists public.timer_admins (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.timer_admins enable row level security;
+
+drop policy if exists "timer_admins_select_own" on public.timer_admins;
+
+create policy "timer_admins_select_own"
+  on public.timer_admins for select
+  using (auth.uid() = user_id);
 ```
 
 ## 2. Auth settings (testing)
@@ -102,3 +136,23 @@ The meter can show a **shared party list** (everyone’s live DPS) when each pla
 - The key string itself is **not reserved** on Supabase: when nobody is subscribed to `meter_party_{KEY}`, that room is effectively gone until someone joins again with the same letters (so prefer a long random key for private groups).
 
 In the Supabase dashboard, ensure **Realtime** is enabled for the project (default on new projects). If party mode shows a channel error, open **Project Settings** → **Realtime** and confirm the service is on; for self-hosted or restricted setups, allow **Broadcast** for anonymous authenticated clients as required by your security model.
+
+## 8. Boss timer admin updates
+
+Boss timer reads are public through `public.boss_schedules`, but writes go through the Edge Function in `supabase/functions/update-boss-schedule`. Deploy it with the Supabase CLI:
+
+```sh
+supabase functions deploy update-boss-schedule
+```
+
+Then add your signed-in Supabase auth user to the allowlist. Replace the email with the admin account you use in Odyssey Companion:
+
+```sql
+insert into public.timer_admins (user_id)
+select id
+from auth.users
+where email = 'you@example.com'
+on conflict (user_id) do nothing;
+```
+
+The app will read the shared timer for everyone. Publishing changes from `Spawn now` / `Death now` requires being signed in with an allowlisted admin account; otherwise the change stays local only.

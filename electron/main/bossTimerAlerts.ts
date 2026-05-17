@@ -1,8 +1,13 @@
 import { BrowserWindow, Notification } from 'electron'
-import { nextNeptunemonSpawnUtcMs } from '../../src/lib/neptunemonSchedule'
+import {
+  nextNeptunemonSpawnUtcMs,
+  normalizeNeptunemonSchedule,
+  type NeptunemonScheduleSnapshot,
+} from '../../src/lib/neptunemonSchedule'
 import type { OverlaySettings } from '../../src/types'
 
 let lastNotifiedSpawnEndMs = 0
+let activeNeptunemonSchedule: NeptunemonScheduleSnapshot | null = null
 
 export type ParsedChimeStyle = 'off' | 'warmDuo' | 'airy'
 
@@ -57,6 +62,14 @@ export function tryShowBossTimerTestNotification():
   }
 }
 
+export function setActiveNeptunemonSchedule(raw: unknown): boolean {
+  const next = normalizeNeptunemonSchedule(raw)
+  if (!next) return false
+  activeNeptunemonSchedule = next
+  lastNotifiedSpawnEndMs = 0
+  return true
+}
+
 function timersWindowIsUsableVisible(win: BrowserWindow | null): boolean {
   return !!(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized())
 }
@@ -75,7 +88,7 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const method = settings.bossTimerNotifyMethod
 
   const now = Date.now()
-  const nextSpawn = nextNeptunemonSpawnUtcMs(now)
+  const nextSpawn = nextNeptunemonSpawnUtcMs(now, activeNeptunemonSchedule)
   const remaining = nextSpawn - now
 
   if (remaining > leadMs) {

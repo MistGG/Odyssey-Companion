@@ -1,8 +1,8 @@
 /** Sections in the unified Companion settings window (query + IPC). */
-export type SettingsSectionId = 'general' | 'timeline' | 'meter' | 'timers' | 'updates'
+export type SettingsSectionId = 'general' | 'online' | 'timeline' | 'meter' | 'timers' | 'updates'
 
 export function normalizeSettingsSection(raw: unknown): SettingsSectionId {
-  if (raw === 'timeline' || raw === 'meter' || raw === 'timers' || raw === 'updates') return raw
+  if (raw === 'online' || raw === 'timeline' || raw === 'meter' || raw === 'timers' || raw === 'updates') return raw
   return 'general'
 }
 

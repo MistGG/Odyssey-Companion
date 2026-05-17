@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import type { AppVersionInfo, HotkeyConfig, LatestReleaseResult, OverlaySettings } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
@@ -6,6 +7,8 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
+import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
+import { getSupabaseClient, signInEmail, signOut, signUpWithProfile } from './lib/supabaseMeter'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -28,6 +31,7 @@ const HOTKEY_METER: {
 
 const NAV: { id: SettingsSectionId; label: string }[] = [
   { id: 'general', label: 'Hotkeys' },
+  { id: 'online', label: 'Online' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'meter', label: 'DPS meter' },
   { id: 'timers', label: 'Boss timers' },
@@ -75,6 +79,17 @@ export default function SettingsApp() {
   const [timerTestHint, setTimerTestHint] = useState<string | null>(null)
   const [timerTestHintIsError, setTimerTestHintIsError] = useState(false)
 
+  const supabase = useMemo(() => {
+    const { url, anonKey } = getMeterSupabaseCredentials()
+    return getSupabaseClient(url, anonKey)
+  }, [])
+  const [onlineUser, setOnlineUser] = useState<User | null>(null)
+  const [onlineBusy, setOnlineBusy] = useState(false)
+  const [onlineMsg, setOnlineMsg] = useState<string | null>(null)
+  const [onlineEmail, setOnlineEmail] = useState('')
+  const [onlinePassword, setOnlinePassword] = useState('')
+  const [onlineDisplayName, setOnlineDisplayName] = useState('')
+
   useEffect(() => {
     const api = window.odysseyCompanion
     if (!api) return
@@ -88,6 +103,23 @@ export default function SettingsApp() {
     api.applyMeterWindowOptions?.({ alwaysOnTop: settings.meterAlwaysOnTop })
     api.applyTimersWindowOptions?.({ alwaysOnTop: settings.timersAlwaysOnTop })
   }, [settings])
+
+  useEffect(() => {
+    if (!supabase) return
+    let cancelled = false
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setOnlineUser(data.user ?? null)
+    })
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setOnlineUser(session?.user ?? null)
+    })
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -246,6 +278,36 @@ export default function SettingsApp() {
     }
   }, [updateOffer?.setupDownloadUrl])
 
+  const handleOnlineSignIn = useCallback(() => {
+    if (!supabase) return
+    setOnlineBusy(true)
+    setOnlineMsg(null)
+    void signInEmail(supabase, onlineEmail, onlinePassword).then(({ error }) => {
+      setOnlineBusy(false)
+      setOnlineMsg(error ?? 'Signed in.')
+    })
+  }, [onlineEmail, onlinePassword, supabase])
+
+  const handleOnlineSignUp = useCallback(() => {
+    if (!supabase) return
+    setOnlineBusy(true)
+    setOnlineMsg(null)
+    void signUpWithProfile(supabase, onlineEmail, onlinePassword, onlineDisplayName).then(({ error }) => {
+      setOnlineBusy(false)
+      setOnlineMsg(error ?? 'Account created. Check your email if confirmation is enabled, then sign in.')
+    })
+  }, [onlineDisplayName, onlineEmail, onlinePassword, supabase])
+
+  const handleOnlineSignOut = useCallback(() => {
+    if (!supabase) return
+    setOnlineBusy(true)
+    setOnlineMsg(null)
+    void signOut(supabase).then(() => {
+      setOnlineBusy(false)
+      setOnlineMsg('Signed out.')
+    })
+  }, [supabase])
+
   return (
     <div className="shell shell--settings">
       <header className="titlebar titlebar--solid titlebar--settings-app">
@@ -384,6 +446,68 @@ export default function SettingsApp() {
             </p>
           </section>
 
+          <section id={sectionScrollId('online')} className="settings-app-section">
+            <h2 className="settings-app-section__title">Online</h2>
+
+            <section className="field-group" style={{ marginTop: 0 }}>
+              <h3 className="settings-app-subhead">Account</h3>
+              {!supabase ? (
+                <p className="hint muted" style={{ marginTop: 0 }}>
+                  Online features are not enabled in this build. Set <code>VITE_SUPABASE_URL</code> and{' '}
+                  <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env.local</code>, then restart the app.
+                </p>
+              ) : onlineUser ? (
+                <>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    Signed in as <strong>{onlineUser.email ?? 'Supabase user'}</strong>.
+                  </p>
+                  <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignOut}>
+                    {onlineBusy ? 'Signing out...' : 'Sign out'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={onlineEmail}
+                      autoComplete="email"
+                      onChange={(e) => setOnlineEmail(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Password</span>
+                    <input
+                      type="password"
+                      value={onlinePassword}
+                      autoComplete="current-password"
+                      onChange={(e) => setOnlinePassword(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Display name</span>
+                    <input
+                      value={onlineDisplayName}
+                      autoComplete="nickname"
+                      placeholder="Only needed when creating an account"
+                      onChange={(e) => setOnlineDisplayName(e.target.value)}
+                    />
+                  </label>
+                  <div className="field-group row" style={{ marginTop: 8 }}>
+                    <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignIn}>
+                      {onlineBusy ? 'Working...' : 'Sign in'}
+                    </button>
+                    <button type="button" className="btn ghost" disabled={onlineBusy} onClick={handleOnlineSignUp}>
+                      Create account
+                    </button>
+                  </div>
+                </>
+              )}
+              {onlineMsg ? <p className="hint" style={{ marginTop: 10 }}>{onlineMsg}</p> : null}
+            </section>
+          </section>
+
           <section id={sectionScrollId('timeline')} className="settings-app-section">
             <h2 className="settings-app-section__title">Timeline window</h2>
             <label className="field">
@@ -432,10 +556,6 @@ export default function SettingsApp() {
 
           <section id={sectionScrollId('meter')} className="settings-app-section">
             <h2 className="settings-app-section__title">DPS meter overlay</h2>
-            <p className="hint muted" style={{ marginTop: 0 }}>
-              Sign in, party keys, and cloud upload stay on the meter window — use the <strong>cloud</strong> button in
-              the meter title bar.
-            </p>
             <label className="field">
               <span>Background strength</span>
               <input
@@ -662,10 +782,6 @@ export default function SettingsApp() {
 
             <section className="field-group">
               <h3 className="settings-app-subhead">Try it</h3>
-              <p className="hint muted" style={{ marginTop: 0 }}>
-                Soft copy on toasts — same relaxed style as real spawn reminders. Chimes use Web Audio in this window
-                at the volume and repeat count above.
-              </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button
                   type="button"

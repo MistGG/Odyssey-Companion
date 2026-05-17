@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   pushSettings: (settings: unknown) => ipcRenderer.send('overlay:push-settings', settings),
 
+  pushBossTimerSchedule: (schedule: unknown) => {
+    ipcRenderer.send('boss-timer:push-schedule', schedule)
+  },
+
   applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => {
     ipcRenderer.send('timeline:apply-options', opts)
   },

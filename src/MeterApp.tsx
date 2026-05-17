@@ -913,9 +913,9 @@ export default function MeterApp() {
               ref={cloudBtnRef}
               type="button"
               className="btn meter-icon-tile"
-              title="Cloud sign-in &amp; party"
-              aria-label="Cloud sign-in and party"
-              onClick={() => setCloudOpen(true)}
+              title="Online"
+              aria-label="Open Online settings"
+              onClick={() => void window.odysseyCompanion?.openSettings?.('online')}
             >
               <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
                 <path
@@ -1316,11 +1316,11 @@ export default function MeterApp() {
               <aside
                 className="settings-panel settings-panel--solid meter-settings-panel"
                 role="dialog"
-                aria-label="Cloud and party"
+                aria-label="Online"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="settings-head">
-                  <h2>Cloud &amp; party</h2>
+                  <h2>Online</h2>
                   <button type="button" className="btn icon" onClick={() => setCloudOpen(false)}>
                     ✕
                   </button>
@@ -1331,7 +1331,7 @@ export default function MeterApp() {
                 </p>
 
                 <section className="field-group">
-                  <h3>Parse cloud</h3>
+                  <h3>Cloud parse uploads</h3>
                   {!supabase ? (
                     <p className="hint muted" style={{ marginTop: 0 }}>
                       Cloud sync is not enabled in this build. For development, set{' '}
@@ -1471,7 +1471,7 @@ export default function MeterApp() {
                     </p>
                   ) : !sbUser ? (
                     <p className="hint muted" style={{ marginTop: 0 }}>
-                      Sign in under Parse cloud to create or join a party. Everyone uses the same key; the meter
+                      Sign in under Online to create or join a party. Everyone uses the same key; the meter
                       shows live DPS for the group (nothing is written to your parse tables).
                     </p>
                   ) : (

@@ -320,6 +320,74 @@ select {
   margin: 0;
 }
 
+.boss-timer-sync {
+  display: grid;
+  gap: 5px;
+  justify-items: end;
+}
+
+.boss-timer-next-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.boss-timer-next-row--compact {
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.boss-timer-next-row > .boss-timer-overlay-strip__next-line {
+  min-width: 0;
+}
+
+.boss-timer-sync__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.boss-timer-sync__btn {
+  padding: 4px 9px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.boss-timer-sync__btn--spawn {
+  color: rgba(220, 255, 238, 0.98);
+  border-color: rgba(80, 220, 140, 0.42);
+  background: rgba(40, 160, 92, 0.28);
+}
+
+.boss-timer-sync__btn--spawn:hover {
+  border-color: rgba(105, 245, 165, 0.62);
+  background: rgba(48, 190, 110, 0.36);
+}
+
+.boss-timer-sync__btn--death {
+  color: rgba(255, 226, 226, 0.98);
+  border-color: rgba(255, 100, 115, 0.44);
+  background: rgba(190, 55, 70, 0.3);
+}
+
+.boss-timer-sync__btn--death:hover {
+  border-color: rgba(255, 135, 145, 0.64);
+  background: rgba(215, 65, 82, 0.4);
+}
+
+.boss-timer-sync--compact {
+  margin-top: 4px;
+}
+
+.boss-timer-sync--compact .boss-timer-sync__btn {
+  padding: 2px 7px;
+  font-size: 9px;
+}
+
 .boss-timer-card {
   display: grid;
   grid-template-columns: minmax(100px, 140px) 1fr;

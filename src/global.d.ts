@@ -32,6 +32,7 @@ declare global {
       openSettings: (section?: string) => Promise<boolean>
       onSettingsNavigate: (handler: (section: string) => void) => () => void
       pushSettings: (settings: OverlaySettings) => void
+      pushBossTimerSchedule?: (schedule: unknown) => void
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyTimersWindowOptions: (opts: { alwaysOnTop: boolean }) => void
