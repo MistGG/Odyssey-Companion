@@ -4,19 +4,19 @@ import { utcMillisForWallClockInZone } from './zonedWallClock'
 export const NEPTUNEMON_SCHEDULE_TIMEZONE = 'America/Phoenix'
 
 /**
- * Observed spawn phase: 12:07:45 PM Arizona time on 2026-05-16.
+ * Observed spawn phase after the server restart: 9:38:03 PM Arizona time on 2026-05-16.
  * Neptunemon is alive for roughly 20 seconds, then the next 90-minute timer starts.
  * That makes observed spawn-to-spawn spacing roughly 90m20s.
  */
 export const NEPTUNEMON_ANCHOR_YEAR = 2026
 export const NEPTUNEMON_ANCHOR_MONTH = 5
 export const NEPTUNEMON_ANCHOR_DAY = 16
-export const NEPTUNEMON_ANCHOR_HOUR = 12
-export const NEPTUNEMON_ANCHOR_MINUTE = 7
-export const NEPTUNEMON_ANCHOR_SECOND = 45
+export const NEPTUNEMON_ANCHOR_HOUR = 21
+export const NEPTUNEMON_ANCHOR_MINUTE = 38
+export const NEPTUNEMON_ANCHOR_SECOND = 3
 
 export const NEPTUNEMON_SPAWN_PERIOD_MS = (90 * 60 + 20) * 1000
-export const NEPTUNEMON_ANCHOR_LABEL = '12:07:45 PM'
+export const NEPTUNEMON_ANCHOR_LABEL = '9:38:03 PM'
 
 /** UTC instant of one spawn; every spawn is this + n × roughly 90m20s. */
 export const NEPTUNEMON_GRID_ANCHOR_UTC_MS = utcMillisForWallClockInZone(

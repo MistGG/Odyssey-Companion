@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Tuning the Neptunemon timer for better accuracy. The \"alive time\" is now 20s, causing a 20s drift with every spawn as there is a short delay on the spawn, and the timer for the next occurs after death rather than after the last spawn"
+      "releaseNotes": "- Fixed Neptunemons drop table not getting new information\n- Adjusted time for new start time"
     }
   }
 }

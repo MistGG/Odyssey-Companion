@@ -8,7 +8,7 @@ import {
   msUntilNextNeptunemon,
   nextNeptunemonSpawnUtcMs,
 } from '../lib/neptunemonSchedule'
-import type { DungeonRaidRewardRoll, MonsterDetail } from '../types'
+import type { MonsterDetail } from '../types'
 import { fetchMonsterDetail } from '../lib/monsterDetailApi'
 import { wikiItemIconUrl } from '../lib/wikiItemDetailApi'
 import { wikiNpcModelImageUrl } from '../lib/wikiNpcDetailApi'
@@ -18,11 +18,49 @@ import { runBossTimerTestToast } from '../lib/bossTimerClientTest'
 /** Neptunemon — `GET …/api/wiki/monsters?id=` (drops + locations + portrait `model_id`). */
 const NEPTUNEMON_MONSTER_ID = 'm4vc8mv'
 
-function flattenMonsterRaidRewards(monster: MonsterDetail | null): DungeonRaidRewardRoll[] {
-  if (!monster?.raid_rankings?.length) return []
-  const out: DungeonRaidRewardRoll[] = []
-  for (const band of monster.raid_rankings) {
-    for (const r of band.rewards) out.push(r)
+type BossTimerReward = {
+  key: string
+  item_id: string
+  item_name: string
+  item_icon_id: string
+  min: number
+  max: number
+  rate_label: string
+}
+
+function titleCase(value: string): string {
+  const clean = value.replace(/[_-]+/g, ' ').trim()
+  if (!clean) return 'Drop'
+  return clean.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function flattenMonsterRewards(monster: MonsterDetail | null): BossTimerReward[] {
+  if (!monster) return []
+  const out: BossTimerReward[] = []
+  for (const [i, drop] of (monster.drops ?? []).entries()) {
+    const qty = Math.max(1, Math.round(drop.quantity || 1))
+    out.push({
+      key: `drop:${drop.item_id}:${i}`,
+      item_id: drop.item_id,
+      item_name: drop.item_name,
+      item_icon_id: drop.item_icon_id,
+      min: qty,
+      max: qty,
+      rate_label: titleCase(drop.drop_type),
+    })
+  }
+  for (const [bandIndex, band] of (monster.raid_rankings ?? []).entries()) {
+    for (const [rewardIndex, r] of band.rewards.entries()) {
+      out.push({
+        key: `raid:${bandIndex}:${r.item_id}:${rewardIndex}`,
+        item_id: r.item_id,
+        item_name: r.item_name,
+        item_icon_id: r.item_icon_id,
+        min: r.min,
+        max: r.max,
+        rate_label: formatDropRatePermille(r.rate_permil),
+      })
+    }
   }
   return out
 }
@@ -45,7 +83,7 @@ function measureTimersElectronContentHeightPx(): number {
   return Math.max(Math.ceil(th + mh), doc)
 }
 
-function RaidDropsTable({ rewards, compact }: { rewards: DungeonRaidRewardRoll[]; compact?: boolean }) {
+function RaidDropsTable({ rewards, compact }: { rewards: BossTimerReward[]; compact?: boolean }) {
   return (
     <div
       className={
@@ -68,7 +106,7 @@ function RaidDropsTable({ rewards, compact }: { rewards: DungeonRaidRewardRoll[]
         </thead>
         <tbody>
           {rewards.map((r) => (
-            <tr key={r.item_id}>
+            <tr key={r.key}>
               <td className="boss-timer-drops__td-item">
                 <span className="boss-timer-drops__item-cell">
                   {r.item_icon_id ? (
@@ -88,7 +126,7 @@ function RaidDropsTable({ rewards, compact }: { rewards: DungeonRaidRewardRoll[]
               </td>
               <td className="boss-timer-drops__td-num boss-timer-drops__td-qty">{qtyRange(r.min, r.max)}</td>
               <td className="boss-timer-drops__td-num boss-timer-drops__td-rate">
-                {formatDropRatePermille(r.rate_permil)}
+                {r.rate_label}
               </td>
             </tr>
           ))}
@@ -98,13 +136,13 @@ function RaidDropsTable({ rewards, compact }: { rewards: DungeonRaidRewardRoll[]
   )
 }
 
-function LootIconStrip({ rewards }: { rewards: DungeonRaidRewardRoll[] }) {
+function LootIconStrip({ rewards }: { rewards: BossTimerReward[] }) {
   return (
     <div className="boss-timer-loot-icons" aria-hidden={rewards.length === 0}>
       {rewards.map((r) =>
         r.item_icon_id ? (
           <img
-            key={r.item_id}
+            key={r.key}
             className="boss-timer-loot-icons__ico"
             src={wikiItemIconUrl(r.item_icon_id)}
             alt=""
@@ -112,7 +150,7 @@ function LootIconStrip({ rewards }: { rewards: DungeonRaidRewardRoll[] }) {
             title={r.item_name}
           />
         ) : (
-          <span key={r.item_id} className="boss-timer-loot-icons__fallback" title={r.item_name}>
+          <span key={r.key} className="boss-timer-loot-icons__fallback" title={r.item_name}>
             ◆
           </span>
         ),
@@ -171,7 +209,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
     return wikiNpcModelImageUrl(mid) || null
   }, [monster?.model_id])
 
-  const raidRewards = useMemo(() => flattenMonsterRaidRewards(monster), [monster])
+  const raidRewards = useMemo(() => flattenMonsterRewards(monster), [monster])
 
   useLayoutEffect(() => {
     if (variant !== 'overlay' || lootRatesOpen) return

@@ -115,6 +115,14 @@ export type MonsterLocation = {
   count: number
 }
 
+export type MonsterDrop = {
+  item_id: string
+  item_name: string
+  item_icon_id: string
+  quantity: number
+  drop_type: string
+}
+
 export type MonsterDetail = {
   id: string
   name: string
@@ -122,6 +130,8 @@ export type MonsterDetail = {
   model_id: string
   level: number
   skills: MonsterSkill[]
+  /** Normal monster drops from `GET …/api/wiki/monsters?id=` (optional). */
+  drops?: MonsterDrop[]
   /** World / field boss loot bands from `GET …/api/wiki/monsters?id=` (optional). */
   raid_rankings?: DungeonRaidRankingBand[]
   /** Spawn / field locations from the monsters API (optional). */

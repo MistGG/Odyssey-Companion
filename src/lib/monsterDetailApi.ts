@@ -1,7 +1,24 @@
 /** Monster timeline — matches `GET …/api/wiki/monsters?id={id}` (`skills` → timeline rows). */
-import type { MonsterDetail, MonsterLocation, MonsterSkill } from '../types'
+import type { MonsterDetail, MonsterDrop, MonsterLocation, MonsterSkill } from '../types'
 import { fetchWithWikiCache } from './wikiCache'
 import { parseWikiRaidRankings } from './wikiRaidRankingsParse'
+
+function parseMonsterDrops(raw: unknown): MonsterDrop[] {
+  if (!Array.isArray(raw)) return []
+  const out: MonsterDrop[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    out.push({
+      item_id: String(o.item_id ?? ''),
+      item_name: String(o.item_name ?? ''),
+      item_icon_id: String(o.item_icon_id ?? ''),
+      quantity: Number(o.quantity ?? 1),
+      drop_type: String(o.drop_type ?? ''),
+    })
+  }
+  return out
+}
 
 function parseMonsterLocations(raw: unknown): MonsterLocation[] {
   if (!Array.isArray(raw)) return []
@@ -45,6 +62,7 @@ function parseMonsterDetail(raw: unknown): MonsterDetail {
     }
   }
   const raidRankings = parseWikiRaidRankings(o.raid_rankings)
+  const drops = parseMonsterDrops(o.drops)
   const locations = parseMonsterLocations(o.locations)
   const row: MonsterDetail = {
     id: String(o.id ?? ''),
@@ -54,6 +72,7 @@ function parseMonsterDetail(raw: unknown): MonsterDetail {
     level: Number(o.level ?? 0),
     skills,
   }
+  if (drops.length) row.drops = drops
   if (raidRankings.length) row.raid_rankings = raidRankings
   if (locations.length) row.locations = locations
   return row
@@ -83,7 +102,7 @@ async function fetchMonsterDetailLive(safe: string): Promise<MonsterDetail> {
 export async function fetchMonsterDetail(id: string): Promise<MonsterDetail> {
   const safe = id.trim()
   if (!safe) throw new Error('Missing monster id')
-  const key = `monster:v2:${safe}`
+  const key = `monster:v3:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchMonsterDetailLive(safe))
   return value
 }
