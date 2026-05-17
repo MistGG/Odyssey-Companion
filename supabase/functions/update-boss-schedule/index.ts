@@ -8,6 +8,15 @@ const corsHeaders = {
 
 const NEPTUNEMON_BOSS_ID = 'neptunemon'
 
+type ScheduleRow = {
+  boss_id: string
+  anchor_utc_ms: number
+  alive_window_ms: number
+  respawn_wait_ms: number
+  updated_at_ms: number
+  updated_at?: string
+}
+
 function json(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -90,18 +99,47 @@ Deno.serve(async (req) => {
     return json(400, { ok: false, error: 'Invalid boss schedule payload.' })
   }
 
+  const { data: previousSchedule, error: previousError } = await adminClient
+    .from('boss_schedules')
+    .select('boss_id,anchor_utc_ms,alive_window_ms,respawn_wait_ms,updated_at_ms,updated_at')
+    .eq('boss_id', NEPTUNEMON_BOSS_ID)
+    .maybeSingle()
+  if (previousError) return json(500, { ok: false, error: previousError.message })
+
+  const nextSchedule: ScheduleRow = {
+    boss_id: NEPTUNEMON_BOSS_ID,
+    anchor_utc_ms: anchorUtcMs,
+    alive_window_ms: aliveWindowMs,
+    respawn_wait_ms: respawnWaitMs,
+    updated_at_ms: updatedAtMs,
+    updated_at: new Date().toISOString(),
+  }
+
   const { error } = await adminClient.from('boss_schedules').upsert(
     {
-      boss_id: NEPTUNEMON_BOSS_ID,
-      anchor_utc_ms: anchorUtcMs,
-      alive_window_ms: aliveWindowMs,
-      respawn_wait_ms: respawnWaitMs,
-      updated_at_ms: updatedAtMs,
-      updated_at: new Date().toISOString(),
+      boss_id: nextSchedule.boss_id,
+      anchor_utc_ms: nextSchedule.anchor_utc_ms,
+      alive_window_ms: nextSchedule.alive_window_ms,
+      respawn_wait_ms: nextSchedule.respawn_wait_ms,
+      updated_at_ms: nextSchedule.updated_at_ms,
+      updated_at: nextSchedule.updated_at,
     },
     { onConflict: 'boss_id' },
   )
   if (error) return json(500, { ok: false, error: error.message })
+
+  const { error: historyError } = await adminClient.from('boss_schedule_history').insert({
+    boss_id: NEPTUNEMON_BOSS_ID,
+    source: 'admin',
+    event_type: null,
+    previous_schedule: previousSchedule ?? null,
+    new_schedule: nextSchedule,
+    report_count: null,
+    weighted_report_count: null,
+    actor_user_id: user.id,
+    metadata: {},
+  })
+  if (historyError) return json(500, { ok: false, error: historyError.message })
 
   return json(200, { ok: true })
 })

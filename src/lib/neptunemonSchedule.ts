@@ -5,20 +5,20 @@ export const NEPTUNEMON_SCHEDULE_TIMEZONE = 'America/Phoenix'
 export const NEPTUNEMON_BOSS_ID = 'neptunemon'
 
 /**
- * Observed spawn phase after the server restart: 1:10:30 AM Arizona time on 2026-05-17.
+ * Observed spawn phase after the server restart: 8:49:19 AM Arizona time on 2026-05-17.
  * Neptunemon is alive for roughly 1m45s, then the next 90-minute timer starts.
  * That makes observed spawn-to-spawn spacing roughly 91m45s.
  */
 export const NEPTUNEMON_ANCHOR_YEAR = 2026
 export const NEPTUNEMON_ANCHOR_MONTH = 5
 export const NEPTUNEMON_ANCHOR_DAY = 17
-export const NEPTUNEMON_ANCHOR_HOUR = 1
-export const NEPTUNEMON_ANCHOR_MINUTE = 10
-export const NEPTUNEMON_ANCHOR_SECOND = 30
+export const NEPTUNEMON_ANCHOR_HOUR = 8
+export const NEPTUNEMON_ANCHOR_MINUTE = 49
+export const NEPTUNEMON_ANCHOR_SECOND = 19
 
 export const NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS = 90 * 60 * 1000
 export const NEPTUNEMON_SPAWN_PERIOD_MS = (91 * 60 + 45) * 1000
-export const NEPTUNEMON_ANCHOR_LABEL = '1:10:30 AM'
+export const NEPTUNEMON_ANCHOR_LABEL = '8:49:19 AM'
 
 /** UTC instant of one spawn; every spawn is this + n × roughly 91m45s. */
 export const NEPTUNEMON_GRID_ANCHOR_UTC_MS = utcMillisForWallClockInZone(

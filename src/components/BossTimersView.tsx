@@ -24,6 +24,8 @@ import {
   pickEffectiveNeptunemonSchedule,
   publishRemoteNeptunemonSchedule,
   readLocalNeptunemonSchedule,
+  submitNeptunemonTimerReport,
+  type BossTimerReportEvent,
   type ScheduleSource,
   writeLocalNeptunemonSchedule,
 } from '../lib/bossTimerScheduleSync'
@@ -334,17 +336,21 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
     }, 1400)
   }, [])
 
-  const saveUserSchedule = useCallback((nextRaw: NeptunemonScheduleSnapshot) => {
-    const next = normalizeNeptunemonSchedule(nextRaw)
-    if (!next) {
-      return false
-    }
-    writeLocalNeptunemonSchedule(next)
-    setSchedule(next)
-    setScheduleSource('local')
-    void publishRemoteNeptunemonSchedule(next)
-    return true
-  }, [])
+  const saveUserSchedule = useCallback(
+    (nextRaw: NeptunemonScheduleSnapshot, eventType: BossTimerReportEvent, observedUtcMs: number) => {
+      const next = normalizeNeptunemonSchedule(nextRaw)
+      if (!next) {
+        return false
+      }
+      writeLocalNeptunemonSchedule(next)
+      setSchedule(next)
+      setScheduleSource('local')
+      void publishRemoteNeptunemonSchedule(next)
+      void submitNeptunemonTimerReport(next, eventType, observedUtcMs)
+      return true
+    },
+    [],
+  )
 
   const markSpawnNow = useCallback(() => {
     const now = Date.now()
@@ -354,6 +360,8 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
         anchorUtcMs: now,
         updatedAtMs: now,
       },
+      'spawn',
+      now,
     )
     if (ok) flashUpdated('spawn')
   }, [flashUpdated, saveUserSchedule])
@@ -377,6 +385,8 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
         respawnWaitMs: NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
         updatedAtMs: now,
       },
+      'death',
+      now,
     )
     if (ok) flashUpdated('death')
   }, [flashUpdated, saveUserSchedule])
