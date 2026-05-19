@@ -6,7 +6,6 @@ import {
   formatDurationCountdown,
   getDefaultNeptunemonSchedule,
   isNeptunemonAliveWindow,
-  lastNeptunemonSpawnUtcMs,
   msUntilNextNeptunemon,
   neptunemonSpawnPeriodMs,
   nextNeptunemonSpawnUtcMs,
@@ -24,10 +23,13 @@ import {
   pickEffectiveNeptunemonSchedule,
   publishRemoteNeptunemonSchedule,
   readLocalNeptunemonSchedule,
+  readPendingNeptunemonSpawnUtcMs,
   submitNeptunemonTimerReport,
   type BossTimerReportEvent,
   type ScheduleSource,
+  clearPendingNeptunemonSpawnUtcMs,
   writeLocalNeptunemonSchedule,
+  writePendingNeptunemonSpawnUtcMs,
 } from '../lib/bossTimerScheduleSync'
 
 /** Neptunemon — `GET …/api/wiki/monsters?id=` (drops + locations + portrait `model_id`). */
@@ -192,9 +194,16 @@ type BossTimersViewProps = {
   onLootRatesExpandedChange?: (expanded: boolean) => void
 }
 
+function validObservedAliveMs(now: number, spawnUtcMs: number): number | null {
+  const aliveMs = Math.round((now - spawnUtcMs) / 1000) * 1000
+  if (aliveMs < 5_000 || aliveMs > 15 * 60_000) return null
+  return aliveMs
+}
+
 export default function BossTimersView({ variant = 'page', onLootRatesExpandedChange }: BossTimersViewProps) {
   const overlayStripRef = useRef<HTMLDivElement>(null)
   const scheduleRef = useRef<NeptunemonScheduleSnapshot>(getDefaultNeptunemonSchedule())
+  const pendingSpawnRef = useRef<number | null>(readPendingNeptunemonSpawnUtcMs())
   const [tick, setTick] = useState(0)
   const [testBusy, setTestBusy] = useState<'toast' | null>(null)
   const [testHint, setTestHint] = useState<string | null>(null)
@@ -354,6 +363,8 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
 
   const markSpawnNow = useCallback(() => {
     const now = Date.now()
+    pendingSpawnRef.current = now
+    writePendingNeptunemonSpawnUtcMs(now)
     const ok = saveUserSchedule(
       {
         ...scheduleRef.current,
@@ -369,18 +380,18 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   const markDeathNow = useCallback(() => {
     const now = Date.now()
     const active = scheduleRef.current
-    const lastSpawn = lastNeptunemonSpawnUtcMs(now, active)
-    if (lastSpawn === null) {
-      return
-    }
-    const aliveMs = Math.round((now - lastSpawn) / 1000) * 1000
-    if (aliveMs < 5_000 || aliveMs > 15 * 60_000) {
+    const observedSpawn = pendingSpawnRef.current ?? readPendingNeptunemonSpawnUtcMs()
+    if (observedSpawn === null) return
+    const aliveMs = validObservedAliveMs(now, observedSpawn)
+    if (aliveMs === null) {
+      pendingSpawnRef.current = null
+      clearPendingNeptunemonSpawnUtcMs()
       return
     }
     const ok = saveUserSchedule(
       {
         ...active,
-        anchorUtcMs: lastSpawn,
+        anchorUtcMs: observedSpawn,
         aliveWindowMs: aliveMs,
         respawnWaitMs: NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
         updatedAtMs: now,
@@ -388,7 +399,11 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       'death',
       now,
     )
-    if (ok) flashUpdated('death')
+    if (ok) {
+      pendingSpawnRef.current = null
+      clearPendingNeptunemonSpawnUtcMs()
+      flashUpdated('death')
+    }
   }, [flashUpdated, saveUserSchedule])
 
   const nextMs = useMemo(() => nextNeptunemonSpawnUtcMs(Date.now(), schedule), [tick, schedule])

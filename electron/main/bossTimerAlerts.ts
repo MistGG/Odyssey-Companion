@@ -65,8 +65,15 @@ export function tryShowBossTimerTestNotification():
 export function setActiveNeptunemonSchedule(raw: unknown): boolean {
   const next = normalizeNeptunemonSchedule(raw)
   if (!next) return false
+  const now = Date.now()
+  const previousNextSpawn = activeNeptunemonSchedule
+    ? nextNeptunemonSpawnUtcMs(now, activeNeptunemonSchedule)
+    : null
+  const nextSpawn = nextNeptunemonSpawnUtcMs(now, next)
   activeNeptunemonSchedule = next
-  lastNotifiedSpawnEndMs = 0
+  if (previousNextSpawn !== null && previousNextSpawn !== nextSpawn) {
+    lastNotifiedSpawnEndMs = 0
+  }
   return true
 }
 

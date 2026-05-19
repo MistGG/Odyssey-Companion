@@ -5,6 +5,7 @@ import { getSupabaseClient } from './supabaseMeter'
 
 const LOCAL_KEY = 'dmo-boss-schedule-neptunemon-v1'
 const DEVICE_KEY = 'dmo-boss-timer-device-id-v1'
+const PENDING_SPAWN_KEY = 'dmo-boss-timer-neptunemon-pending-spawn-v1'
 const TABLE = 'boss_schedules'
 
 export type BossTimerReportEvent = 'spawn' | 'death'
@@ -90,6 +91,31 @@ export function readLocalNeptunemonSchedule(): NeptunemonScheduleSnapshot | null
 export function writeLocalNeptunemonSchedule(schedule: NeptunemonScheduleSnapshot): void {
   try {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(schedule))
+  } catch {
+    /* storage can fail in restricted modes */
+  }
+}
+
+export function readPendingNeptunemonSpawnUtcMs(): number | null {
+  try {
+    const n = Number(localStorage.getItem(PENDING_SPAWN_KEY))
+    return Number.isFinite(n) ? Math.round(n) : null
+  } catch {
+    return null
+  }
+}
+
+export function writePendingNeptunemonSpawnUtcMs(spawnUtcMs: number): void {
+  try {
+    localStorage.setItem(PENDING_SPAWN_KEY, String(Math.round(spawnUtcMs)))
+  } catch {
+    /* storage can fail in restricted modes */
+  }
+}
+
+export function clearPendingNeptunemonSpawnUtcMs(): void {
+  try {
+    localStorage.removeItem(PENDING_SPAWN_KEY)
   } catch {
     /* storage can fail in restricted modes */
   }

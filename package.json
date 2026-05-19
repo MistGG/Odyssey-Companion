@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added crowd sourcing for timer data"
+      "releaseNotes": "- Updated the death now timer to change the world boss life time for subsequent world boss spawns"
     }
   }
 }
