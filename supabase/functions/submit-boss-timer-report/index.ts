@@ -9,8 +9,9 @@ const corsHeaders = {
 const NEPTUNEMON_BOSS_ID = 'neptunemon'
 const CONSENSUS_LOOKBACK_MS = 5 * 60 * 1000
 const CONSENSUS_WINDOW_MS = 30 * 1000
-const MIN_UNIQUE_REPORTS = 3
-const MIN_WEIGHTED_REPORTS = 5
+/** Low playerbase: one report can publish. Restore to 3 / 5 when traffic grows. */
+const MIN_UNIQUE_REPORTS = 1
+const MIN_WEIGHTED_REPORTS = 1
 const RATE_LIMIT_LOOKBACK_MS = 5 * 60 * 1000
 const MAX_REPORTS_PER_IDENTITY = 10
 
