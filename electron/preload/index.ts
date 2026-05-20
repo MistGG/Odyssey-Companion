@@ -196,8 +196,8 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.invoke('boss-timer:test-toast') as Promise<{ ok: true } | { ok: false; error: string }>,
 
   /** Main sends this when a real pre-spawn sound cue should play (timers window only). */
-  connectEventStream: (host: string, port: number, logging = true) =>
-    ipcRenderer.invoke('event-stream:connect', { host, port, logging }) as Promise<
+  connectEventStream: (host: string, port: number) =>
+    ipcRenderer.invoke('event-stream:connect', { host, port }) as Promise<
       { ok: true } | { ok: false; error: string }
     >,
 
@@ -236,45 +236,6 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.on('event-stream:status', wrapped)
     return () => ipcRenderer.removeListener('event-stream:status', wrapped)
   },
-
-  showEventsWindow: () => ipcRenderer.invoke('window:show-events') as Promise<boolean>,
-
-  beginEventStreamLog: () =>
-    ipcRenderer.invoke('event-stream:begin-log') as Promise<
-      | {
-          ok: true
-          sessionId: string
-          dir: string
-          jsonlPath: string
-          textPath: string
-          logRoot: string
-        }
-      | { ok: false; error: string }
-    >,
-
-  endEventStreamLog: () => ipcRenderer.invoke('event-stream:end-log') as Promise<{ ok: true }>,
-
-  appendEventStreamLog: (raw: string, formatted: string, event: Record<string, unknown>) =>
-    ipcRenderer.invoke('event-stream:append-log', { raw, formatted, event }) as Promise<
-      { ok: true } | { ok: false; error: string }
-    >,
-
-  getEventStreamLogInfo: () =>
-    ipcRenderer.invoke('event-stream:log-info') as Promise<
-      | {
-          ok: true
-          sessionId: string
-          dir: string
-          jsonlPath: string
-          textPath: string
-          lineCount: number
-          logRoot: string
-        }
-      | { ok: false; error: string }
-    >,
-
-  openEventStreamLogFolder: () =>
-    ipcRenderer.invoke('event-stream:open-log-folder') as Promise<{ ok: true } | { ok: false; error: string }>,
 
   onBossTimerChime: (handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void) => {
     const wrapped = (_evt: unknown, payload: unknown) => {

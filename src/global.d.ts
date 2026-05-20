@@ -78,47 +78,14 @@ declare global {
       connectEventStream?: (
         host: string,
         port: number,
-        logging?: boolean,
       ) => Promise<{ ok: true } | { ok: false; error: string }>
       disconnectEventStream?: () => Promise<{ ok: true }>
-      sendEventStreamQuery?: (what: string) => Promise<{ ok: true } | { ok: false; error: string }>
       onEventStreamMessage?: (
         handler: (payload: { raw: string; event: Record<string, unknown> }) => void,
       ) => () => void
       onEventStreamStatus?: (
         handler: (payload: { status: string; detail: string | null }) => void,
       ) => () => void
-      showEventsWindow?: () => Promise<boolean>
-      beginEventStreamLog?: () => Promise<
-        | {
-            ok: true
-            sessionId: string
-            dir: string
-            jsonlPath: string
-            textPath: string
-            logRoot: string
-          }
-        | { ok: false; error: string }
-      >
-      endEventStreamLog?: () => Promise<{ ok: true }>
-      appendEventStreamLog?: (
-        raw: string,
-        formatted: string,
-        event: Record<string, unknown>,
-      ) => Promise<{ ok: true } | { ok: false; error: string }>
-      getEventStreamLogInfo?: () => Promise<
-        | {
-            ok: true
-            sessionId: string
-            dir: string
-            jsonlPath: string
-            textPath: string
-            lineCount: number
-            logRoot: string
-          }
-        | { ok: false; error: string }
-      >
-      openEventStreamLogFolder?: () => Promise<{ ok: true } | { ok: false; error: string }>
     }
   }
 }

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg-deep: #070a12;
   --glass: rgba(12, 18, 32, 0.55);
   --glass-border: rgba(120, 200, 255, 0.12);
@@ -63,18 +63,6 @@ body.body--settings {
 
 body.body--settings #root {
   min-height: 100%;
-}
-
-body.body--events {
-  background: #0a0e16;
-}
-
-body.body--events #root {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 body.body--update {
@@ -654,7 +642,7 @@ select {
   margin-bottom: 0;
 }
 
-/* Compact strip — floating boss timers window */
+/* Compact strip â€” floating boss timers window */
 .boss-timer-overlay-stack {
   display: flex;
   flex-direction: column;
@@ -947,7 +935,7 @@ select {
   overflow: hidden;
 }
 
-/* Renderer switches to ghost layout below ~4% on the slider — see TimelineApp. */
+/* Renderer switches to ghost layout below ~4% on the slider â€” see TimelineApp. */
 .timeline-backdrop--ghost {
   border-color: transparent;
   background: transparent !important;
@@ -974,7 +962,7 @@ select {
   flex-direction: column;
 }
 
-/* No inner “card” behind entries — text sits on the outer `.timeline-backdrop` only */
+/* No inner â€œcardâ€ behind entries â€” text sits on the outer `.timeline-backdrop` only */
 .timeline-boss-surface--panel {
   background: transparent;
   border: none;
@@ -1065,10 +1053,10 @@ select {
 }
 
 .titlebar--timeline {
-  /* Match `.timeline-backdrop` top radius so the header fill doesn’t read as a second curve inside the panel clip. */
+  /* Match `.timeline-backdrop` top radius so the header fill doesnâ€™t read as a second curve inside the panel clip. */
   border-top-left-radius: var(--radius);
   border-top-right-radius: var(--radius);
-  /* Same alpha as the panel — timer / buttons use their own opaque surfaces below */
+  /* Same alpha as the panel â€” timer / buttons use their own opaque surfaces below */
   background: rgba(7, 10, 18, var(--timeline-backdrop-alpha));
   border-bottom: 1px solid
     rgba(120, 200, 255, calc(0.05 + var(--timeline-backdrop-alpha) * 0.2));
@@ -1078,7 +1066,7 @@ select {
   /* Slightly tighter than generic titlebar so the window can shrink without clipping the control strip. */
   gap: 10px;
   padding: 10px 8px 10px 12px;
-  /* Drag strip may be narrower than its content; clip branding — never clip the action strip. */
+  /* Drag strip may be narrower than its content; clip branding â€” never clip the action strip. */
   overflow-x: hidden;
   container-type: inline-size;
   container-name: timeline-tbar;
@@ -1105,7 +1093,7 @@ select {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-/* Dot + “Timeline” + dungeon line track the same opacity as the panel (invisible at 0). */
+/* Dot + â€œTimelineâ€ + dungeon line track the same opacity as the panel (invisible at 0). */
 .titlebar--timeline .titlebar-drag--inline > .logo-dot,
 .titlebar--timeline .titlebar-drag--inline > .titlebar-inline-brand {
   opacity: var(--timeline-backdrop-alpha);
@@ -1579,7 +1567,7 @@ select {
 .skill-timeline__row {
   padding: 6px 8px;
   border-radius: 8px;
-  /* Timeline overlay: no opaque row pills — text sits on the boss panel or game */
+  /* Timeline overlay: no opaque row pills â€” text sits on the boss panel or game */
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -2212,7 +2200,7 @@ select {
   width: 100%;
   cursor: pointer;
   position: relative;
-  /* `overflow: hidden` on grid items can clamp min-size to 0 and shrink rows below content — clips thumbs/text. */
+  /* `overflow: hidden` on grid items can clamp min-size to 0 and shrink rows below content â€” clips thumbs/text. */
   overflow: visible;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2656,7 +2644,7 @@ select {
   color: rgba(255, 255, 255, 0.38);
 }
 
-/* Number fields: explicit dark text — avoids white-on-white when `color` inherits from chrome */
+/* Number fields: explicit dark text â€” avoids white-on-white when `color` inherits from chrome */
 .field input[type='number'] {
   padding: 9px 11px;
   border-radius: 10px;
@@ -2674,7 +2662,7 @@ select {
   box-shadow: 0 0 0 3px rgba(62, 224, 255, 0.15);
 }
 
-/* Email / password / text: force readable colors — Electron can use a light native field while `color` inherits from the dark panel (white-on-white). */
+/* Email / password / text: force readable colors â€” Electron can use a light native field while `color` inherits from the dark panel (white-on-white). */
 .field input[type='email'],
 .field input[type='password']:not(.mono),
 .field input[type='text'] {
@@ -3083,7 +3071,7 @@ select {
   flex-shrink: 0;
 }
 
-/* Clear rewards: grouped by grade (Base, S…F) for readability */
+/* Clear rewards: grouped by grade (Base, Sâ€¦F) for readability */
 .dungeon-diff-detail__reward-tiers {
   display: flex;
   flex-direction: column;
@@ -3334,7 +3322,7 @@ select {
   min-height: 0;
   padding: 12px 14px 16px;
   cursor: default;
-  /* Do not mark the body as drag — it blocks native edge resize on frameless windows. Move the window from the title strip only. */
+  /* Do not mark the body as drag â€” it blocks native edge resize on frameless windows. Move the window from the title strip only. */
   -webkit-app-region: no-drag;
 }
 
@@ -3347,7 +3335,7 @@ select {
   user-select: text;
 }
 
-/* Scrollbar hidden — timeline still scrolls with wheel / touch pad (overflow-y: auto on `.timeline-scroll-inner`). */
+/* Scrollbar hidden â€” timeline still scrolls with wheel / touch pad (overflow-y: auto on `.timeline-scroll-inner`). */
 .timeline-scroll-inner--styled {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -3429,7 +3417,7 @@ select {
   width: 100%;
 }
 
-/* One line per mechanic: timer · targets · name · damage (no cue column — keeps the queue readable). */
+/* One line per mechanic: timer Â· targets Â· name Â· damage (no cue column â€” keeps the queue readable). */
 .run-queue-mechanic-row {
   display: grid;
   grid-template-columns: minmax(2.75rem, auto) auto minmax(0, 1fr) auto;
@@ -3610,7 +3598,7 @@ select {
   margin-bottom: 14px;
 }
 
-/* Timer-only run view (no progress bars) — centered countdown */
+/* Timer-only run view (no progress bars) â€” centered countdown */
 .timeline-run-queue-timing--timer-only {
   justify-content: center;
   gap: 0;
@@ -4512,7 +4500,7 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   line-height: 1.35 !important;
 }
 
-/* Shared scrollbar — matches cyan meter chrome */
+/* Shared scrollbar â€” matches cyan meter chrome */
 .meter-scroll--themed {
   scrollbar-width: thin;
   scrollbar-color: rgba(62, 224, 255, 0.5) rgba(0, 0, 0, 0.35);
@@ -5220,550 +5208,5 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
 .meter-banner-sub {
   display: block;
   margin-top: 6px;
-  font-size: 11px;
-}
-
-/* --- EventStream log (dev / support) --- */
-
-.event-stream-app {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  padding: 16px 18px 12px;
-  gap: 12px;
-  color: var(--text);
-}
-
-.event-stream-app__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.event-stream-app__head h1 {
-  margin: 0 0 6px;
-  font-size: 20px;
-}
-
-.event-stream-status {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.event-stream-status--connected {
-  color: rgba(134, 239, 172, 0.95);
-  border-color: rgba(34, 197, 94, 0.4);
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.event-stream-status--connecting {
-  color: rgba(250, 204, 21, 0.95);
-}
-
-.event-stream-status--error {
-  color: rgba(252, 165, 165, 0.95);
-  border-color: rgba(248, 113, 113, 0.4);
-}
-
-.event-stream-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(120, 200, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
-  flex-shrink: 0;
-  max-height: 48vh;
-  overflow-y: auto;
-}
-
-.event-stream-panel__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.event-stream-panel__label {
-  font-size: 11px;
-  color: var(--muted);
-  margin-right: 4px;
-}
-
-.event-stream-field {
-  min-width: 120px;
-}
-
-.event-stream-field input,
-.event-stream-field select {
-  min-width: 140px;
-  padding: 9px 11px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.96);
-  color: #0d1117;
-  outline: none;
-  font-size: 13px;
-}
-
-.event-stream-field input::placeholder {
-  color: rgba(13, 17, 23, 0.45);
-}
-
-.event-stream-field input:focus,
-.event-stream-field select:focus {
-  border-color: rgba(62, 224, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(62, 224, 255, 0.15);
-}
-
-.event-stream-field input:disabled,
-.event-stream-field select:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.event-stream-panel__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.event-stream-detail,
-.event-stream-copy-hint,
-.event-stream-log-paths {
-  margin: 0;
-  font-size: 11px;
-  word-break: break-all;
-}
-
-.event-stream-detail--error {
-  color: rgba(252, 165, 165, 0.95);
-}
-
-.event-stream-feed {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.35);
-  font-family: ui-monospace, Consolas, 'Cascadia Mono', monospace;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.event-stream-feed__empty {
-  margin: 12px 4px;
-}
-
-.event-stream-line {
-  padding: 4px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.event-stream-line pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.event-stream-line--skill_use pre,
-.event-stream-line--party_skill pre {
-  color: rgba(140, 220, 255, 0.95);
-}
-
-.event-stream-skill-card {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 8px 10px;
-  margin: 4px 0;
-  border-radius: 10px;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: border-color 0.12s ease, background 0.12s ease;
-}
-
-.event-stream-skill-card:hover {
-  border-color: rgba(62, 224, 255, 0.28);
-}
-
-.event-stream-skill-card:focus-visible {
-  outline: 2px solid rgba(62, 224, 255, 0.55);
-  outline-offset: 2px;
-}
-
-.event-stream-skill-card--open {
-  cursor: default;
-  border: 1px solid rgba(120, 200, 255, 0.2);
-  background: rgba(20, 40, 70, 0.45);
-}
-
-.event-stream-skill-card--skill_use {
-  border-color: rgba(62, 224, 255, 0.35);
-}
-
-.event-stream-skill-card--party_skill {
-  border-color: rgba(167, 139, 250, 0.35);
-  background: rgba(45, 30, 70, 0.4);
-}
-
-.event-stream-skill-card--enemy_skill {
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(60, 25, 30, 0.4);
-}
-
-.event-stream-skill-card__icon {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.event-stream-skill-card__body {
-  flex: 1;
-  min-width: 0;
-}
-
-.event-stream-skill-card__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  margin-bottom: 4px;
-}
-
-.event-stream-skill-card__expand {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-}
-
-.event-stream-skill-card__time {
-  font-size: 10px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.event-stream-skill-card__badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(190, 230, 255, 0.9);
-}
-
-.event-stream-skill-card__wiki {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: rgba(134, 239, 172, 0.95);
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  background: rgba(34, 197, 94, 0.12);
-}
-
-.event-stream-wiki-digimon {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.event-stream-wiki-digimon code {
-  font-size: 10px;
-}
-
-.event-stream-wiki-digimon__note {
-  display: block;
-  margin-top: 4px;
-  font-size: 10px;
-  line-height: 1.35;
-  opacity: 0.85;
-}
-
-.event-stream-digimon-bar {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 6px 0 4px;
-}
-
-.event-stream-digimon-bar__portrait {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(120, 200, 255, 0.15);
-}
-
-.event-stream-skill-card__crit {
-  font-size: 10px;
-  font-weight: 800;
-  color: rgba(252, 211, 77, 0.95);
-}
-
-.event-stream-skill-card__tag {
-  font-size: 10px;
-  color: var(--muted);
-}
-
-.event-stream-skill-card__name {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: rgba(230, 245, 255, 0.98);
-  word-break: break-word;
-}
-
-.event-stream-skill-card__id {
-  font-size: 10px;
-  margin-top: 2px;
-}
-
-.event-stream-skill-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px 12px;
-  margin-top: 6px;
-  font-size: 11px;
-}
-
-.event-stream-skill-card__damage {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: rgba(140, 220, 255, 0.95);
-}
-
-.event-stream-skill-card__tamer {
-  margin-top: 4px;
-  font-size: 11px;
-}
-
-.event-stream-party-panel {
-  margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(120, 200, 120, 0.08);
-  border: 1px solid rgba(120, 220, 140, 0.22);
-}
-
-.event-stream-party-panel__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.event-stream-party-panel__id {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.event-stream-party-panel__time {
-  font-size: 10px;
-  margin-left: auto;
-}
-
-.event-stream-party-panel__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.event-stream-party-panel__member {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.event-stream-party-panel__portrait {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.event-stream-party-panel__portrait--empty {
-  display: inline-block;
-  opacity: 0.2;
-}
-
-.event-stream-party-panel__hint,
-.event-stream-party-panel__empty {
-  margin: 0;
-  font-size: 11px;
-}
-
-.event-stream-party-card {
-  margin: 0 0 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(100, 200, 130, 0.1);
-  border: 1px solid rgba(120, 220, 150, 0.28);
-  cursor: pointer;
-}
-
-.event-stream-party-card:hover {
-  filter: brightness(1.08);
-}
-
-.event-stream-party-card--open {
-  border-color: rgba(140, 240, 170, 0.45);
-}
-
-.event-stream-party-card__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.event-stream-party-card__badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(160, 255, 190, 0.95);
-}
-
-.event-stream-party-card__line {
-  margin: 0 0 8px;
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: rgba(220, 240, 225, 0.9);
-}
-
-.event-stream-party-card__members {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.event-stream-party-card__member {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.event-stream-party-card__portrait {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.event-stream-party-card__portrait--empty {
-  display: inline-block;
-  width: 28px;
-  height: 28px;
-  opacity: 0.2;
-}
-
-.event-stream-party-card__member-body {
-  min-width: 0;
-}
-
-.event-stream-line--party_skill pre,
-.event-stream-line--party_change pre,
-.event-stream-line--party_join pre,
-.event-stream-line--party_leave pre,
-.event-stream-line--party_update pre,
-.event-stream-line--party_roster pre {
-  color: rgba(170, 240, 190, 0.92);
-}
-
-.event-stream-skill-card__json-wrap {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: text;
-}
-
-.event-stream-skill-card__json-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0 0 4px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.event-stream-skill-card__copy {
-  padding: 2px 8px;
-  font-size: 10px;
-  min-height: 0;
-  cursor: pointer;
-}
-
-.event-stream-skill-card__json {
-  margin: 0 0 10px;
-  padding: 8px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 10px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 280px;
-  overflow: auto;
-  color: rgba(200, 230, 255, 0.92);
-}
-
-.event-stream-skill-card__json--raw {
-  margin-bottom: 0;
-  max-height: 120px;
-}
-
-.event-stream-line--hello pre {
-  color: rgba(190, 230, 255, 0.9);
-}
-
-.event-stream-app__foot {
-  flex-shrink: 0;
   font-size: 11px;
 }

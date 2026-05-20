@@ -503,7 +503,7 @@ export default function MeterApp() {
       }
     })
 
-    void api.connectEventStream(host, port, false).then((r) => {
+    void api.connectEventStream(host, port).then((r) => {
       if (disposed) return
       if (!r.ok) {
         setReaderError(r.error ?? 'Could not connect to EventStream')

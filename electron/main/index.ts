@@ -30,21 +30,12 @@ import {
   setActiveRaidBossAlerts,
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
-import {
-  appendEventStreamLog,
-  beginEventStreamLogSession,
-  endEventStreamLogSession,
-  getEventStreamLogLineCount,
-  getEventStreamLogRoot,
-  getEventStreamLogSession,
-} from './eventStreamLog'
 import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
 
-/** Set `ODYSSEY_START_PANEL=meter`, `=timers`, `=settings`, or `=events` to launch only that window (UI dev). */
+/** Set `ODYSSEY_START_PANEL=meter`, `=timers`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
 const TIMERS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'timers'
 const SETTINGS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'settings'
-const EVENTS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'events'
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
@@ -128,7 +119,6 @@ let timersLootDetailSavedBounds: Rectangle | null = null
 /** Unified settings (fixed layout; not tied to overlay size). */
 let settingsWin: BrowserWindow | null = null
 /** EventStream WebSocket log viewer (dev / support). */
-let eventsWin: BrowserWindow | null = null
 /** Dedicated always-on-top update UI (avoids native dialogs hidden under overlays). */
 let updateWin: BrowserWindow | null = null
 let marketLoginWin: BrowserWindow | null = null
@@ -231,13 +221,6 @@ const DEFAULT_SETTINGS_SIZE = {
   height: 760,
   minWidth: 480,
   minHeight: 520,
-} as const
-
-const DEFAULT_EVENTS_SIZE = {
-  width: 980,
-  height: 720,
-  minWidth: 640,
-  minHeight: 400,
 } as const
 
 function layoutFilePath(): string {
@@ -486,12 +469,6 @@ function settingsLoadUrl(section: string) {
   return `${base}/?panel=settings&section=${sec}`
 }
 
-function eventsLoadUrl() {
-  if (!VITE_DEV_SERVER_URL) return
-  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
-  return `${base}/?panel=events`
-}
-
 function centerSettingsWindow(win: BrowserWindow) {
   const { width, height } = win.getBounds()
   const wa = screen.getPrimaryDisplay().workArea
@@ -552,60 +529,6 @@ function createSettingsWindow(sectionRaw?: unknown) {
     settingsWin = null
   })
   attachWindowLayoutTracking(settingsWin)
-}
-
-function createEventsWindow() {
-  if (eventsWin && !eventsWin.isDestroyed()) return
-  eventsWin = new BrowserWindow({
-    icon: getWindowIcon(),
-    title: 'Odyssey Companion — EventStream log',
-    width: DEFAULT_EVENTS_SIZE.width,
-    height: DEFAULT_EVENTS_SIZE.height,
-    minWidth: DEFAULT_EVENTS_SIZE.minWidth,
-    minHeight: DEFAULT_EVENTS_SIZE.minHeight,
-    show: false,
-    resizable: true,
-    autoHideMenuBar: true,
-    backgroundColor: '#0a0e16',
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
-  })
-  const url = eventsLoadUrl()
-  if (url) {
-    void eventsWin.loadURL(url)
-  } else {
-    void eventsWin.loadFile(indexHtml, { query: { panel: 'events' } })
-  }
-  eventsWin.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:') || url.startsWith('http:')) {
-      shell.openExternal(url)
-    }
-    return { action: 'deny' }
-  })
-  eventsWin.once('ready-to-show', () => {
-    if (!eventsWin || eventsWin.isDestroyed()) return
-    centerSettingsWindow(eventsWin)
-    eventsWin.show()
-    eventsWin.setSkipTaskbar(false)
-    eventsWin.focus()
-  })
-  eventsWin.on('closed', () => {
-    eventsWin = null
-    endEventStreamLogSession()
-  })
-}
-
-function showEventsWindow() {
-  if (!eventsWin || eventsWin.isDestroyed()) {
-    createEventsWindow()
-    return
-  }
-  eventsWin.show()
-  eventsWin.setSkipTaskbar(false)
-  eventsWin.focus()
 }
 
 function showSettingsWindow(sectionRaw?: unknown) {
@@ -1136,17 +1059,14 @@ function quitFromTray() {
   if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
   if (timersWin && !timersWin.isDestroyed()) timersWin.destroy()
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy()
-  if (eventsWin && !eventsWin.isDestroyed()) eventsWin.destroy()
   if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
   if (marketLoginWin && !marketLoginWin.isDestroyed()) marketLoginWin.destroy()
   void shutdownEventStreamBridge()
-  endEventStreamLogSession()
   dungeonWin = null
   timelineWin = null
   meterWin = null
   timersWin = null
   settingsWin = null
-  eventsWin = null
   updateWin = null
   marketLoginWin = null
   app.quit()
@@ -1176,10 +1096,6 @@ function createTray() {
     {
       label: 'Settings',
       click: () => showSettingsWindow('general'),
-    },
-    {
-      label: 'Event stream log',
-      click: () => showEventsWindow(),
     },
     { type: 'separator' },
     {
@@ -1285,7 +1201,6 @@ if (!app.requestSingleInstanceLock()) {
 
 registerEventStreamBridge(() => {
   const wins: BrowserWindow[] = []
-  if (eventsWin && !eventsWin.isDestroyed()) wins.push(eventsWin)
   if (meterWin && !meterWin.isDestroyed()) wins.push(meterWin)
   return wins
 })
@@ -1304,8 +1219,6 @@ app.whenReady().then(() => {
     timersWin?.setSkipTaskbar(false)
   } else if (SETTINGS_ONLY_STARTUP) {
     showSettingsWindow('general')
-  } else if (EVENTS_ONLY_STARTUP) {
-    showEventsWindow()
   } else {
     createWindows()
     showDungeonWindow()
@@ -1353,8 +1266,6 @@ app.on('activate', () => {
       timersWin?.show()
     } else if (SETTINGS_ONLY_STARTUP) {
       showSettingsWindow('general')
-    } else if (EVENTS_ONLY_STARTUP) {
-      showEventsWindow()
     } else {
       createWindows()
       showDungeonWindow()
@@ -1369,8 +1280,6 @@ app.on('second-instance', () => {
     showTimersWindow()
   } else if (SETTINGS_ONLY_STARTUP) {
     showSettingsWindow('general')
-  } else if (EVENTS_ONLY_STARTUP) {
-    showEventsWindow()
   } else {
     showDungeonWindow()
   }
@@ -1591,11 +1500,6 @@ ipcMain.handle('window:show-meter', () => {
 
 ipcMain.handle('window:show-timers', () => {
   showTimersWindow()
-  return true
-})
-
-ipcMain.handle('window:show-events', () => {
-  showEventsWindow()
   return true
 })
 
@@ -2037,59 +1941,3 @@ ipcMain.handle(
   },
 )
 
-ipcMain.handle('event-stream:begin-log', () => {
-  const session = beginEventStreamLogSession()
-  return {
-    ok: true as const,
-    sessionId: session.sessionId,
-    dir: session.dir,
-    jsonlPath: session.jsonlPath,
-    textPath: session.textPath,
-    logRoot: getEventStreamLogRoot(),
-  }
-})
-
-ipcMain.handle('event-stream:end-log', () => {
-  endEventStreamLogSession()
-  return { ok: true as const }
-})
-
-ipcMain.handle(
-  'event-stream:append-log',
-  (_e, payload: unknown): { ok: true } | { ok: false; error: string } => {
-    if (!payload || typeof payload !== 'object') {
-      return { ok: false, error: 'Invalid payload' }
-    }
-    const p = payload as { raw?: unknown; formatted?: unknown; event?: unknown }
-    const raw = typeof p.raw === 'string' ? p.raw : ''
-    const formatted = typeof p.formatted === 'string' ? p.formatted : ''
-    const event =
-      p.event && typeof p.event === 'object' ? (p.event as Record<string, unknown>) : { type: 'unknown' }
-    appendEventStreamLog(raw, formatted, event)
-    return { ok: true }
-  },
-)
-
-ipcMain.handle('event-stream:log-info', () => {
-  const session = getEventStreamLogSession()
-  if (!session) {
-    return { ok: false as const, error: 'No active log session' }
-  }
-  return {
-    ok: true as const,
-    sessionId: session.sessionId,
-    dir: session.dir,
-    jsonlPath: session.jsonlPath,
-    textPath: session.textPath,
-    lineCount: getEventStreamLogLineCount(),
-    logRoot: getEventStreamLogRoot(),
-  }
-})
-
-ipcMain.handle('event-stream:open-log-folder', async () => {
-  const session = getEventStreamLogSession()
-  const target = session?.dir ?? getEventStreamLogRoot()
-  fs.mkdirSync(target, { recursive: true })
-  const err = await shell.openPath(target)
-  return err ? { ok: false as const, error: err } : { ok: true as const }
-})

@@ -8,7 +8,6 @@ import MeterApp from './MeterApp'
 import TimersApp from './TimersApp'
 import SettingsApp from './SettingsApp'
 import UpdateApp from './UpdateApp'
-import EventStreamApp from './EventStreamApp'
 import './index.css'
 
 const panel = getPanel()
@@ -27,9 +26,6 @@ if (panel === 'settings') {
 if (panel === 'update') {
   document.body.classList.add('body--update')
 }
-if (panel === 'events') {
-  document.body.classList.add('body--events')
-}
 
 const panelLabel =
   panel === 'timeline'
@@ -41,12 +37,10 @@ const panelLabel =
         : panel === 'settings'
           ? 'settings'
           : panel === 'update'
-          ? 'update'
-          : panel === 'events'
-            ? 'events'
+            ? 'update'
             : 'dungeon'
 
-/** Meter / Event stream hold long-lived resources — skip StrictMode so dev never double-mounts them. */
+/** Meter holds long-lived resources — skip StrictMode so dev never double-mounts it. */
 const appTree = (
   <ErrorBoundary panel={panelLabel}>
     {panel === 'timeline' ? (
@@ -59,8 +53,6 @@ const appTree = (
       <SettingsApp />
     ) : panel === 'update' ? (
       <UpdateApp />
-    ) : panel === 'events' ? (
-      <EventStreamApp />
     ) : (
       <DungeonApp />
     )}
@@ -68,9 +60,5 @@ const appTree = (
 )
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  panel === 'meter' || panel === 'timers' || panel === 'events' ? (
-    appTree
-  ) : (
-    <React.StrictMode>{appTree}</React.StrictMode>
-  ),
+  panel === 'meter' || panel === 'timers' ? appTree : <React.StrictMode>{appTree}</React.StrictMode>,
 )

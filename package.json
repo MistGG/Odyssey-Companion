@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -9,7 +9,6 @@
     "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
     "dev:timers": "cross-env ODYSSEY_START_PANEL=timers vite",
     "dev:settings": "cross-env ODYSSEY_START_PANEL=settings vite",
-    "dev:events": "cross-env ODYSSEY_START_PANEL=events vite",
     "build": "vite build",
     "preview": "vite preview",
     "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",
@@ -97,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Official Client API support added\n- Meter now works, however some skills will not appear correctly for now\n- Timeline will now automatically work without the users input"
+      "releaseNotes": "- Official Client API support added\n- Meter now works, however some skills will not appear correctly for now\n- Timeline will now automatically work without the users input\n- Removed internal Event Stream log window (not intended for public release)"
     }
   }
 }
