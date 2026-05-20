@@ -97,6 +97,11 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       ? raw.hotkeysOnlyWhenCompanionFocused
       : undefined
 
+  let meterAutoUploadAfterClear =
+    typeof raw.meterAutoUploadAfterClear === 'boolean'
+      ? raw.meterAutoUploadAfterClear
+      : undefined
+
   let timersBackdrop =
     typeof raw.timersBackdropOpacity === 'number' ? raw.timersBackdropOpacity : undefined
   let timersTop = typeof raw.timersAlwaysOnTop === 'boolean' ? raw.timersAlwaysOnTop : undefined
@@ -168,6 +173,10 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof hotkeysFocusOnly === 'boolean'
         ? hotkeysFocusOnly
         : DEFAULT_SETTINGS.hotkeysOnlyWhenCompanionFocused,
+    meterAutoUploadAfterClear:
+      typeof meterAutoUploadAfterClear === 'boolean'
+        ? meterAutoUploadAfterClear
+        : DEFAULT_SETTINGS.meterAutoUploadAfterClear,
     timersBackdropOpacity:
       typeof timersBackdrop === 'number'
         ? Math.min(1, Math.max(0, timersBackdrop))

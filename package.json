@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.33",
+  "version": "0.1.34",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -96,7 +96,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Official Client API support added\n- Meter now works, however some skills will not appear correctly for now\n- Timeline will now automatically work without the users input\n- Removed internal Event Stream log window (not intended for public release)"
+      "releaseNotes": "- Updated meter logic to start and reset automatically\n- Added a meter auto upload"
     }
   }
 }

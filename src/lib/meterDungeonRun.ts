@@ -95,6 +95,40 @@ function objectiveRows(source: EventStreamRecord | unknown[]): unknown[] {
   return []
 }
 
+/** Display name for a kill objective row (EventStream + wiki shapes). */
+export function extractObjectiveTargetName(row: Record<string, unknown>): string {
+  return String(
+    row.target ?? row.pen_name ?? row.monster_name ?? row.name ?? row.monster ?? '',
+  ).trim()
+}
+
+function objectiveRowIsKill(row: Record<string, unknown>): boolean {
+  const type = String(row.type ?? '').trim().toLowerCase()
+  if (type && type !== 'kill') return false
+  return Boolean(extractObjectiveTargetName(row))
+}
+
+/** True when the client marks this kill objective finished (dungeon_progress updates). */
+export function objectiveRowComplete(row: Record<string, unknown>): boolean {
+  if (row.complete === true || row.completed === true || row.done === true) return true
+  const cur = Number(row.current ?? row.progress ?? row.killed ?? row.kill_count)
+  const need = Number(row.count ?? row.required ?? row.total ?? 1)
+  if (Number.isFinite(cur) && Number.isFinite(need) && need > 0 && cur >= need) return true
+  return false
+}
+
+/** All kill objectives in the payload are complete (boss dead / run cleared). */
+export function allKillObjectivesComplete(source: EventStreamRecord | unknown[]): boolean {
+  const kills: Record<string, unknown>[] = []
+  for (const raw of objectiveRows(source)) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    if (objectiveRowIsKill(row)) kills.push(row)
+  }
+  if (!kills.length) return false
+  return kills.every(objectiveRowComplete)
+}
+
 /** Kill objective targets from `dungeon_progress` / `query_result.dungeon` (supports multi-boss runs). */
 export function extractBossTargetsFromObjectives(source: EventStreamRecord | unknown[]): string[] {
   const seen = new Set<string>()
@@ -102,10 +136,8 @@ export function extractBossTargetsFromObjectives(source: EventStreamRecord | unk
   for (const raw of objectiveRows(source)) {
     if (!raw || typeof raw !== 'object') continue
     const row = raw as Record<string, unknown>
-    const target = String(row.target ?? '').trim()
-    if (!target) continue
-    const type = String(row.type ?? '').trim().toLowerCase()
-    if (type && type !== 'kill') continue
+    if (!objectiveRowIsKill(row)) continue
+    const target = extractObjectiveTargetName(row)
     const key = normBossName(target)
     if (seen.has(key)) continue
     seen.add(key)
@@ -122,14 +154,33 @@ export function syncDungeonBossTargets(
   if (targets.length) session.dungeonBossTargets = targets
 }
 
+/** Entity name on `death` events (field varies by EventStream build). */
+export function deathEntityName(ev: EventStreamRecord): string {
+  return String(
+    ev.name ?? ev.target ?? ev.pen_name ?? ev.monster_name ?? ev.monster ?? ev.digimon ?? '',
+  ).trim()
+}
+
 export function deathIndicatesBossClear(
   ev: EventStreamRecord,
   bossTargets: readonly string[],
 ): boolean {
   if (String(ev.type ?? '') !== 'death') return false
-  const name = String(ev.name ?? '').trim()
+  const name = deathEntityName(ev)
   if (!name || bossTargets.length === 0) return false
   return bossTargets.some((boss) => bossNamesMatch(name, boss))
+}
+
+/** Boss took a killing blow (target HP 0 on a combat line). */
+export function combatKilledDungeonBoss(
+  session: { dungeonId: string | null; dungeonBossTargets: readonly string[] },
+  ev: EventStreamRecord,
+): boolean {
+  if (!session.dungeonId?.trim() || session.dungeonBossTargets.length === 0) return false
+  const victim = String(ev.target ?? '').trim()
+  if (!victim || !combatVictimIsDungeonBoss(victim, session.dungeonBossTargets)) return false
+  const hp = Number(ev.hp)
+  return Number.isFinite(hp) && hp <= 0
 }
 
 export function markDungeonRunClear(session: {

@@ -113,6 +113,10 @@ export default function MeterApp() {
     loadInFlight: false,
     pendingBossStart: false,
   })
+  const uploadParseRef = useRef<() => Promise<void>>(async () => {})
+  const uploadInFlightRef = useRef(false)
+  const autoUploadAfterClearRef = useRef(settings.meterAutoUploadAfterClear)
+  autoUploadAfterClearRef.current = settings.meterAutoUploadAfterClear
   const [streamRev, setStreamRev] = useState(0)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
   const [tick, setTick] = useState(0)
@@ -206,7 +210,10 @@ export default function MeterApp() {
 
   useEffect(() => {
     if (streamRef.current.sessionStartMs == null) return
-    const id = window.setInterval(() => setTick((t) => t + 1), 100)
+    const id = window.setInterval(() => {
+      if (streamRef.current.sessionEndMs != null) return
+      setTick((t) => t + 1)
+    }, 100)
     return () => window.clearInterval(id)
   }, [streamRev])
 
@@ -446,6 +453,8 @@ export default function MeterApp() {
 
       if (dungeonReset) {
         setPartyDetailKey(null)
+        streamRef.current.lastRunOutcome = null
+        streamRef.current.sessionEndMs = null
         requestPartyRosterSync()
       }
       if (sessionStarted) requestPartyRosterSync()
@@ -481,6 +490,10 @@ export default function MeterApp() {
       }
 
       bumpStream()
+
+      if (runOutcome === 'clear' && autoUploadAfterClearRef.current) {
+        void uploadParseRef.current()
+      }
     })
 
     const offStatus = api.onEventStreamStatus?.((payload) => {
@@ -633,6 +646,7 @@ export default function MeterApp() {
     !uploadAllowed || sbBusy || uploadOnCooldown || partyListDamageSum <= 0
 
   const uploadParse = useCallback(async () => {
+    if (uploadInFlightRef.current) return
     setSbMsg(null)
     if (uploadCooldownUntilMs != null && Date.now() < uploadCooldownUntilMs) {
       const sec = Math.max(1, Math.ceil((uploadCooldownUntilMs - Date.now()) / 1000))
@@ -648,10 +662,13 @@ export default function MeterApp() {
       setSbMsg('Uploads require a Normal or Hard dungeon run.')
       return
     }
-    if (partyListRows.length === 0 || partyListDamageSum <= 0) {
+    const uploadRows = meterPartyRows(session, Date.now())
+    const uploadDamageSum = uploadRows.reduce((s, r) => s + Math.max(0, r.totalDamage), 0)
+    if (uploadRows.length === 0 || uploadDamageSum <= 0) {
       setSbMsg('No damage in the current session to upload.')
       return
     }
+    uploadInFlightRef.current = true
     setSbBusy(true)
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
@@ -675,11 +692,11 @@ export default function MeterApp() {
         setUploadToast({ text: 'Upload complete', kind: 'success' })
       }
     } finally {
+      uploadInFlightRef.current = false
       setSbBusy(false)
     }
-  }, [supabase, sbUser, uploadCooldownUntilMs, partyListRows, partyListDamageSum])
+  }, [supabase, sbUser, uploadCooldownUntilMs])
 
-  const uploadParseRef = useRef(uploadParse)
   uploadParseRef.current = uploadParse
 
   useEffect(() => {

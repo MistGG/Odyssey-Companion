@@ -9,7 +9,9 @@ import {
 } from './eventStreamParty'
 import { readCachedDungeonDetails } from './dungeonDetailApi'
 import {
+  allKillObjectivesComplete,
   combatHitStartsMeterTimer,
+  combatKilledDungeonBoss,
   deathIndicatesBossClear,
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
@@ -487,6 +489,7 @@ export function applyDungeonProgress(
   let needsNameFetch = false
   let reset = false
   let outcome: MeterDungeonRunOutcome | null = null
+  const eventMs = Number(ev.ts) || nowMs
 
   if (!dungeonId) {
     leaveDungeonSession(session)
@@ -498,37 +501,33 @@ export function applyDungeonProgress(
   if (diffMeta.label) session.dungeonDifficulty = diffMeta.label
   if (diffMeta.tier != null) session.dungeonDifficultyTier = diffMeta.tier
 
-  const sameDungeonAfterClear =
-    !session.dungeonRunActive &&
-    session.lastRunOutcome === 'clear' &&
-    session.dungeonId === dungeonId
+  const prevDungeonId = session.dungeonId
+  const objectivesComplete = allKillObjectivesComplete(ev)
 
-  if (sameDungeonAfterClear) {
+  if (objectivesComplete && session.dungeonRunActive) {
+    markDungeonRunClear(session)
+    freezeMeterTimer(session, eventMs)
     applyDungeonIdentity(session, dungeonId)
-    return { dungeonId, reset: false, needsNameFetch: false, outcome: null }
+    return { dungeonId, reset: false, needsNameFetch: false, outcome: 'clear' }
   }
 
-  if (!session.dungeonRunActive && session.lastRunOutcome === 'clear') {
+  const newPull =
+    !session.dungeonRunActive ||
+    session.lastRunOutcome != null ||
+    (prevDungeonId != null && prevDungeonId !== dungeonId)
+
+  if (newPull) {
     session.lastRunOutcome = null
-  }
-
-  if (session.dungeonRunActive) {
-    markDungeonRunFail(session)
-    outcome = 'fail'
     clearDungeonCombat(session)
     reset = true
+    const idMeta = applyDungeonIdentity(session, dungeonId)
+    needsNameFetch = idMeta.needsNameFetch
+    session.dungeonRunActive = true
+    return { dungeonId, reset, needsNameFetch, outcome }
   }
 
-  const idMeta = applyDungeonIdentity(session, dungeonId)
-  needsNameFetch = idMeta.needsNameFetch
-  session.dungeonRunActive = true
-
-  if (!outcome) {
-    clearDungeonCombat(session)
-    reset = true
-  }
-
-  return { dungeonId, reset, needsNameFetch, outcome }
+  applyDungeonIdentity(session, dungeonId)
+  return { dungeonId, reset: false, needsNameFetch: false, outcome: null }
 }
 
 function freezeMeterTimer(session: MeterStreamSession, endMs: number) {
@@ -540,10 +539,13 @@ function maybeMarkDungeonRunClear(
   session: MeterStreamSession,
   ev: EventStreamRecord,
 ): MeterDungeonRunOutcome | null {
-  if (!session.dungeonId || !session.dungeonRunActive) return null
-  if (!deathIndicatesBossClear(ev, session.dungeonBossTargets)) return null
+  if (!session.dungeonId || !session.dungeonRunActive || session.sessionEndMs != null) return null
+  const endMs = Number(ev.ts) || Date.now()
+  const fromDeath = deathIndicatesBossClear(ev, session.dungeonBossTargets)
+  const fromCombat = combatKilledDungeonBoss(session, ev)
+  if (!fromDeath && !fromCombat) return null
   markDungeonRunClear(session)
-  freezeMeterTimer(session, Number(ev.ts) || Date.now())
+  freezeMeterTimer(session, endMs)
   return 'clear'
 }
 

@@ -614,6 +614,29 @@ export default function SettingsApp() {
               {onlineMsg ? <p className="hint" style={{ marginTop: 10 }}>{onlineMsg}</p> : null}
             </section>
 
+            {supabase && onlineUser ? (
+              <section className="field-group" style={{ marginTop: 16 }}>
+                <h3 className="settings-app-subhead">Meter uploads</h3>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={settings.meterAutoUploadAfterClear}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        meterAutoUploadAfterClear: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>Auto upload after clear</span>
+                </label>
+                <p className="hint muted" style={{ marginTop: 6 }}>
+                  After each Normal or Hard dungeon clear, upload the party parse to the cloud (same as the
+                  meter upload button). Requires sign-in. Story runs and failed runs are not uploaded.
+                </p>
+              </section>
+            ) : null}
+
             {onlineUser && timerAdminAllowed ? (
               <section className="field-group timer-admin-panel">
                 <div className="timer-admin-panel__head">

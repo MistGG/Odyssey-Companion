@@ -42,6 +42,7 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     o.meterAutoResetIdleSec < 0 ||
     typeof o.meterPartyShowSelfDisplayName !== 'boolean' ||
     typeof o.hotkeysOnlyWhenCompanionFocused !== 'boolean' ||
+    typeof o.meterAutoUploadAfterClear !== 'boolean' ||
     typeof o.timersBackdropOpacity !== 'number' ||
     typeof o.timersAlwaysOnTop !== 'boolean' ||
     typeof o.timersPositionLocked !== 'boolean' ||
