@@ -1,17 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import {
-  NEPTUNEMON_ANCHOR_LABEL,
-  NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
-  NEPTUNEMON_SCHEDULE_TIMEZONE,
-  formatDurationCountdown,
-  getDefaultNeptunemonSchedule,
-  isNeptunemonAliveWindow,
-  msUntilNextNeptunemon,
-  neptunemonSpawnPeriodMs,
-  nextNeptunemonSpawnUtcMs,
-  normalizeNeptunemonSchedule,
-  type NeptunemonScheduleSnapshot,
-} from '../lib/neptunemonSchedule'
 import type { MonsterDetail } from '../types'
 import { fetchMonsterDetail } from '../lib/monsterDetailApi'
 import { wikiItemIconUrl } from '../lib/wikiItemDetailApi'
@@ -19,22 +6,16 @@ import { wikiNpcModelImageUrl } from '../lib/wikiNpcDetailApi'
 import { formatDropRatePermille } from '../lib/wikiDropRateFormat'
 import { runBossTimerTestToast } from '../lib/bossTimerClientTest'
 import {
-  fetchRemoteNeptunemonSchedule,
-  pickEffectiveNeptunemonSchedule,
-  publishRemoteNeptunemonSchedule,
-  readLocalNeptunemonSchedule,
-  readPendingNeptunemonSpawnUtcMs,
-  submitNeptunemonTimerReport,
-  type BossTimerReportEvent,
-  type ScheduleSource,
-  clearPendingNeptunemonSpawnUtcMs,
-  writeLocalNeptunemonSchedule,
-  writePendingNeptunemonSpawnUtcMs,
-} from '../lib/bossTimerScheduleSync'
-
-/** Neptunemon — `GET …/api/wiki/monsters?id=` (drops + locations + portrait `model_id`). */
-const NEPTUNEMON_MONSTER_ID = 'm4vc8mv'
-
+  bossStatusLabel,
+  fetchRaidTimer,
+  formatRespawnCycleMinutes,
+  isBossAlive,
+  isBossReady,
+  nextSpawnUtcMs,
+  toAlertSnapshots,
+  type RaidBossEntry,
+  type RaidTimerResponse,
+} from '../lib/raidTimerApi'
 type BossTimerReward = {
   key: string
   item_id: string
@@ -82,14 +63,8 @@ function flattenMonsterRewards(monster: MonsterDetail | null): BossTimerReward[]
   return out
 }
 
-function qtyRange(min: number, max: number): string {
-  if (min === max) return `×${min}`
-  return `×${min}–${max}`
-}
-
 function formatTimeStamp(ms: number): string {
   return new Intl.DateTimeFormat(undefined, {
-    timeZone: NEPTUNEMON_SCHEDULE_TIMEZONE,
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -98,7 +73,6 @@ function formatTimeStamp(ms: number): string {
   }).format(new Date(ms))
 }
 
-/** Full timers webContents height (titlebar + body) for Electron resize; avoids inner scroll traps. */
 function measureTimersElectronContentHeightPx(): number {
   const titlebar = document.querySelector('.titlebar--timers')
   const main = document.querySelector('main.timers-body')
@@ -113,13 +87,7 @@ function measureTimersElectronContentHeightPx(): number {
 
 function RaidDropsTable({ rewards, compact }: { rewards: BossTimerReward[]; compact?: boolean }) {
   return (
-    <div
-      className={
-        compact
-          ? 'boss-timer-drops__table-wrap boss-timer-drops__table-wrap--overlay meter-scroll--themed'
-          : 'boss-timer-drops__table-wrap meter-scroll--themed'
-      }
-    >
+    <div className={compact ? 'boss-timer-drops__table-wrap boss-timer-drops__table-wrap--overlay meter-scroll--themed' : 'boss-timer-drops__table-wrap meter-scroll--themed'}>
       <table className={`boss-timer-drops__table${compact ? ' boss-timer-drops__table--overlay' : ''}`}>
         <thead>
           <tr>
@@ -152,10 +120,10 @@ function RaidDropsTable({ rewards, compact }: { rewards: BossTimerReward[]; comp
                   <span className="boss-timer-drops__row-name">{r.item_name}</span>
                 </span>
               </td>
-              <td className="boss-timer-drops__td-num boss-timer-drops__td-qty">{qtyRange(r.min, r.max)}</td>
-              <td className="boss-timer-drops__td-num boss-timer-drops__td-rate">
-                {r.rate_label}
+              <td className="boss-timer-drops__td-num boss-timer-drops__td-qty">
+                {r.min === r.max ? `×${r.min}` : `×${r.min}–${r.max}`}
               </td>
+              <td className="boss-timer-drops__td-num boss-timer-drops__td-rate">{r.rate_label}</td>
             </tr>
           ))}
         </tbody>
@@ -188,32 +156,179 @@ function LootIconStrip({ rewards }: { rewards: BossTimerReward[] }) {
 }
 
 type BossTimersViewProps = {
-  /** `overlay` = compact strip for the floating timers window. `page` = larger layout + local test buttons. */
   variant?: 'overlay' | 'page'
-  /** Overlay only: toggles shell/body classes + drives window resize when drop rates open. */
   onLootRatesExpandedChange?: (expanded: boolean) => void
 }
 
-function validObservedAliveMs(now: number, spawnUtcMs: number): number | null {
-  const aliveMs = Math.round((now - spawnUtcMs) / 1000) * 1000
-  if (aliveMs < 5_000 || aliveMs > 15 * 60_000) return null
-  return aliveMs
+function BossTimerCard({
+  boss,
+  serverOffsetMs,
+  tick,
+  variant,
+  lootRatesOpen,
+  onToggleLootRates,
+}: {
+  boss: RaidBossEntry
+  serverOffsetMs: number
+  tick: number
+  variant: 'overlay' | 'page'
+  lootRatesOpen: boolean
+  onToggleLootRates: () => void
+}) {
+  const [monster, setMonster] = useState<MonsterDetail | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const m = await fetchMonsterDetail(boss.monster_id)
+        if (cancelled) return
+        setMonster(m)
+      } catch {
+        if (!cancelled) setMonster(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [boss.monster_id])
+
+  const alive = useMemo(() => isBossAlive(boss), [boss.status])
+  const ready = useMemo(() => isBossReady(boss), [boss.status])
+  const countdownLabel = useMemo(() => bossStatusLabel(boss, serverOffsetMs), [boss, serverOffsetMs, tick])
+  const stripStatusMod = alive ? 'alive' : ready ? 'ready' : null
+  const nextMs = useMemo(() => nextSpawnUtcMs(boss), [boss.next_spawn_ts])
+  const nextLocalLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(nextMs)),
+    [nextMs],
+  )
+
+  const bossName = boss.monster_name
+  const bossImg = useMemo(() => {
+    const mid = boss.model_id?.trim() || monster?.model_id?.trim()
+    if (!mid) return null
+    return wikiNpcModelImageUrl(mid) || null
+  }, [boss.model_id, monster?.model_id])
+
+  const raidRewards = useMemo(() => flattenMonsterRewards(monster), [monster])
+  const mapDisplayName = boss.map_name?.trim() || monster?.locations?.[0]?.map_name?.trim() || 'Unknown map'
+  const locationLine = `${mapDisplayName} (Bottom Right)`
+
+  const nextLine = (compact: boolean) => (
+    <div className={compact ? 'boss-timer-next-row boss-timer-next-row--compact' : 'boss-timer-next-row'}>
+      <span className="boss-timer-overlay-strip__next-line">Next {nextLocalLabel}</span>
+    </div>
+  )
+
+  const lootBar = (opts: { overlay?: boolean }) => (
+    <div className={opts.overlay ? 'boss-timer-loot-bar boss-timer-loot-bar--overlay' : 'boss-timer-loot-bar'}>
+      {raidRewards.length > 0 ? <LootIconStrip rewards={raidRewards} /> : <span className="muted">—</span>}
+      {raidRewards.length > 0 ? (
+        <button
+          type="button"
+          className={opts.overlay ? 'btn boss-timer-loot-bar__btn' : 'btn secondary boss-timer-loot-bar__btn'}
+          onClick={onToggleLootRates}
+        >
+          {lootRatesOpen ? 'Hide drop rates' : 'Drop rates'}
+        </button>
+      ) : null}
+    </div>
+  )
+
+  if (variant === 'overlay') {
+    return (
+      <div
+        className={`boss-timer-overlay-strip${stripStatusMod ? ` boss-timer-overlay-strip--${stripStatusMod}` : ''}`}
+      >
+        <div className="boss-timer-overlay-strip__thumb">
+          {bossImg ? (
+            <img className="boss-timer-overlay-strip__img" src={bossImg} alt="" decoding="async" />
+          ) : (
+            <span className="boss-timer-overlay-strip__fallback" aria-hidden>
+              {bossName.slice(0, 1)}
+            </span>
+          )}
+        </div>
+        <div className="boss-timer-overlay-strip__main">
+          <div className="boss-timer-overlay-strip__top">
+            <span className="boss-timer-overlay-strip__name">{bossName}</span>
+            <span
+              className={`boss-timer-overlay-strip__countdown${stripStatusMod ? ` boss-timer-overlay-strip__countdown--${stripStatusMod}` : ''}`}
+              aria-live="polite"
+            >
+              {countdownLabel}
+            </span>
+          </div>
+          <div className="boss-timer-overlay-strip__meta muted">
+            <div className="boss-timer-overlay-strip__loc-line">{locationLine}</div>
+            {lootBar({ overlay: true })}
+            {lootRatesOpen && raidRewards.length > 0 ? <RaidDropsTable rewards={raidRewards} compact /> : null}
+            {nextLine(true)}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <article className="boss-timer-card">
+      <div className="boss-timer-card__media">
+        {bossImg ? (
+          <img className="boss-timer-card__boss-img" src={bossImg} alt="" decoding="async" />
+        ) : (
+          <div className="boss-timer-card__boss-fallback" aria-hidden>
+            {bossName.slice(0, 1)}
+          </div>
+        )}
+      </div>
+      <div className="boss-timer-card__body">
+        <h2 className="boss-timer-card__title">{bossName}</h2>
+        <p className="boss-timer-card__location">
+          <span className="boss-timer-card__label">Location</span>
+          {locationLine}
+        </p>
+        <div className="boss-timer-countdown" aria-live="polite">
+          <span className="boss-timer-countdown__label">{alive || ready ? 'Status' : 'Next spawn in'}</span>
+          <span
+            className={`boss-timer-countdown__value${stripStatusMod ? ` boss-timer-countdown__value--${stripStatusMod}` : ''}`}
+          >
+            {countdownLabel}
+          </span>
+          <span className="boss-timer-countdown__local muted">({nextLocalLabel} your time)</span>
+        </div>
+        {nextLine(false)}
+        <div className="boss-timer-drops">
+          <span className="boss-timer-card__label">Wiki loot</span>
+          {raidRewards.length ? (
+            <>
+              {lootBar({ overlay: false })}
+              {lootRatesOpen ? <RaidDropsTable rewards={raidRewards} /> : null}
+            </>
+          ) : monster ? (
+            <p className="hint muted boss-timer-drops__empty">No drop table on this monster response.</p>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  )
 }
 
 export default function BossTimersView({ variant = 'page', onLootRatesExpandedChange }: BossTimersViewProps) {
   const overlayStripRef = useRef<HTMLDivElement>(null)
-  const scheduleRef = useRef<NeptunemonScheduleSnapshot>(getDefaultNeptunemonSchedule())
-  const pendingSpawnRef = useRef<number | null>(readPendingNeptunemonSpawnUtcMs())
   const [tick, setTick] = useState(0)
   const [testBusy, setTestBusy] = useState<'toast' | null>(null)
   const [testHint, setTestHint] = useState<string | null>(null)
   const [testHintIsError, setTestHintIsError] = useState(false)
-  const [monster, setMonster] = useState<MonsterDetail | null>(null)
-  const [monsterErr, setMonsterErr] = useState<string | null>(null)
   const [lootRatesOpen, setLootRatesOpen] = useState(false)
-  const [schedule, setSchedule] = useState<NeptunemonScheduleSnapshot>(() => scheduleRef.current)
-  const [scheduleSource, setScheduleSource] = useState<ScheduleSource>('default')
-  const [scheduleActionUpdated, setScheduleActionUpdated] = useState<'spawn' | 'death' | null>(null)
+  const [raid, setRaid] = useState<RaidTimerResponse | null>(null)
+  const [raidErr, setRaidErr] = useState<string | null>(null)
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((t) => t + 1), 1000)
@@ -224,73 +339,23 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
     onLootRatesExpandedChange?.(lootRatesOpen)
   }, [lootRatesOpen, onLootRatesExpandedChange])
 
-  useEffect(() => {
-    scheduleRef.current = schedule
-    window.odysseyCompanion?.pushBossTimerSchedule?.(schedule)
-  }, [schedule])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const applyEffective = (remote: NeptunemonScheduleSnapshot | null, remoteError: string | null) => {
-      const local = readLocalNeptunemonSchedule()
-      const effective = pickEffectiveNeptunemonSchedule(local, remote)
-      if (cancelled) return
-      setSchedule(effective.schedule)
-      setScheduleSource(effective.source)
-      if (effective.source === 'remote') {
-        writeLocalNeptunemonSchedule(effective.schedule)
-      }
-      void remoteError
-    }
-
-    const local = readLocalNeptunemonSchedule()
-    if (local) {
-      setSchedule(local)
-      setScheduleSource('local')
-    }
-
-    const refreshRemote = () => {
-      void fetchRemoteNeptunemonSchedule().then((res) => {
-        if (cancelled) return
-        if (!res.enabled) return
-        applyEffective(res.schedule, res.error)
+  const refreshRaid = useCallback(() => {
+    void fetchRaidTimer()
+      .then((data) => {
+        setRaid(data)
+        setRaidErr(null)
+        window.odysseyCompanion?.pushBossTimerSchedule?.(toAlertSnapshots(data.bosses, data.serverOffsetMs))
       })
-    }
-
-    refreshRemote()
-    const id = window.setInterval(refreshRemote, 60_000)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
+      .catch((e) => {
+        setRaidErr(e instanceof Error ? e.message : String(e))
+      })
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const m = await fetchMonsterDetail(NEPTUNEMON_MONSTER_ID)
-        if (cancelled) return
-        setMonster(m)
-        setMonsterErr(null)
-      } catch (e) {
-        if (!cancelled) setMonsterErr(e instanceof Error ? e.message : String(e))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const bossName = monster?.name?.trim() || 'Neptunemon'
-  const bossImg = useMemo(() => {
-    const mid = monster?.model_id?.trim()
-    if (!mid) return null
-    return wikiNpcModelImageUrl(mid) || null
-  }, [monster?.model_id])
-
-  const raidRewards = useMemo(() => flattenMonsterRewards(monster), [monster])
+    refreshRaid()
+    const id = window.setInterval(refreshRaid, 10_000)
+    return () => window.clearInterval(id)
+  }, [refreshRaid])
 
   useLayoutEffect(() => {
     if (variant !== 'overlay' || lootRatesOpen) return
@@ -327,7 +392,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       cancelAnimationFrame(id2)
       ro?.disconnect()
     }
-  }, [variant, lootRatesOpen, monster, raidRewards.length])
+  }, [variant, lootRatesOpen, raid?.bosses.length])
 
   useEffect(() => {
     return () => {
@@ -335,167 +400,29 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
     }
   }, [])
 
-  const mapDisplayName = monster?.locations?.[0]?.map_name?.trim() || 'Olympos Festival Island'
-  const locationLine = `${mapDisplayName} (Bottom Right)`
-
-  const flashUpdated = useCallback((action: 'spawn' | 'death') => {
-    setScheduleActionUpdated(action)
-    window.setTimeout(() => {
-      setScheduleActionUpdated((current) => (current === action ? null : current))
-    }, 1400)
-  }, [])
-
-  const saveUserSchedule = useCallback(
-    (nextRaw: NeptunemonScheduleSnapshot, eventType: BossTimerReportEvent, observedUtcMs: number) => {
-      const next = normalizeNeptunemonSchedule(nextRaw)
-      if (!next) {
-        return false
-      }
-      writeLocalNeptunemonSchedule(next)
-      setSchedule(next)
-      setScheduleSource('local')
-      void publishRemoteNeptunemonSchedule(next)
-      void submitNeptunemonTimerReport(next, eventType, observedUtcMs)
-      return true
-    },
-    [],
-  )
-
-  const markSpawnNow = useCallback(() => {
-    const now = Date.now()
-    pendingSpawnRef.current = now
-    writePendingNeptunemonSpawnUtcMs(now)
-    const ok = saveUserSchedule(
-      {
-        ...scheduleRef.current,
-        anchorUtcMs: now,
-        updatedAtMs: now,
-      },
-      'spawn',
-      now,
-    )
-    if (ok) flashUpdated('spawn')
-  }, [flashUpdated, saveUserSchedule])
-
-  const markDeathNow = useCallback(() => {
-    const now = Date.now()
-    const active = scheduleRef.current
-    const observedSpawn = pendingSpawnRef.current ?? readPendingNeptunemonSpawnUtcMs()
-    if (observedSpawn === null) return
-    const aliveMs = validObservedAliveMs(now, observedSpawn)
-    if (aliveMs === null) {
-      pendingSpawnRef.current = null
-      clearPendingNeptunemonSpawnUtcMs()
-      return
-    }
-    const ok = saveUserSchedule(
-      {
-        ...active,
-        anchorUtcMs: observedSpawn,
-        aliveWindowMs: aliveMs,
-        respawnWaitMs: NEPTUNEMON_DEFAULT_RESPAWN_WAIT_MS,
-        updatedAtMs: now,
-      },
-      'death',
-      now,
-    )
-    if (ok) {
-      pendingSpawnRef.current = null
-      clearPendingNeptunemonSpawnUtcMs()
-      flashUpdated('death')
-    }
-  }, [flashUpdated, saveUserSchedule])
-
-  const nextMs = useMemo(() => nextNeptunemonSpawnUtcMs(Date.now(), schedule), [tick, schedule])
-  const remainingMs = useMemo(() => msUntilNextNeptunemon(Date.now(), schedule), [tick, schedule])
-  const countdownLabel = formatDurationCountdown(remainingMs)
-  const alive = useMemo(() => isNeptunemonAliveWindow(Date.now(), schedule), [tick, schedule])
-
-  const nextLocalLabel = useMemo(() => {
-    return new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(nextMs))
-  }, [nextMs])
-
-  const periodMin = neptunemonSpawnPeriodMs(schedule) / 60_000
-  const periodLabel = Number.isInteger(periodMin)
-    ? `${periodMin} min`
-    : `${Math.floor(periodMin)}m ${Math.round((periodMin % 1) * 60)}s`
-  const tzLabel = NEPTUNEMON_SCHEDULE_TIMEZONE.replace(/_/g, ' ')
-
-  const scheduleControls = (compact = false) => (
-    <div className={compact ? 'boss-timer-sync boss-timer-sync--compact' : 'boss-timer-sync'}>
-      <div className="boss-timer-sync__actions">
-        <button type="button" className="btn boss-timer-sync__btn boss-timer-sync__btn--spawn" onClick={markSpawnNow}>
-          {scheduleActionUpdated === 'spawn' ? 'Updated' : 'Spawn now'}
-        </button>
-        <button type="button" className="btn boss-timer-sync__btn boss-timer-sync__btn--death" onClick={markDeathNow}>
-          {scheduleActionUpdated === 'death' ? 'Updated' : 'Death now'}
-        </button>
-      </div>
-    </div>
-  )
-
-  const nextLine = (compact = false) => (
-    <div className={compact ? 'boss-timer-next-row boss-timer-next-row--compact' : 'boss-timer-next-row'}>
-      <span className="boss-timer-overlay-strip__next-line">Next {nextLocalLabel}</span>
-      {scheduleControls(compact)}
-    </div>
-  )
-
-  const lootBar = (opts: { overlay?: boolean }) => (
-    <div className={opts.overlay ? 'boss-timer-loot-bar boss-timer-loot-bar--overlay' : 'boss-timer-loot-bar'}>
-      {raidRewards.length > 0 ? <LootIconStrip rewards={raidRewards} /> : <span className="muted">—</span>}
-      {raidRewards.length > 0 ? (
-        <button
-          type="button"
-          className={opts.overlay ? 'btn boss-timer-loot-bar__btn' : 'btn secondary boss-timer-loot-bar__btn'}
-          onClick={() => setLootRatesOpen((v) => !v)}
-        >
-          {lootRatesOpen ? 'Hide drop rates' : 'Drop rates'}
-        </button>
-      ) : null}
-    </div>
-  )
+  const serverOffsetMs = raid?.serverOffsetMs ?? 0
+  const bosses = raid?.bosses ?? []
 
   if (variant === 'overlay') {
     return (
-      <div ref={overlayStripRef} className={`boss-timer-overlay-strip${alive ? ' boss-timer-overlay-strip--alive' : ''}`}>
-        <div className="boss-timer-overlay-strip__thumb">
-          {bossImg ? (
-            <img className="boss-timer-overlay-strip__img" src={bossImg} alt="" decoding="async" />
-          ) : (
-            <span className="boss-timer-overlay-strip__fallback" aria-hidden>
-              {bossName.slice(0, 1)}
-            </span>
-          )}
-        </div>
-        <div className="boss-timer-overlay-strip__main">
-          <div className="boss-timer-overlay-strip__top">
-            <span className="boss-timer-overlay-strip__name">{bossName}</span>
-            <span
-              className={`boss-timer-overlay-strip__countdown${alive ? ' boss-timer-overlay-strip__countdown--alive' : ''}`}
-              aria-live="polite"
-            >
-              {alive ? 'Alive' : countdownLabel}
-            </span>
-          </div>
-          <div className="boss-timer-overlay-strip__meta muted">
-            <div className="boss-timer-overlay-strip__loc-line">{locationLine}</div>
-            {lootBar({ overlay: true })}
-            {lootRatesOpen && raidRewards.length > 0 ? <RaidDropsTable rewards={raidRewards} compact /> : null}
-            {nextLine(true)}
-          </div>
-          {monsterErr ? (
-            <p className="hint error" style={{ margin: '6px 0 0', fontSize: 10 }}>
-              {monsterErr}
-            </p>
-          ) : null}
-        </div>
+      <div ref={overlayStripRef} className="boss-timer-overlay-stack">
+        {!raid?.live && raid ? (
+          <p className="hint muted" style={{ margin: '0 0 6px', fontSize: 10 }}>
+            Raid timer feed is not live.
+          </p>
+        ) : null}
+        {bosses.map((boss) => (
+          <BossTimerCard
+            key={boss.monster_id}
+            boss={boss}
+            serverOffsetMs={serverOffsetMs}
+            tick={tick}
+            variant="overlay"
+            lootRatesOpen={lootRatesOpen}
+            onToggleLootRates={() => setLootRatesOpen((v) => !v)}
+          />
+        ))}
+        {!bosses.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
       </div>
     )
   }
@@ -505,8 +432,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       <section className="boss-timer-test-panel" aria-label="Notification tests">
         <h3 className="boss-timer-test-panel__title">Test alerts</h3>
         <p className="hint muted boss-timer-test-panel__hint">
-          Soft reminder style — same tone as real spawn toasts. Desktop notifications only for now (sound preview is
-          off).
+          Soft reminder style — same tone as real spawn toasts.
         </p>
         <div className="boss-timer-test-panel__actions">
           <button
@@ -538,60 +464,28 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
         ) : null}
       </section>
 
-      <p className="timers-intro muted">
-        About every {periodLabel} · anchored to{' '}
-        <strong>
-          {scheduleSource === 'default' ? NEPTUNEMON_ANCHOR_LABEL : formatTimeStamp(schedule.anchorUtcMs)} {tzLabel}
-        </strong>
-        ; next line is your local time.
-      </p>
+      {!raid?.live && raid ? <p className="hint muted">Raid timer feed is not live.</p> : null}
 
-      <article className="boss-timer-card">
-        <div className="boss-timer-card__media">
-          {bossImg ? (
-            <img className="boss-timer-card__boss-img" src={bossImg} alt="" decoding="async" />
-          ) : (
-            <div className="boss-timer-card__boss-fallback" aria-hidden>
-              {bossName.slice(0, 1)}
-            </div>
-          )}
-        </div>
-        <div className="boss-timer-card__body">
-          <h2 className="boss-timer-card__title">{bossName}</h2>
-          <p className="boss-timer-card__location">
-            <span className="boss-timer-card__label">Location</span>
-            {mapDisplayName} (Bottom Right)
-          </p>
-          <div className="boss-timer-countdown" aria-live="polite">
-            <span className="boss-timer-countdown__label">{alive ? 'Status' : 'Next spawn in'}</span>
-            <span
-              className={`boss-timer-countdown__value${alive ? ' boss-timer-countdown__value--alive' : ''}`}
-            >
-              {alive ? 'Alive' : countdownLabel}
-            </span>
-            <span className="boss-timer-countdown__local muted">({nextLocalLabel} your time)</span>
-          </div>
-          {nextLine(false)}
-          <div className="boss-timer-drops">
-            <span className="boss-timer-card__label">Wiki loot</span>
-            {raidRewards.length ? (
-              <>
-                {lootBar({ overlay: false })}
-                {lootRatesOpen ? <RaidDropsTable rewards={raidRewards} /> : null}
-              </>
-            ) : (
-              <p className="hint muted boss-timer-drops__empty">
-                {monsterErr ? 'Could not load wiki drops.' : monster ? 'No drop table on this monster response.' : 'Loading…'}
-              </p>
-            )}
-          </div>
-          {monsterErr ? (
-            <p className="hint error boss-timer-card__wiki-hint" role="status">
-              Wiki monster: {monsterErr}
-            </p>
-          ) : null}
-        </div>
-      </article>
+      {bosses.map((boss) => (
+        <p key={`intro-${boss.monster_id}`} className="timers-intro muted">
+          {boss.monster_name} — respawns about every {formatRespawnCycleMinutes(boss.respawn_sec)}; next spawn{' '}
+          {formatTimeStamp(nextSpawnUtcMs(boss))} (your local time).
+        </p>
+      ))}
+
+      {bosses.map((boss) => (
+        <BossTimerCard
+          key={boss.monster_id}
+          boss={boss}
+          serverOffsetMs={serverOffsetMs}
+          tick={tick}
+          variant="page"
+          lootRatesOpen={lootRatesOpen}
+          onToggleLootRates={() => setLootRatesOpen((v) => !v)}
+        />
+      ))}
+
+      {!bosses.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
     </div>
   )
 }

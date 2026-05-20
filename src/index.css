@@ -478,6 +478,11 @@ select {
   text-shadow: 0 0 14px rgba(34, 197, 94, 0.3);
 }
 
+.boss-timer-countdown__value--ready {
+  color: rgba(147, 197, 253, 0.98);
+  text-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
+}
+
 .boss-timer-countdown__local {
   display: block;
   font-size: 12px;
@@ -638,6 +643,12 @@ select {
 }
 
 /* Compact strip — floating boss timers window */
+.boss-timer-overlay-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .boss-timer-overlay-strip {
   display: flex;
   align-items: stretch;
@@ -716,9 +727,20 @@ select {
   background: rgba(34, 197, 94, 0.08);
 }
 
+.boss-timer-overlay-strip--ready {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.08);
+}
+
 .boss-timer-overlay-strip__countdown--alive {
   color: rgba(134, 239, 172, 0.98);
   text-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+}
+
+.boss-timer-overlay-strip__countdown--ready {
+  color: rgba(147, 197, 253, 0.98);
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
 }
 
 .boss-timer-overlay-strip__meta {

@@ -27,7 +27,7 @@ import { normalizeSettingsSection } from '../../src/lib/settingsSection'
 import type { OverlaySettings } from '../../src/types'
 import {
   bossTimerAlertTick,
-  setActiveNeptunemonSchedule,
+  setActiveRaidBossAlerts,
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
 
@@ -1386,7 +1386,7 @@ ipcMain.handle('boss-timer:test-toast', () => {
 })
 
 ipcMain.on('boss-timer:push-schedule', (_event, payload: unknown) => {
-  setActiveNeptunemonSchedule(payload)
+  setActiveRaidBossAlerts(payload)
 })
 
 ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
