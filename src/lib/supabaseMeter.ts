@@ -11,6 +11,44 @@ export type SkillBreakdownForParse = {
   skill: string
   damage: number
   hits: number
+  skillKey?: string
+  skillIconId?: string | null
+  /** Resolved game icon URL for history UI (same as live meter). */
+  iconUrl?: string
+}
+
+export type DigimonSkillBreakdownForParse = {
+  digimonId: string
+  digimonName: string
+  iconId: string | null
+  portraitUrl?: string
+  totalDamage: number
+  skills: SkillBreakdownForParse[]
+}
+
+export type MeterDungeonPartyMemberParse = {
+  memberKey: string
+  displayLabel: string
+  tamerName: string
+  currentDigimonName: string | null
+  currentDigimonId: string | null
+  portraitIconId: string | null
+  portraitUrl?: string
+  totalDamage: number
+  durationSec: number
+  isSelf: boolean
+  digimons: DigimonSkillBreakdownForParse[]
+}
+
+export type MeterParseDungeonContext = {
+  dungeonId: string
+  dungeonName: string | null
+  difficulty: string
+  difficultyId: number
+  mapName: string | null
+  partyId: string | null
+  bossTargets: string[]
+  runOutcome: 'clear' | 'fail' | null
 }
 
 /** Stored in `meter_parses.payload`. Per-skill DPS and damage % are computed on the server/UI from `skills` + row `duration_sec`. */
@@ -37,6 +75,18 @@ export type MeterParsePayloadParty = {
   members: MeterPartyMemberParse[]
 }
 
+/** Full dungeon party parse — per-tamer, per-digimon skill breakdown. */
+export type MeterParsePayloadDungeonParty = {
+  schemaVersion: 3
+  kind: 'dungeon_party'
+  capturedAtMs: number
+  /** Same window as live meter `sessionStartMs` → now. */
+  sessionDurationSec: number
+  raidTotalDamage: number
+  dungeon: MeterParseDungeonContext
+  members: MeterDungeonPartyMemberParse[]
+}
+
 export type InsertMeterParseInput =
   | {
       mode: 'solo'
@@ -50,6 +100,13 @@ export type InsertMeterParseInput =
       partyKey: string
       durationSec: number
       members: MeterPartyMemberParse[]
+    }
+  | {
+      mode: 'dungeon_party'
+      appVersion: string
+      durationSec: number
+      dungeon: MeterParseDungeonContext
+      members: MeterDungeonPartyMemberParse[]
     }
 
 let cachedClient: { url: string; key: string; client: SupabaseClient } | null = null
@@ -197,11 +254,105 @@ function totalsFromSkills(skills: SkillBreakdownForParse[]): {
   return { totalDamage: Math.round(totalDamage), hitCount }
 }
 
+function clampSkill(s: SkillBreakdownForParse): SkillBreakdownForParse {
+  return {
+    skill: s.skill.slice(0, 120),
+    damage: Math.round(s.damage),
+    hits: Math.max(0, Math.round(s.hits)),
+    ...(s.skillKey ? { skillKey: s.skillKey.slice(0, 64) } : {}),
+    ...(s.skillIconId ? { skillIconId: s.skillIconId.slice(0, 32) } : {}),
+    ...(s.iconUrl ? { iconUrl: s.iconUrl.slice(0, 256) } : {}),
+  }
+}
+
 export async function insertMeterParse(
   client: SupabaseClient,
   userId: string,
   input: InsertMeterParseInput,
 ): Promise<{ error: string | null }> {
+  if (input.mode === 'dungeon_party') {
+    const { members, dungeon, durationSec, appVersion } = input
+    if (!dungeon.dungeonId.trim()) {
+      return { error: 'Dungeon id is required for dungeon parse upload.' }
+    }
+    if (dungeon.difficultyId < 2) {
+      return { error: 'Only Normal or Hard dungeon runs can be uploaded.' }
+    }
+    if (!members.length) {
+      return { error: 'Dungeon upload has no party members.' }
+    }
+    let totalDamage = 0
+    let hitCount = 0
+    for (const m of members) {
+      totalDamage += m.totalDamage
+      for (const d of m.digimons) {
+        for (const s of d.skills) {
+          hitCount += s.hits
+        }
+      }
+    }
+    totalDamage = Math.round(totalDamage)
+    const maxDur = Math.max(
+      durationSec,
+      ...members.map((m) => Math.max(0, m.durationSec)),
+    )
+    let raidTotal = 0
+    for (const m of members) raidTotal += m.totalDamage
+
+    const payload: MeterParsePayloadDungeonParty = {
+      schemaVersion: 3,
+      kind: 'dungeon_party',
+      capturedAtMs: Date.now(),
+      sessionDurationSec: Math.max(0, Math.round(maxDur)),
+      raidTotalDamage: Math.round(raidTotal),
+      dungeon: {
+        ...dungeon,
+        dungeonId: dungeon.dungeonId.slice(0, 64),
+        dungeonName: dungeon.dungeonName?.slice(0, 120) ?? null,
+        difficulty: dungeon.difficulty.slice(0, 32),
+        mapName: dungeon.mapName?.slice(0, 120) ?? null,
+        partyId: null,
+        bossTargets: dungeon.bossTargets.map((b) => b.slice(0, 80)).slice(0, 12),
+      },
+      members: members.map((m) => ({
+        ...m,
+        memberKey: m.memberKey.slice(0, 64),
+        displayLabel: m.displayLabel.slice(0, 48),
+        tamerName: m.tamerName.slice(0, 48),
+        portraitUrl: m.portraitUrl?.slice(0, 256),
+        digimons: m.digimons.map((d) => ({
+          ...d,
+          digimonId: d.digimonId.slice(0, 32),
+          digimonName: d.digimonName.slice(0, 64),
+          iconId: d.iconId?.slice(0, 32) ?? null,
+          portraitUrl: d.portraitUrl?.slice(0, 256),
+          totalDamage: Math.round(d.totalDamage),
+          skills: d.skills.map((s) => {
+            const clamped = clampSkill(s)
+            return {
+              ...clamped,
+              iconUrl: s.iconUrl?.slice(0, 256) || undefined,
+            }
+          }),
+        })),
+      })),
+    }
+    const { error } = await client.from('meter_parses').insert({
+      user_id: userId,
+      app_version: appVersion,
+      total_damage: totalDamage,
+      duration_sec: Math.max(0, Math.round(maxDur)),
+      hit_count: hitCount,
+      parse_kind: 'dungeon_party',
+      dungeon_id: payload.dungeon.dungeonId,
+      dungeon_name: payload.dungeon.dungeonName,
+      difficulty: payload.dungeon.difficulty,
+      difficulty_id: payload.dungeon.difficultyId,
+      payload,
+    })
+    return { error: error?.message ?? null }
+  }
+
   if (input.mode === 'party') {
     const { members, partyKey, durationSec, appVersion } = input
     if (!members.length) {
@@ -240,6 +391,7 @@ export async function insertMeterParse(
       total_damage: totalDamage,
       duration_sec: Math.max(0, Math.round(maxDur)),
       hit_count: hitCount,
+      parse_kind: 'party',
       payload,
     })
     return { error: error?.message ?? null }
@@ -256,6 +408,7 @@ export async function insertMeterParse(
     total_damage: totalDamage,
     duration_sec: Math.max(0, Math.round(input.durationSec)),
     hit_count: hitCount,
+    parse_kind: 'solo',
     payload,
   })
   return { error: error?.message ?? null }

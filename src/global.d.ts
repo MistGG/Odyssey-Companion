@@ -17,6 +17,7 @@ declare global {
       fetchDungeons: () => Promise<DungeonListResponse>
       fetchDungeonDetail: (id: string) => Promise<unknown>
       fetchMonsterDetail: (id: string) => Promise<unknown>
+      fetchWikiDigimon?: (id: string) => Promise<unknown>
       fetchWikiNpc: (id: string) => Promise<unknown>
       fetchWikiItem: (id: string) => Promise<unknown>
       openMarketLogin?: () => Promise<boolean>
@@ -52,10 +53,12 @@ declare global {
         expanded: boolean,
         contentHeightPx?: number | null,
       ) => Promise<{ ok: true } | { ok: false; error?: string }>,
-      loadFightIntoTimeline: (payload: unknown) => Promise<boolean>
+      loadFightIntoTimeline: (payload: unknown, opts?: { silent?: boolean }) => Promise<boolean>
+      clearFightInTimeline: () => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>
-      onTimelineAction: (handler: (action: 'toggle' | 'reset') => void) => () => void
+      sendTimelineAction: (action: 'toggle' | 'reset' | 'start' | 'stop') => Promise<boolean>
+      onTimelineAction: (handler: (action: 'toggle' | 'reset' | 'start' | 'stop') => void) => () => void
       onSettingsPatch: (handler: (patch: unknown) => void) => () => void
       onFightLoaded: (handler: (payload: unknown) => void) => () => void
       getAppVersion: () => Promise<AppVersionInfo>
@@ -72,6 +75,50 @@ declare global {
       onBossTimerChime?: (
         handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void,
       ) => () => void
+      connectEventStream?: (
+        host: string,
+        port: number,
+        logging?: boolean,
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
+      disconnectEventStream?: () => Promise<{ ok: true }>
+      sendEventStreamQuery?: (what: string) => Promise<{ ok: true } | { ok: false; error: string }>
+      onEventStreamMessage?: (
+        handler: (payload: { raw: string; event: Record<string, unknown> }) => void,
+      ) => () => void
+      onEventStreamStatus?: (
+        handler: (payload: { status: string; detail: string | null }) => void,
+      ) => () => void
+      showEventsWindow?: () => Promise<boolean>
+      beginEventStreamLog?: () => Promise<
+        | {
+            ok: true
+            sessionId: string
+            dir: string
+            jsonlPath: string
+            textPath: string
+            logRoot: string
+          }
+        | { ok: false; error: string }
+      >
+      endEventStreamLog?: () => Promise<{ ok: true }>
+      appendEventStreamLog?: (
+        raw: string,
+        formatted: string,
+        event: Record<string, unknown>,
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
+      getEventStreamLogInfo?: () => Promise<
+        | {
+            ok: true
+            sessionId: string
+            dir: string
+            jsonlPath: string
+            textPath: string
+            lineCount: number
+            logRoot: string
+          }
+        | { ok: false; error: string }
+      >
+      openEventStreamLogFolder?: () => Promise<{ ok: true } | { ok: false; error: string }>
     }
   }
 }

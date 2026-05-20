@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   fetchMonsterDetail: (id: string) => ipcRenderer.invoke('wiki:fetch-monster', id),
 
+  fetchWikiDigimon: (id: string) => ipcRenderer.invoke('wiki:fetch-digimon', id),
+
   fetchWikiNpc: (id: string) => ipcRenderer.invoke('wiki:fetch-npc', id),
 
   fetchWikiItem: (id: string) => ipcRenderer.invoke('wiki:fetch-item', id),
@@ -128,8 +130,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
       contentHeightPx ?? null,
     ) as Promise<{ ok: true } | { ok: false; error?: string }>,
 
-  loadFightIntoTimeline: (payload: unknown) =>
-    ipcRenderer.invoke('timeline:load-fight', payload) as Promise<boolean>,
+  loadFightIntoTimeline: (payload: unknown, opts?: { silent?: boolean }) =>
+    ipcRenderer.invoke('timeline:load-fight', payload, opts) as Promise<boolean>,
+
+  clearFightInTimeline: () =>
+    ipcRenderer.invoke('timeline:clear-fight') as Promise<boolean>,
 
   /** Hydrate after load if `fight:loaded` was sent before listeners attached. */
   getLastFight: () =>
@@ -139,8 +144,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   notifyTimelineReady: () =>
     ipcRenderer.invoke('timeline:renderer-ready') as Promise<boolean>,
 
-  onTimelineAction: (handler: (action: 'toggle' | 'reset') => void) => {
-    const wrapped = (_evt: unknown, action: 'toggle' | 'reset') => {
+  sendTimelineAction: (action: 'toggle' | 'reset' | 'start' | 'stop') =>
+    ipcRenderer.invoke('timeline:send-action', action) as Promise<boolean>,
+
+  onTimelineAction: (handler: (action: 'toggle' | 'reset' | 'start' | 'stop') => void) => {
+    const wrapped = (_evt: unknown, action: 'toggle' | 'reset' | 'start' | 'stop') => {
       handler(action)
     }
     ipcRenderer.on('timeline-action', wrapped)
@@ -188,6 +196,86 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     ipcRenderer.invoke('boss-timer:test-toast') as Promise<{ ok: true } | { ok: false; error: string }>,
 
   /** Main sends this when a real pre-spawn sound cue should play (timers window only). */
+  connectEventStream: (host: string, port: number, logging = true) =>
+    ipcRenderer.invoke('event-stream:connect', { host, port, logging }) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
+  disconnectEventStream: () =>
+    ipcRenderer.invoke('event-stream:disconnect') as Promise<{ ok: true }>,
+
+  sendEventStreamQuery: (what: string) =>
+    ipcRenderer.invoke('event-stream:query', { what }) as Promise<{ ok: true } | { ok: false; error: string }>,
+
+  onEventStreamMessage: (
+    handler: (payload: { raw: string; event: Record<string, unknown> }) => void,
+  ) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const p = payload as { raw?: unknown; event?: unknown }
+      const raw = typeof p.raw === 'string' ? p.raw : ''
+      const event =
+        p.event && typeof p.event === 'object' && !Array.isArray(p.event)
+          ? (p.event as Record<string, unknown>)
+          : { type: 'unknown' }
+      handler({ raw, event })
+    }
+    ipcRenderer.on('event-stream:message', wrapped)
+    return () => ipcRenderer.removeListener('event-stream:message', wrapped)
+  },
+
+  onEventStreamStatus: (handler: (payload: { status: string; detail: string | null }) => void) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const p = payload as { status?: unknown; detail?: unknown }
+      handler({
+        status: typeof p.status === 'string' ? p.status : 'idle',
+        detail: typeof p.detail === 'string' ? p.detail : p.detail === null ? null : null,
+      })
+    }
+    ipcRenderer.on('event-stream:status', wrapped)
+    return () => ipcRenderer.removeListener('event-stream:status', wrapped)
+  },
+
+  showEventsWindow: () => ipcRenderer.invoke('window:show-events') as Promise<boolean>,
+
+  beginEventStreamLog: () =>
+    ipcRenderer.invoke('event-stream:begin-log') as Promise<
+      | {
+          ok: true
+          sessionId: string
+          dir: string
+          jsonlPath: string
+          textPath: string
+          logRoot: string
+        }
+      | { ok: false; error: string }
+    >,
+
+  endEventStreamLog: () => ipcRenderer.invoke('event-stream:end-log') as Promise<{ ok: true }>,
+
+  appendEventStreamLog: (raw: string, formatted: string, event: Record<string, unknown>) =>
+    ipcRenderer.invoke('event-stream:append-log', { raw, formatted, event }) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
+  getEventStreamLogInfo: () =>
+    ipcRenderer.invoke('event-stream:log-info') as Promise<
+      | {
+          ok: true
+          sessionId: string
+          dir: string
+          jsonlPath: string
+          textPath: string
+          lineCount: number
+          logRoot: string
+        }
+      | { ok: false; error: string }
+    >,
+
+  openEventStreamLogFolder: () =>
+    ipcRenderer.invoke('event-stream:open-log-folder') as Promise<{ ok: true } | { ok: false; error: string }>,
+
   onBossTimerChime: (handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void) => {
     const wrapped = (_evt: unknown, payload: unknown) => {
       if (!payload || typeof payload !== 'object') return

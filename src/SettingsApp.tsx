@@ -10,6 +10,12 @@ import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerCli
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { getSupabaseClient, signInEmail, signOut, signUpWithProfile } from './lib/supabaseMeter'
 import {
+  confirmTimerReport,
+  loadTimerAdminReview,
+  restoreTimerHistory,
+  type TimerAdminReviewData,
+} from './lib/bossTimerScheduleSync'
+import {
   normalizeSettingsSection,
   readInitialSettingsSection,
   type SettingsSectionId,
@@ -40,6 +46,31 @@ const NAV: { id: SettingsSectionId; label: string }[] = [
 
 function sectionScrollId(id: SettingsSectionId) {
   return `settings-section-${id}`
+}
+
+function formatAdminTime(value: number | string | null | undefined): string {
+  const ms = typeof value === 'number' ? value : typeof value === 'string' ? Date.parse(value) : NaN
+  if (!Number.isFinite(ms)) return 'Unknown'
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(ms))
+}
+
+function formatAdminDuration(ms: number | null | undefined): string {
+  if (!Number.isFinite(ms ?? NaN)) return 'Unknown'
+  const total = Math.round((ms ?? 0) / 1000)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+function formatScheduleSummary(schedule: TimerAdminReviewData['schedule']): string {
+  if (!schedule) return 'No shared timer'
+  return `${formatAdminTime(schedule.anchor_utc_ms)} · alive ${formatAdminDuration(schedule.alive_window_ms)}`
 }
 
 /** Last nav section whose heading top is at or above a band below the scrollport top — matches manual scroll position. */
@@ -89,6 +120,11 @@ export default function SettingsApp() {
   const [onlineEmail, setOnlineEmail] = useState('')
   const [onlinePassword, setOnlinePassword] = useState('')
   const [onlineDisplayName, setOnlineDisplayName] = useState('')
+  const [timerAdminAllowed, setTimerAdminAllowed] = useState(false)
+  const [timerAdminData, setTimerAdminData] = useState<TimerAdminReviewData | null>(null)
+  const [timerAdminBusy, setTimerAdminBusy] = useState<'load' | string | null>(null)
+  const [timerAdminMsg, setTimerAdminMsg] = useState<string | null>(null)
+
   useEffect(() => {
     const api = window.odysseyCompanion
     if (!api) return
@@ -119,6 +155,27 @@ export default function SettingsApp() {
       subscription.unsubscribe()
     }
   }, [supabase])
+
+  useEffect(() => {
+    setTimerAdminAllowed(false)
+    setTimerAdminData(null)
+    setTimerAdminMsg(null)
+    if (!onlineUser) return
+    let cancelled = false
+    void loadTimerAdminReview().then((result) => {
+      if (cancelled) return
+      if (!result.ok) {
+        setTimerAdminAllowed(false)
+        setTimerAdminData(null)
+        return
+      }
+      setTimerAdminAllowed(true)
+      setTimerAdminData(result.data)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [onlineUser])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -306,6 +363,57 @@ export default function SettingsApp() {
       setOnlineMsg('Signed out.')
     })
   }, [supabase])
+
+  const handleLoadTimerAdmin = useCallback(() => {
+    setTimerAdminBusy('load')
+    setTimerAdminMsg(null)
+    void loadTimerAdminReview().then((result) => {
+      setTimerAdminBusy(null)
+      if (!result.ok) {
+        setTimerAdminData(null)
+        setTimerAdminAllowed(false)
+        setTimerAdminMsg(result.error)
+        return
+      }
+      setTimerAdminAllowed(true)
+      setTimerAdminData(result.data)
+      setTimerAdminMsg('Timer admin data refreshed.')
+    })
+  }, [])
+
+  const handleConfirmTimerReport = useCallback((reportId: string) => {
+    setTimerAdminBusy(`report:${reportId}`)
+    setTimerAdminMsg(null)
+    void confirmTimerReport(reportId).then((result) => {
+      if (!result.ok) {
+        setTimerAdminBusy(null)
+        setTimerAdminMsg(result.error)
+        return
+      }
+      void loadTimerAdminReview().then((refresh) => {
+        setTimerAdminBusy(null)
+        if (refresh.ok) setTimerAdminData(refresh.data)
+        setTimerAdminMsg(refresh.ok ? 'Report confirmed and shared timer updated.' : refresh.error)
+      })
+    })
+  }, [])
+
+  const handleRestoreTimerHistory = useCallback((historyId: string) => {
+    setTimerAdminBusy(`history:${historyId}`)
+    setTimerAdminMsg(null)
+    void restoreTimerHistory(historyId).then((result) => {
+      if (!result.ok) {
+        setTimerAdminBusy(null)
+        setTimerAdminMsg(result.error)
+        return
+      }
+      void loadTimerAdminReview().then((refresh) => {
+        setTimerAdminBusy(null)
+        if (refresh.ok) setTimerAdminData(refresh.data)
+        setTimerAdminMsg(refresh.ok ? 'Schedule restored from history.' : refresh.error)
+      })
+    })
+  }, [])
 
   return (
     <div className="shell shell--settings">

@@ -1,41 +1,59 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { RealtimeChannel, User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
-import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
+import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
+import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import {
-  aggregateHitsForParse,
   getSupabaseClient,
   insertMeterParse,
-  resolveMeterPartyDisplayName,
   signInEmail,
   signOut,
   signUpWithProfile,
-  type MeterPartyMemberParse,
 } from './lib/supabaseMeter'
-import {
-  PARTY_BROADCAST_EVENT,
-  PARTY_PEER_STALE_MS,
-  PARTY_SYNC_EVENT,
-  SESSION_PARTY_STORAGE_KEY,
-  createRandomPartyKey,
-  parsePartyBroadcast,
-  parsePartySessionSync,
-  partyChannelName,
-  pruneStalePeers,
-  sanitizePartyKey,
-  type PartyPeerState,
-} from './lib/meterPartyRealtime'
 import { partyMemberBarBackground, partyMemberChromeStyle } from './lib/meterPartyColor'
-
-export type MeterHitRow = {
-  skill: string
-  target: string
-  damage: number
-  crit: boolean
-}
+import type { EventStreamRecord } from './lib/eventStreamFormat'
+import {
+  DEFAULT_EVENT_STREAM_HOST,
+  DEFAULT_EVENT_STREAM_PORT,
+  EVENT_STREAM_STORAGE_HOST,
+  EVENT_STREAM_STORAGE_PORT,
+} from './lib/eventStreamConstants'
+import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
+import {
+  applyWikiOfficialDigimonName,
+  createMeterStreamSession,
+  ingestMeterEventStream,
+  meterMemberSkillBreakdownByDigimon,
+  meterPartyRows,
+  meterRunContextDisplay,
+  rosterDigimonIds,
+  streamIconIdForDigimon,
+  type MeterStreamSession,
+} from './lib/meterEventStream'
+import { fetchDungeonDetail } from './lib/dungeonDetailApi'
+import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDifficultyTags'
+import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
+import {
+  onTimelineBossCleared,
+  onTimelineBossEngaged,
+  onTimelineLeftDungeon,
+  resetTimelineAutoState,
+  scheduleTimelineAutoLoad,
+  type TimelineAutoDungeonState,
+} from './lib/timelineAutoDungeon'
+import {
+  fetchDigimonWikiSkillCache,
+  markDigimonWikiLoading,
+  refreshMemberSkillsFromWiki,
+  syncDigimonPresentationFromCache,
+  syncDigimonPresentationOnSession,
+  unmarkDigimonWikiLoading,
+  type DigimonWikiSkillCache,
+} from './lib/meterWikiSkills'
+import type { WikiDigimonDetail } from './lib/wikiDigimonApi'
 
 function formatInt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
@@ -44,57 +62,33 @@ function formatInt(n: number) {
 /** After a successful cloud parse upload, block another upload to reduce duplicates / spam. */
 const METER_UPLOAD_COOLDOWN_MS = 30_000
 
-/** Party broadcast label from `profiles.display_name` only (never email). */
-function partyBroadcastLabel(profileDisplayName: string | undefined, userId: string): string {
-  const t = profileDisplayName?.trim()
-  if (t) return t.slice(0, 48)
-  const id = userId.replace(/-/g, '')
-  return `Player_${id.slice(0, 10)}`.slice(0, 48)
-}
-
-async function copyTextToClipboard(text: string): Promise<boolean> {
+function readEventStreamEndpoint(): { host: string; port: number } {
+  let host = DEFAULT_EVENT_STREAM_HOST
+  let port = Number(DEFAULT_EVENT_STREAM_PORT)
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
-    }
+    const h = localStorage.getItem(EVENT_STREAM_STORAGE_HOST)?.trim()
+    const p = localStorage.getItem(EVENT_STREAM_STORAGE_PORT)?.trim()
+    if (h) host = h
+    if (p) port = Number(p) || port
   } catch {
-    /* use fallback */
+    /* */
   }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.left = '-9999px'
-    document.body.appendChild(ta)
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch {
-    return false
-  }
+  return { host, port }
 }
 
-type SkillBreakdownRow = {
-  skill: string
-  damage: number
-  hits: number
+function requestPartyRosterSync() {
+  void window.odysseyCompanion?.sendEventStreamQuery?.('party')
 }
 
-const SESSION_HITS_CAP = 2000
-
-function isHitMessage(m: unknown): m is { type: 'hit' } & MeterHitRow {
-  if (!m || typeof m !== 'object') return false
-  const o = m as Record<string, unknown>
-  return (
-    o.type === 'hit' &&
-    typeof o.skill === 'string' &&
-    typeof o.target === 'string' &&
-    typeof o.damage === 'number' &&
-    typeof o.crit === 'boolean'
-  )
+function clearStreamCombat(session: MeterStreamSession) {
+  session.sessionStartMs = null
+  session.sessionEndMs = null
+  for (const row of session.members.values()) {
+    row.totalDamage = 0
+    row.firstHitMs = null
+    row.skills.clear()
+  }
+  requestPartyRosterSync()
 }
 
 export default function MeterApp() {
@@ -104,10 +98,8 @@ export default function MeterApp() {
 
   const titleDragRef = useRef<HTMLDivElement>(null)
   const lockBtnRef = useRef<HTMLButtonElement>(null)
-  const cloudBtnRef = useRef<HTMLButtonElement>(null)
   const gearBtnRef = useRef<HTMLButtonElement>(null)
   const uploadBtnRef = useRef<HTMLButtonElement>(null)
-  const reconnectBtnRef = useRef<HTMLButtonElement>(null)
   const resetBtnRef = useRef<HTMLButtonElement>(null)
   const minimizeBtnRef = useRef<HTMLButtonElement>(null)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
@@ -115,19 +107,67 @@ export default function MeterApp() {
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
   const lastHitMsRef = useRef<number | null>(null)
-  const hitsRef = useRef<MeterHitRow[]>([])
-  const sessionStartMsRef = useRef<number | null>(null)
+  const streamRef = useRef<MeterStreamSession>(createMeterStreamSession())
+  const timelineAutoRef = useRef<TimelineAutoDungeonState>({
+    loadedKey: null,
+    loadInFlight: false,
+    pendingBossStart: false,
+  })
+  const [streamRev, setStreamRev] = useState(0)
+  const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
+  const [tick, setTick] = useState(0)
+  const loadedWikiDigimonRef = useRef<string | null>(null)
 
-  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null)
-  const [totalDamage, setTotalDamage] = useState(0)
-  const [hits, setHits] = useState<MeterHitRow[]>([])
-  /** After idle auto-reset: show prior breakdown until new hits arrive (live `hits` cleared). */
-  const [frozenHits, setFrozenHits] = useState<MeterHitRow[] | null>(null)
-  const [, setTick] = useState(0)
+  const applyWikiCache = useCallback(
+    (digimonId: string, cache: DigimonWikiSkillCache, detail?: WikiDigimonDetail) => {
+      const session = streamRef.current
+      session.wikiByDigimonId.set(digimonId, cache)
+      loadedWikiDigimonRef.current = digimonId
+      const officialName = detail?.name?.trim() || cache.digimonName
+      applyWikiOfficialDigimonName(session, digimonId, officialName)
+      syncDigimonPresentationOnSession(session, digimonId, {
+        modelId: detail?.model_id ?? cache.modelId,
+        digimonName: officialName,
+        streamIconId: streamIconIdForDigimon(session, digimonId),
+      })
+      refreshMemberSkillsFromWiki(
+        session.members.values(),
+        digimonId,
+        cache,
+        session.selfDigimonId,
+      )
+      bumpStream()
+    },
+    [bumpStream],
+  )
 
-  useEffect(() => {
-    hitsRef.current = hits
-  }, [hits])
+  const ensureWikiForDigimon = useCallback(
+    (digimonId: string, streamSkillRows?: unknown[] | null) => {
+      const id = digimonId.trim()
+      if (!id) return
+      const session = streamRef.current
+      const hasStreamRows = Boolean(streamSkillRows?.length)
+      const cached = session.wikiByDigimonId.get(id)
+      if (cached && !hasStreamRows) {
+        applyWikiOfficialDigimonName(session, id, cached.digimonName)
+        syncDigimonPresentationFromCache(session, cached, streamIconIdForDigimon(session, id))
+        refreshMemberSkillsFromWiki(
+          session.members.values(),
+          id,
+          cached,
+          session.selfDigimonId,
+        )
+        bumpStream()
+        return
+      }
+      if (!markDigimonWikiLoading(id)) return
+      void fetchDigimonWikiSkillCache(id, streamSkillRows)
+        .then(({ cache, detail }) => applyWikiCache(id, cache, detail))
+        .finally(() => unmarkDigimonWikiLoading(id))
+    },
+    [applyWikiCache],
+  )
+
   const [readerError, setReaderError] = useState<string | null>(null)
   const [readerHint, setReaderHint] = useState<string | null>(null)
   /** Distinct from errors: warning = offsets/patch likely; info = normal status line. */
@@ -144,63 +184,31 @@ export default function MeterApp() {
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authDisplayName, setAuthDisplayName] = useState('')
+  const [partyDetailKey, setPartyDetailKey] = useState<string | null>(null)
 
-  const [partyKeyDraft, setPartyKeyDraft] = useState('')
-  const [activePartyKey, setActivePartyKey] = useState<string | null>(null)
-  const [partyPeers, setPartyPeers] = useState<Record<string, PartyPeerState>>({})
-  const [partyDetailId, setPartyDetailId] = useState<string | null>(null)
-  const [partyChannelError, setPartyChannelError] = useState<string | null>(null)
-  /** `undefined` = not loaded yet; string (possibly empty) = after fetch */
-  const [meterProfileDisplayName, setMeterProfileDisplayName] = useState<string | undefined>(undefined)
-
-  const partyChannelRef = useRef<RealtimeChannel | null>(null)
-  const partyMetricsRef = useRef({
-    breakdownHits: [] as MeterHitRow[],
-    breakdownDamageTotal: 0,
-    totalDamage: 0,
-    sessionStartMs: null as number | null,
-    sbUser: null as User | null,
-    partyPublicLabel: '',
-  })
-  const prevSbUserRef = useRef<User | null>(null)
-  sessionStartMsRef.current = sessionStartMs
+  const streamSession = streamRef.current
+  void streamRev
 
   const clearLocalSessionState = useCallback(() => {
-    setPartyDetailId(null)
-    setFrozenHits(null)
     lastHitMsRef.current = null
-    setSessionStartMs(null)
-    setTotalDamage(0)
-    setHits([])
-    setPartyPeers({})
+    setPartyDetailKey(null)
+    clearStreamCombat(streamRef.current)
+    resetTimelineAutoState(timelineAutoRef.current)
+    bumpStream()
     void window.odysseyCompanion?.resetMeterSession?.()
-  }, [])
+  }, [bumpStream])
 
-  /** Full meter zero + optional party broadcast (manual reset / hotkey). */
   const resetSession = useCallback(() => {
     clearLocalSessionState()
-    const ch = partyChannelRef.current
-    if (!activePartyKey || !ch || !sbUser) return
-    void ch.send({
-      type: 'broadcast',
-      event: PARTY_SYNC_EVENT,
-      payload: {
-        schemaVersion: 1,
-        kind: 'session_sync',
-        reason: 'manual',
-        epochMs: Date.now(),
-        fromUserId: sbUser.id,
-      },
-    })
-  }, [activePartyKey, sbUser, clearLocalSessionState])
+  }, [clearLocalSessionState])
 
   const positionLocked = settings.meterPositionLocked
 
   useEffect(() => {
-    if (sessionStartMs == null) return
+    if (streamRef.current.sessionStartMs == null) return
     const id = window.setInterval(() => setTick((t) => t + 1), 100)
     return () => window.clearInterval(id)
-  }, [sessionStartMs])
+  }, [streamRev])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -274,10 +282,8 @@ export default function MeterApp() {
         const interactive =
           inRect(clientX, clientY, titleDragRef.current) ||
           inRect(clientX, clientY, lockBtnRef.current) ||
-          inRect(clientX, clientY, cloudBtnRef.current) ||
           inRect(clientX, clientY, gearBtnRef.current) ||
           inRect(clientX, clientY, uploadBtnRef.current) ||
-          inRect(clientX, clientY, reconnectBtnRef.current) ||
           inRect(clientX, clientY, resetBtnRef.current) ||
           inRect(clientX, clientY, minimizeBtnRef.current) ||
           inRect(clientX, clientY, closeBtnRef.current) ||
@@ -324,10 +330,6 @@ export default function MeterApp() {
     }
   }, [positionLocked, cloudOpen])
 
-  /**
-   * After `meterAutoResetIdleSec` with no damage lines, zero live DPS/total/time only.
-   * Keeps a frozen skill breakdown until the next hit (does not send RESET to the reader).
-   */
   useEffect(() => {
     const idleSec = settings.meterAutoResetIdleSec
     if (idleSec <= 0) return
@@ -336,131 +338,186 @@ export default function MeterApp() {
       const last = lastHitMsRef.current
       if (last == null) return
       if (Date.now() - last < idleSec * 1000) return
+      if (streamRef.current.sessionStartMs == null) return
 
-      const h = hitsRef.current
-      const active = h.length > 0 || sessionStartMsRef.current != null
-      if (!active) return
-
-      if (h.length > 0) {
-        setFrozenHits([...h])
-      }
-      setHits([])
-      setTotalDamage(0)
-      setSessionStartMs(null)
       lastHitMsRef.current = null
+      clearStreamCombat(streamRef.current)
+      bumpStream()
     }, 250)
 
     return () => window.clearInterval(id)
-  }, [settings.meterAutoResetIdleSec])
+  }, [settings.meterAutoResetIdleSec, bumpStream])
 
-  /** Live pymem reader: spawn on mount, stdout → IPC → here.
-   *  Hit accounting (append to `hits`, add to `totalDamage`) is unchanged from the pre–party meter. */
+  const dungeonFetchReqRef = useRef(0)
+
+  useEffect(() => {
+    const dungeonId = streamSession.dungeonId
+    if (!dungeonId || !streamSession.dungeonNameLoading) return
+    const req = ++dungeonFetchReqRef.current
+    let cancelled = false
+    void fetchDungeonDetail(dungeonId)
+      .then((detail) => {
+        if (cancelled || req !== dungeonFetchReqRef.current) return
+        if (streamRef.current.dungeonId !== dungeonId) return
+        streamRef.current.dungeonName = detail.name.trim() || dungeonId
+        streamRef.current.dungeonNameLoading = false
+        bumpStream()
+      })
+      .catch(() => {
+        if (cancelled || req !== dungeonFetchReqRef.current) return
+        if (streamRef.current.dungeonId !== dungeonId) return
+        streamRef.current.dungeonName = dungeonId
+        streamRef.current.dungeonNameLoading = false
+        bumpStream()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [streamSession.dungeonId, streamSession.dungeonNameLoading, bumpStream])
+
+  useEffect(() => {
+    const companion = window.odysseyCompanion
+    if (!companion?.clearFightInTimeline) return
+    if (!streamRef.current.dungeonId?.trim()) {
+      onTimelineLeftDungeon(
+        {
+          loadFightIntoTimeline: (payload: unknown) =>
+            companion.loadFightIntoTimeline(payload, { silent: true }),
+          clearFightInTimeline: companion.clearFightInTimeline,
+          sendTimelineAction: companion.sendTimelineAction,
+        },
+        timelineAutoRef.current,
+      )
+    }
+  }, [])
+
   useEffect(() => {
     const api = window.odysseyCompanion
-    if (!api?.startMeterReader || !api.onMeterTelemetry) return
+    if (!api?.connectEventStream || !api.onEventStreamMessage) return
+
+    const { host, port } = readEventStreamEndpoint()
+    let disposed = false
 
     setReaderHintKind('info')
-    setReaderHint(null)
-    void api.startMeterReader().then((r) => {
-      if (!r.ok) {
-        setReaderError(r.error ?? 'Could not start DPS reader')
-        setReaderHint(null)
-        return
+    setReaderHint('Connecting to EventStream…')
+    setReaderError(null)
+
+    const offMsg = api.onEventStreamMessage(({ event }) => {
+      const ev = event as EventStreamRecord
+      const t = String(ev.type ?? '')
+      if (t === 'skill_use' || t === 'party_skill' || t === 'hit_taken') {
+        const dmg = Number(ev.damage)
+        if (Number.isFinite(dmg) && dmg > 0) lastHitMsRef.current = Date.now()
       }
-      setReaderError(null)
-      setReaderHint(null)
+      const session = streamRef.current
+      const { dungeonReset, sessionStarted, runOutcome } = ingestMeterEventStream(session, ev)
+      const companion = window.odysseyCompanion
+      const timelineBridge = companion
+        ? {
+            loadFightIntoTimeline: (payload: unknown) =>
+              companion.loadFightIntoTimeline(payload, { silent: true }),
+            clearFightInTimeline: companion.clearFightInTimeline,
+            sendTimelineAction: companion.sendTimelineAction,
+          }
+        : undefined
+
+      if (t === 'map_change' || (t === 'dungeon_progress' && !session.dungeonId?.trim())) {
+        onTimelineLeftDungeon(timelineBridge, timelineAutoRef.current)
+      } else if (t === 'dungeon_progress' && session.dungeonId?.trim()) {
+        scheduleTimelineAutoLoad(timelineBridge, session, timelineAutoRef.current, {
+          dungeonReset,
+        })
+      } else if (
+        t === 'query_result' &&
+        session.dungeonId?.trim() &&
+        session.dungeonDifficulty?.trim()
+      ) {
+        scheduleTimelineAutoLoad(timelineBridge, session, timelineAutoRef.current, {
+          dungeonReset: false,
+        })
+      }
+
+      if (sessionStarted) {
+        onTimelineBossEngaged(timelineBridge, timelineAutoRef.current)
+      }
+      if (runOutcome === 'clear') {
+        onTimelineBossCleared(timelineBridge, timelineAutoRef.current)
+      }
+
+      if (dungeonReset) {
+        setPartyDetailKey(null)
+        requestPartyRosterSync()
+      }
+      if (sessionStarted) requestPartyRosterSync()
+
+      if (t === 'hello' || t === 'digimon_change') {
+        const id = String(ev.digimon_id ?? session.selfDigimonId ?? '').trim()
+        if (id) ensureWikiForDigimon(id)
+        for (const rosterId of rosterDigimonIds(session)) {
+          if (rosterId !== id) ensureWikiForDigimon(rosterId)
+        }
+        bumpStream()
+      } else if (t === 'query_result') {
+        const streamRows = streamSkillRowsFromQuery(ev)
+        const digimon = ev.digimon
+        const digimonId =
+          digimon && typeof digimon === 'object'
+            ? String((digimon as Record<string, unknown>).digimon_id ?? '').trim()
+            : ''
+        const id = digimonId || session.selfDigimonId?.trim() || ''
+        if (id) ensureWikiForDigimon(id, streamRows)
+        for (const rosterId of rosterDigimonIds(session)) {
+          if (rosterId !== id) ensureWikiForDigimon(rosterId)
+        }
+      } else if (
+        t === 'party_change' ||
+        t === 'party_join' ||
+        t === 'party_update' ||
+        t === 'party_roster' ||
+        t === 'party_member_added' ||
+        t === 'query_result'
+      ) {
+        for (const id of rosterDigimonIds(session)) ensureWikiForDigimon(id)
+      }
+
+      bumpStream()
     })
 
-    const offTel = api.onMeterTelemetry((msg: unknown) => {
-      if (!msg || typeof msg !== 'object') return
-      const o = msg as Record<string, unknown>
-      if (o.type === 'debug_parse') {
-        return
+    const offStatus = api.onEventStreamStatus?.((payload) => {
+      const status = String(payload.status ?? '')
+      const detail = payload.detail?.trim() ?? ''
+      if (status === 'connected') {
+        setReaderError(null)
+        setReaderHint(null)
+        void api.sendEventStreamQuery?.('party')
+        void api.sendEventStreamQuery?.('all')
+      } else if (status === 'connecting') {
+        setReaderHintKind('info')
+        setReaderHint(detail || 'Connecting…')
+      } else if (status === 'error') {
+        setReaderError(detail || 'EventStream connection failed')
+        setReaderHint(null)
+      } else if (status === 'idle') {
+        setReaderHintKind('info')
+        setReaderHint(detail || 'Disconnected')
       }
-      if (o.type === 'reader_attach') {
-        return
-      }
-      if (isHitMessage(msg)) {
-        setFrozenHits(null)
-        lastHitMsRef.current = Date.now()
-        setHits((h) => [...h, msg].slice(-SESSION_HITS_CAP))
-        setTotalDamage((t) => t + msg.damage)
-        setSessionStartMs((s) => s ?? Date.now())
-        return
-      }
-      if (o.type === 'status' && typeof o.status === 'string') {
-        if (o.status === 'error' && typeof o.message === 'string') {
-          setReaderError(o.message)
-        } else if (o.status === 'connected') {
-          setReaderError(null)
-          setReaderHintKind('info')
-          const m = typeof o.message === 'string' ? o.message.trim() : ''
-          const noise = /pointer sync|sync active/i.test(m)
-          setReaderHint(m.length > 0 && !noise ? m : null)
-        } else if (o.status === 'warning' && typeof o.message === 'string') {
-          setReaderError(null)
-          setReaderHintKind('warning')
-          setReaderHint(o.message)
-        } else if (o.status === 'stopped') {
-          setReaderHintKind('info')
-          setReaderHint('Reader stopped')
-        } else if (o.status === 'starting') {
-          setReaderHintKind('info')
-          const m = typeof o.message === 'string' ? o.message.trim() : ''
-          setReaderHint(m.length > 0 ? m : null)
-        }
+    })
+
+    void api.connectEventStream(host, port, false).then((r) => {
+      if (disposed) return
+      if (!r.ok) {
+        setReaderError(r.error ?? 'Could not connect to EventStream')
+        setReaderHint(null)
       }
     })
 
     return () => {
-      offTel()
-      void api.stopMeterReader?.()
+      disposed = true
+      offMsg()
+      offStatus?.()
+      void api.disconnectEventStream?.()
     }
-  }, [])
-
-  const elapsedSec =
-    sessionStartMs == null ? 0 : Math.max(0, (Date.now() - sessionStartMs) / 1000)
-
-  const dps = elapsedSec > 0 ? totalDamage / elapsedSec : 0
-
-  const breakdownHits = useMemo(
-    () => (hits.length > 0 ? hits : frozenHits ?? []),
-    [hits, frozenHits],
-  )
-
-  const breakdownDamageTotal = useMemo(
-    () => breakdownHits.reduce((s, h) => s + h.damage, 0),
-    [breakdownHits],
-  )
-
-  const skillBreakdown = useMemo((): SkillBreakdownRow[] => {
-    const map = new Map<string, SkillBreakdownRow>()
-    for (const h of breakdownHits) {
-      const prev = map.get(h.skill)
-      if (prev) {
-        prev.damage += h.damage
-        prev.hits += 1
-      } else {
-        map.set(h.skill, {
-          skill: h.skill,
-          damage: h.damage,
-          hits: 1,
-        })
-      }
-    }
-    return [...map.values()].sort((a, b) => b.damage - a.damage)
-  }, [breakdownHits])
-
-  useEffect(() => {
-    partyMetricsRef.current = {
-      breakdownHits,
-      breakdownDamageTotal,
-      totalDamage,
-      sessionStartMs,
-      sbUser,
-      partyPublicLabel: sbUser ? partyBroadcastLabel(meterProfileDisplayName, sbUser.id) : '',
-    }
-  }, [breakdownHits, breakdownDamageTotal, totalDamage, sessionStartMs, sbUser, meterProfileDisplayName])
+  }, [bumpStream, ensureWikiForDigimon])
 
   const supabase = useMemo(() => {
     const { url, anonKey } = getMeterSupabaseCredentials()
@@ -487,198 +544,37 @@ export default function MeterApp() {
     }
   }, [supabase])
 
-  useEffect(() => {
-    if (!supabase || !sbUser) {
-      setMeterProfileDisplayName(undefined)
-      return
-    }
-    let cancelled = false
-    void resolveMeterPartyDisplayName(supabase, sbUser).then((name) => {
-      if (cancelled) return
-      setMeterProfileDisplayName(name)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [supabase, sbUser])
-
-  useEffect(() => {
-    const prev = prevSbUserRef.current
-    prevSbUserRef.current = sbUser
-    if (prev && !sbUser) {
-      setActivePartyKey(null)
-      setPartyKeyDraft('')
-      setPartyPeers({})
-      setPartyDetailId(null)
-      setPartyChannelError(null)
-      try {
-        sessionStorage.removeItem(SESSION_PARTY_STORAGE_KEY)
-      } catch {
-        /* */
-      }
-      if (partyChannelRef.current) {
-        void partyChannelRef.current.unsubscribe()
-        partyChannelRef.current = null
-      }
-      return
-    }
-    if (sbUser && !prev) {
-      try {
-        const raw = sessionStorage.getItem(SESSION_PARTY_STORAGE_KEY)
-        const k = raw ? sanitizePartyKey(raw) : null
-        if (k) {
-          setActivePartyKey(k)
-          setPartyKeyDraft(k)
-        }
-      } catch {
-        /* */
-      }
-    }
-  }, [sbUser])
-
-  useEffect(() => {
-    if (!supabase || !sbUser || !activePartyKey) {
-      setPartyChannelError(null)
-      if (partyChannelRef.current) {
-        void partyChannelRef.current.unsubscribe()
-        partyChannelRef.current = null
-      }
-      setPartyPeers({})
-      return
-    }
-
-    const topic = partyChannelName(activePartyKey)
-    const ch = supabase.channel(topic, {
-      config: { broadcast: { self: false } },
-    })
-    partyChannelRef.current = ch
-
-    ch.on('broadcast', { event: PARTY_BROADCAST_EVENT }, (msg: { payload?: unknown }) => {
-      const parsed = parsePartyBroadcast(msg.payload)
-      if (!parsed || parsed.userId === sbUser.id) return
-      setPartyPeers((prev) => ({
-        ...prev,
-        [parsed.userId]: {
-          userId: parsed.userId,
-          displayLabel: parsed.displayLabel,
-          totalDamage: parsed.totalDamage,
-          durationSec: parsed.durationSec,
-          skills: parsed.skills,
-          lastSeen: Date.now(),
-        },
-      }))
-    })
-
-    ch.on('broadcast', { event: PARTY_SYNC_EVENT }, (msg: { payload?: unknown }) => {
-      const parsed = parsePartySessionSync(msg.payload)
-      if (!parsed || parsed.fromUserId === sbUser.id) return
-      clearLocalSessionState()
-    })
-
-    let tick: number | undefined
-    ch.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        setPartyChannelError(
-          'Party channel failed — enable Realtime (Broadcast) in the Supabase dashboard.',
-        )
-        if (tick != null) {
-          window.clearInterval(tick)
-          tick = undefined
-        }
-        void ch.unsubscribe()
-        if (partyChannelRef.current === ch) {
-          partyChannelRef.current = null
-        }
-        return
-      }
-      if (status !== 'SUBSCRIBED') return
-      if (tick != null) return
-      setPartyChannelError(null)
-
-      clearLocalSessionState()
-      void ch.send({
-        type: 'broadcast',
-        event: PARTY_SYNC_EVENT,
-        payload: {
-          schemaVersion: 1,
-          kind: 'session_sync',
-          reason: 'join',
-          epochMs: Date.now(),
-          fromUserId: sbUser.id,
-        },
-      })
-
-      tick = window.setInterval(() => {
-        const m = partyMetricsRef.current
-        const u = m.sbUser
-        if (!u) return
-        const skills = aggregateHitsForParse(m.breakdownHits)
-        const durationSec =
-          m.sessionStartMs != null ? Math.max(0, (Date.now() - m.sessionStartMs) / 1000) : 0
-        const displayLabel = m.partyPublicLabel || partyBroadcastLabel(undefined, u.id)
-        void ch.send({
-          type: 'broadcast',
-          event: PARTY_BROADCAST_EVENT,
-          payload: {
-            schemaVersion: 1,
-            userId: u.id,
-            displayLabel,
-            totalDamage: Math.round(m.totalDamage),
-            durationSec,
-            skills,
-            sentAt: Date.now(),
-          },
-        })
-        setPartyPeers((prev) => pruneStalePeers(prev))
-      }, 1600)
-    })
-
-    return () => {
-      if (tick != null) window.clearInterval(tick)
-      void ch.unsubscribe()
-      partyChannelRef.current = null
-    }
-  }, [supabase, sbUser, activePartyKey, clearLocalSessionState])
-
   const partyListRows = useMemo(() => {
-    if (!sbUser || !activePartyKey) return []
-    const now = Date.now()
-    const selfDur = sessionStartMs != null ? Math.max(0, (now - sessionStartMs) / 1000) : 0
-    const selfDps = selfDur > 0 ? totalDamage / selfDur : 0
-    const self = {
-      rowKey: 'self' as const,
-      userId: sbUser.id,
-      label: settings.meterPartyShowSelfDisplayName
-        ? partyBroadcastLabel(meterProfileDisplayName, sbUser.id)
-        : 'You',
-      total: totalDamage,
-      dps: selfDps,
-      time: selfDur,
-    }
-    const peers = Object.values(partyPeers)
-      .filter((p) => now - p.lastSeen <= PARTY_PEER_STALE_MS)
-      .map((p) => ({
-        rowKey: p.userId,
-        userId: p.userId,
-        label: p.displayLabel || p.userId.slice(0, 8),
-        total: p.totalDamage,
-        dps: p.durationSec > 0 ? p.totalDamage / p.durationSec : 0,
-        time: p.durationSec,
-      }))
-    return [...peers, self].sort((a, b) => b.dps - a.dps)
-  }, [
-    sbUser,
-    activePartyKey,
-    partyPeers,
-    totalDamage,
-    sessionStartMs,
-    settings.meterPartyShowSelfDisplayName,
-    meterProfileDisplayName,
-  ])
+    return meterPartyRows(streamSession, Date.now()).map((row) => ({
+      rowKey: row.key,
+      tamerName: row.tamerName,
+      digimonName: row.digimonName,
+      portraitUrl: row.portraitUrl,
+      total: row.totalDamage,
+      dps: row.dps,
+      time: row.durationSec,
+      isSelf: row.isSelf,
+    }))
+  }, [streamRev, tick])
 
   const partyListDamageSum = useMemo(
     () => partyListRows.reduce((s, r) => s + Math.max(0, r.total), 0),
     [partyListRows],
+  )
+
+  const detailMember = useMemo(() => {
+    if (!partyDetailKey) return null
+    return partyListRows.find((r) => r.rowKey === partyDetailKey) ?? null
+  }, [partyDetailKey, partyListRows])
+
+  const detailDigimonGroups = useMemo(() => {
+    if (!partyDetailKey) return []
+    return meterMemberSkillBreakdownByDigimon(streamSession, partyDetailKey)
+  }, [partyDetailKey, streamRev])
+
+  const detailDamageTotal = useMemo(
+    () => detailDigimonGroups.reduce((s, g) => s + g.totalDamage, 0),
+    [detailDigimonGroups],
   )
 
   useEffect(() => {
@@ -704,6 +600,38 @@ export default function MeterApp() {
 
   const uploadOnCooldown = uploadCooldownSecondsLeft > 0
 
+  const uploadAllowed = useMemo(
+    () =>
+      isDungeonParseUploadAllowed(
+        streamSession.dungeonId,
+        streamSession.dungeonDifficultyTier,
+      ),
+    [streamSession.dungeonId, streamSession.dungeonDifficultyTier, streamRev],
+  )
+
+  const uploadDisabledReason = useMemo(() => {
+    if (!uploadAllowed) {
+      if (!streamSession.dungeonId?.trim()) {
+        return 'Enter a Normal or Hard dungeon to upload.'
+      }
+      return 'Uploads are only for Normal or Hard dungeons.'
+    }
+    if (!sbUser) return 'Sign in under Online settings to upload.'
+    if (uploadOnCooldown) return `Cannot upload for ${uploadCooldownSecondsLeft}s.`
+    if (partyListDamageSum <= 0) return 'Deal damage in this run before uploading.'
+    return null
+  }, [
+    uploadAllowed,
+    sbUser,
+    uploadOnCooldown,
+    uploadCooldownSecondsLeft,
+    streamSession.dungeonId,
+    partyListDamageSum,
+  ])
+
+  const uploadButtonDisabled =
+    !uploadAllowed || sbBusy || uploadOnCooldown || partyListDamageSum <= 0
+
   const uploadParse = useCallback(async () => {
     setSbMsg(null)
     if (uploadCooldownUntilMs != null && Date.now() < uploadCooldownUntilMs) {
@@ -715,89 +643,41 @@ export default function MeterApp() {
       setSbMsg('Sign in first.')
       return
     }
+    const session = streamRef.current
+    if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) {
+      setSbMsg('Uploads require a Normal or Hard dungeon run.')
+      return
+    }
+    if (partyListRows.length === 0 || partyListDamageSum <= 0) {
+      setSbMsg('No damage in the current session to upload.')
+      return
+    }
     setSbBusy(true)
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
       const appVersion = info?.version ?? 'unknown'
-      const durationSec =
-        sessionStartMs != null ? Math.max(0, (Date.now() - sessionStartMs) / 1000) : 0
-
-      if (activePartyKey && partyListRows.length > 0) {
-        if (totalDamage <= 0) {
-          setSbMsg('No damage in the current session to upload.')
-          return
-        }
-        const members: MeterPartyMemberParse[] = partyListRows.map((row) => {
-          if (row.rowKey === 'self') {
-            return {
-              memberKey: 'self',
-              displayLabel: row.label,
-              totalDamage: Math.round(row.total),
-              durationSec: row.time,
-              skills: aggregateHitsForParse(breakdownHits),
-            }
-          }
-          const peer = partyPeers[row.userId]
-          return {
-            memberKey: row.userId,
-            displayLabel: row.label,
-            totalDamage: Math.round(row.total),
-            durationSec: row.time,
-            skills: (peer?.skills ?? []).map((s) => ({
-              skill: s.skill,
-              damage: s.damage,
-              hits: s.hits,
-            })),
-          }
-        })
-        const { error } = await insertMeterParse(supabase, sbUser.id, {
-          mode: 'party',
-          appVersion,
-          partyKey: activePartyKey,
-          durationSec,
-          members,
-        })
-        if (error) setSbMsg(error)
-        else {
-          setSbMsg('Party parse uploaded. View it under Party on the Meter page on Odyssey Calc.')
-          setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
-          setUploadToast({ text: 'Upload complete', kind: 'success' })
-        }
-        return
-      }
-
-      if (breakdownHits.length === 0 || breakdownDamageTotal <= 0) {
-        setSbMsg('No damage in the current session to upload.')
-        return
-      }
-      const skills = aggregateHitsForParse(breakdownHits)
+      const built = buildMeterDungeonPartyParse(session)
+      const { durationSec, dungeon, members } = built
       const { error } = await insertMeterParse(supabase, sbUser.id, {
-        mode: 'solo',
+        mode: 'dungeon_party',
         appVersion,
         durationSec,
-        skills,
+        dungeon,
+        members,
       })
       if (error) setSbMsg(error)
       else {
-        setSbMsg('Parse uploaded. Visit the Meter page on Odyssey Calc to see your history.')
+        const diff = dungeon.difficulty || 'dungeon'
+        setSbMsg(
+          `${diff} parse uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). View on Odyssey Calc → Meter parses.`,
+        )
         setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
         setUploadToast({ text: 'Upload complete', kind: 'success' })
       }
     } finally {
       setSbBusy(false)
     }
-  }, [
-    supabase,
-    sbUser,
-    uploadCooldownUntilMs,
-    activePartyKey,
-    partyListRows,
-    partyPeers,
-    breakdownHits,
-    breakdownDamageTotal,
-    totalDamage,
-    sessionStartMs,
-  ])
+  }, [supabase, sbUser, uploadCooldownUntilMs, partyListRows, partyListDamageSum])
 
   const uploadParseRef = useRef(uploadParse)
   uploadParseRef.current = uploadParse
@@ -809,44 +689,26 @@ export default function MeterApp() {
     return unsub ?? (() => {})
   }, [])
 
-  const detailSkills = useMemo((): SkillBreakdownRow[] => {
-    if (!partyDetailId || !activePartyKey) return skillBreakdown
-    if (partyDetailId === 'self') return skillBreakdown
-    const peer = partyPeers[partyDetailId]
-    if (!peer) return []
-    return peer.skills.map((s) => ({ skill: s.skill, damage: s.damage, hits: s.hits }))
-  }, [partyDetailId, activePartyKey, partyPeers, skillBreakdown])
+  const runContext = useMemo(
+    () => meterRunContextDisplay(streamSession),
+    [
+      streamRev,
+      streamSession.mapName,
+      streamSession.dungeonId,
+      streamSession.dungeonName,
+      streamSession.dungeonNameLoading,
+      streamSession.dungeonDifficulty,
+      streamSession.dungeonDifficultyTier,
+      streamSession.dungeonBossTargets,
+      streamSession.lastRunOutcome,
+    ],
+  )
 
-  const detailDamageTotal = useMemo(() => {
-    if (!partyDetailId || !activePartyKey) return breakdownDamageTotal
-    if (partyDetailId === 'self') return breakdownDamageTotal
-    return partyPeers[partyDetailId]?.totalDamage ?? 0
-  }, [partyDetailId, activePartyKey, partyPeers, breakdownDamageTotal])
-
-  const showingFrozenBreakdown = hits.length === 0 && (frozenHits?.length ?? 0) > 0
-
-  const copyActivePartyKey = useCallback(() => {
-    if (!activePartyKey) return
-    void copyTextToClipboard(activePartyKey)
-  }, [activePartyKey])
-
-  const reconnectReader = useCallback(() => {
-    const api = window.odysseyCompanion
-    if (!api?.stopMeterReader || !api.startMeterReader) return
-    setReaderError(null)
-    setReaderHintKind('info')
-    setReaderHint('Reconnecting…')
-    void api.stopMeterReader().then(() => {
-      void api.startMeterReader?.().then((r) => {
-        if (!r.ok) {
-          setReaderError(r.error ?? 'Reconnect failed')
-          setReaderHint(null)
-        } else {
-          setReaderHint(null)
-        }
-      })
-    })
-  }, [])
+  const showRunContext =
+    Boolean(runContext.mapName) ||
+    runContext.inDungeon ||
+    runContext.dungeonNameLoading ||
+    runContext.bossNames.length > 0
 
   const toggleMeterLock = useCallback(() => {
     setSettings((s) => ({ ...s, meterPositionLocked: !s.meterPositionLocked }))
@@ -910,21 +772,6 @@ export default function MeterApp() {
               )}
             </button>
             <button
-              ref={cloudBtnRef}
-              type="button"
-              className="btn meter-icon-tile"
-              title="Online"
-              aria-label="Open Online settings"
-              onClick={() => void window.odysseyCompanion?.openSettings?.('online')}
-            >
-              <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                />
-              </svg>
-            </button>
-            <button
               ref={gearBtnRef}
               type="button"
               className="btn meter-icon-tile"
@@ -944,16 +791,16 @@ export default function MeterApp() {
                 ref={uploadBtnRef}
                 type="button"
                 className="btn meter-icon-tile"
-                title={
-                  !sbUser
-                    ? 'Sign in via Companion settings or the cloud panel (☁) to upload'
-                    : uploadOnCooldown
-                      ? `Cannot upload for ${uploadCooldownSecondsLeft}s`
-                      : 'Upload session to cloud'
-                }
-                aria-label="Upload parse to cloud"
-                disabled={!sbUser || sbBusy || uploadOnCooldown}
-                onClick={() => void uploadParse()}
+                title={uploadDisabledReason ?? 'Upload dungeon parse to cloud'}
+                aria-label={!sbUser ? 'Open Online settings to sign in' : 'Upload dungeon parse to cloud'}
+                disabled={uploadButtonDisabled}
+                onClick={() => {
+                  if (!sbUser) {
+                    void window.odysseyCompanion?.openSettings?.('online')
+                    return
+                  }
+                  void uploadParse()
+                }}
               >
                 <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
                   <path
@@ -963,21 +810,6 @@ export default function MeterApp() {
                 </svg>
               </button>
             ) : null}
-            <button
-              ref={reconnectBtnRef}
-              type="button"
-              className="btn meter-icon-tile"
-              title="Reconnect"
-              aria-label="Reconnect"
-              onClick={reconnectReader}
-            >
-              <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
-                <path
-                  fill="currentColor"
-                  d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.56 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
-                />
-              </svg>
-            </button>
             <button
               ref={resetBtnRef}
               type="button"
@@ -1043,17 +875,11 @@ export default function MeterApp() {
               {readerError}
               <span className="muted meter-banner-sub">
                 {' '}
-                {/could not open|attach to client/i.test(readerError) ? (
-                  <>
-                    This is usually <strong>Windows blocking access</strong> to the game (run Companion as admin,
-                    match elevation with the game, or allow in antivirus).
-                  </>
-                ) : (
-                  <>
-                    Game (<code>client.exe</code>) must be running. From-source dev:{' '}
-                    <code>pip install -r scripts/requirements-dps.txt</code>. Installers bundle Python + pymem.
-                  </>
-                )}
+                Start the game EventStream bridge on{' '}
+                <code>
+                  ws://{readEventStreamEndpoint().host}:{readEventStreamEndpoint().port}
+                </code>
+                . Host/port match the Event Stream panel in Companion.
               </span>
             </p>
           ) : null}
@@ -1066,180 +892,194 @@ export default function MeterApp() {
             </p>
           ) : null}
 
-          <div className="meter-stats-row meter-stats-row--compact">
-            <div className="meter-stat meter-stat--hero meter-stat--compact">
-              <span className="meter-stat-label">DPS</span>
-              <span className="meter-stat-value">{formatInt(dps)}</span>
-            </div>
-            <div className="meter-stat meter-stat--compact">
-              <span className="meter-stat-label">TOTAL</span>
-              <span className="meter-stat-value meter-stat-value--accent">{formatInt(totalDamage)}</span>
-            </div>
-            <div className="meter-stat meter-stat--compact">
-              <span className="meter-stat-label">Time</span>
-              <span className="meter-stat-value">{elapsedSec.toFixed(0)}s</span>
-            </div>
-          </div>
-
-          {activePartyKey && !partyDetailId ? (
-            <section className="meter-breakdown meter-breakdown--compact meter-party" aria-label="Party DPS">
-              <div className="meter-party-top">
-                <span className="meter-breakdown-title--inline">Party</span>
-                <div className="meter-party-key-wrap">
-                  <code className="meter-party-code">{activePartyKey}</code>
-                  <button
-                    type="button"
-                    className="meter-party-copy"
-                    aria-label="Copy party key"
-                    title="Copy party key"
-                    onClick={copyActivePartyKey}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
+          {showRunContext ? (
+            <div
+              className="meter-run-meta"
+              title={
+                streamSession.dungeonId
+                  ? `Dungeon id: ${streamSession.dungeonId}`
+                  : streamSession.mapId
+                    ? `Map id: ${streamSession.mapId}`
+                    : undefined
+              }
+            >
+              {!runContext.inDungeon && runContext.mapName ? (
+                <div className="meter-run-meta__row">
+                  <span className="meter-run-meta__label">Map</span>
+                  <span className="meter-run-meta__value meter-run-meta__value--map">
+                    {runContext.mapName}
+                  </span>
                 </div>
-              </div>
-              <div className="meter-breakdown-table meter-breakdown-table--compact">
-                <div className="meter-breakdown-colhead meter-breakdown-colhead--compact meter-party-colhead">
-                  <span>Player</span>
-                  <span className="meter-col-num">DPS</span>
-                  <span className="meter-col-num">Tot</span>
-                  <span className="meter-col-hits">s</span>
-                </div>
-                <div className="meter-breakdown-scroll meter-scroll--themed meter-breakdown-scroll--compact">
-                  {partyListRows.map((row) => {
-                    const accentKey =
-                      row.rowKey === 'self' && sbUser ? `self:${sbUser.id}` : row.userId
-                    const chrome = partyMemberChromeStyle(accentKey)
-                    const sharePct =
-                      partyListDamageSum > 0
-                        ? (100 * Math.max(0, row.total)) / partyListDamageSum
-                        : 0
-                    return (
-                    <button
-                      key={row.rowKey}
-                      type="button"
-                      className="meter-party-member"
-                      style={{
-                        borderLeftWidth: 3,
-                        borderLeftStyle: 'solid',
-                        borderLeftColor: chrome.borderLeftColor,
-                      }}
-                      onClick={() =>
-                        setPartyDetailId(row.rowKey === 'self' ? 'self' : row.userId)
-                      }
-                    >
-                      <div
-                        className="meter-party-member-bar"
-                        style={{
-                          width: `${Math.min(100, sharePct)}%`,
-                          background: partyMemberBarBackground(accentKey),
-                        }}
-                        aria-hidden
-                      />
-                      <div className="meter-party-member-grid">
-                        <span className="meter-party-name" title={row.label}>
-                          {row.label}
+              ) : null}
+              {runContext.inDungeon ? (
+                <>
+                  <div className="meter-run-meta__row">
+                    <span className="meter-run-meta__label">Dungeon</span>
+                    <span className="meter-run-meta__dungeon-line">
+                      <span className="meter-run-meta__value meter-run-meta__value--dungeon">
+                        {runContext.dungeonNameLoading
+                          ? 'Loading…'
+                          : runContext.dungeonName ?? streamSession.dungeonId}
+                      </span>
+                      {runContext.dungeonDifficulty ? (
+                        <span className="meter-run-meta__difficulty">
+                          <span
+                            className={difficultyTagClassName(runContext.dungeonDifficulty)}
+                            title={`Difficulty: ${runContext.dungeonDifficulty}`}
+                          >
+                            {formatDifficultyDisplay(runContext.dungeonDifficulty)}
+                          </span>
                         </span>
-                        <span className="meter-party-num">{formatInt(row.dps)}</span>
-                        <span className="meter-party-num">{formatInt(row.total)}</span>
-                        <span className="meter-party-num">{row.time.toFixed(0)}</span>
-                      </div>
-                    </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </section>
-          ) : activePartyKey && partyDetailId ? (
+                      ) : null}
+                    </span>
+                    {runContext.lastRunOutcome === 'clear' ? (
+                      <span className="meter-run-badge meter-run-badge--clear">Clear</span>
+                    ) : null}
+                    {runContext.lastRunOutcome === 'fail' ? (
+                      <span className="meter-run-badge meter-run-badge--fail">Fail</span>
+                    ) : null}
+                  </div>
+                  {runContext.bossNames.length > 0 ? (
+                    <div className="meter-run-meta__row meter-run-meta__row--bosses">
+                      <span className="meter-run-meta__label">
+                        {runContext.bossNames.length === 1 ? 'Boss' : 'Bosses'}
+                      </span>
+                      <span className="meter-run-meta__boss-list">
+                        {runContext.bossNames.map((name) => (
+                          <span key={name} className="meter-run-meta__value meter-run-meta__value--boss">
+                            {name}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {partyDetailKey && detailMember ? (
             <section
               className="meter-breakdown meter-breakdown--compact"
-              aria-label={
-                partyDetailId === 'self' && showingFrozenBreakdown
-                  ? 'Damage by skill (last pull, until new hits)'
-                  : 'Damage by skill'
-              }
+              aria-label={`Skills — ${detailMember.tamerName}`}
             >
               <div className="meter-party-back-row">
                 <button
                   type="button"
                   className="btn ghost meter-party-back"
-                  onClick={() => setPartyDetailId(null)}
+                  onClick={() => setPartyDetailKey(null)}
                 >
-                  ← Party
+                  ← Back
                 </button>
-                <span
-                  className="meter-party-detail-label muted"
-                  title={
-                    partyDetailId === 'self'
-                      ? settings.meterPartyShowSelfDisplayName && sbUser
-                        ? partyBroadcastLabel(meterProfileDisplayName, sbUser.id)
-                        : 'You'
-                      : partyPeers[partyDetailId]?.displayLabel ?? ''
-                  }
-                >
-                  {partyDetailId === 'self'
-                    ? settings.meterPartyShowSelfDisplayName && sbUser
-                      ? partyBroadcastLabel(meterProfileDisplayName, sbUser.id).slice(0, 20)
-                      : 'You'
-                    : (partyPeers[partyDetailId]?.displayLabel ?? 'Player').slice(0, 20)}
+                <span className="meter-party-detail-head">
+                  {detailMember.portraitUrl ? (
+                    <img
+                      className="meter-party-portrait"
+                      src={detailMember.portraitUrl}
+                      alt=""
+                      width={22}
+                      height={22}
+                    />
+                  ) : (
+                    <span className="meter-party-portrait meter-party-portrait--empty" aria-hidden />
+                  )}
+                  <span className="meter-party-detail-label" title={detailMember.tamerName}>
+                    {detailMember.tamerName}
+                    {detailMember.digimonName ? (
+                      <span className="meter-party-digimon muted"> · {detailMember.digimonName}</span>
+                    ) : null}
+                  </span>
                 </span>
               </div>
-              {partyDetailId === 'self' && showingFrozenBreakdown ? (
-                <div className="meter-breakdown-head-inline meter-breakdown-head-inline--meta-only">
-                  <span className="meter-breakdown-meta muted" title="Cleared when new damage arrives">
-                    last
-                  </span>
-                </div>
-              ) : null}
               <div className="meter-breakdown-table meter-breakdown-table--compact">
-                <div className="meter-breakdown-colhead meter-breakdown-colhead--compact">
+                <div className="meter-breakdown-colhead meter-breakdown-colhead--compact meter-skill-colhead">
                   <span>Skill</span>
                   <span className="meter-col-num">Dmg</span>
                   <span className="meter-col-pct">%</span>
                   <span className="meter-col-hits">#</span>
                 </div>
                 <div className="meter-breakdown-scroll meter-scroll--themed meter-breakdown-scroll--compact">
-                  {detailSkills.length === 0 ? (
-                    <p className="meter-breakdown-empty meter-breakdown-empty--compact meter-breakdown-empty-hint muted">
-                      {partyDetailId === 'self'
-                        ? 'Please ensure BATTLE logs are open and stretched wide enough to avoid entries going into multiple lines.'
-                        : 'No skill data for this player yet.'}
+                  {detailDigimonGroups.length === 0 ? (
+                    <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
+                      No skills recorded yet for this tamer.
                     </p>
                   ) : (
-                    detailSkills.map((row) => {
-                      const sharePct =
-                        detailDamageTotal > 0 ? (100 * row.damage) / detailDamageTotal : 0
+                    detailDigimonGroups.map((group) => {
+                      const groupSharePct =
+                        detailDamageTotal > 0 ? (100 * group.totalDamage) / detailDamageTotal : 0
                       return (
-                        <div key={row.skill} className="meter-breakdown-row meter-breakdown-row--compact">
-                          <div
-                            className="meter-breakdown-bar"
-                            style={{
-                              width: `${Math.min(100, sharePct)}%`,
-                              background: meterBarBackgroundForSkill(row.skill),
-                            }}
-                            aria-hidden
-                          />
-                          <div className="meter-breakdown-row-grid meter-breakdown-row-grid--compact">
-                            <span className="meter-breakdown-skill" title={row.skill}>
-                              {row.skill}
+                        <div
+                          key={group.digimonId || group.digimonName}
+                          className="meter-breakdown-digimon"
+                        >
+                          <div className="meter-breakdown-digimon-head">
+                            {group.portraitUrl ? (
+                              <img
+                                className="meter-party-portrait"
+                                src={group.portraitUrl}
+                                alt=""
+                                width={20}
+                                height={20}
+                              />
+                            ) : (
+                              <span
+                                className="meter-party-portrait meter-party-portrait--empty"
+                                aria-hidden
+                              />
+                            )}
+                            <span className="meter-breakdown-digimon-name" title={group.digimonName}>
+                              {group.digimonName}
                             </span>
-                            <span className="meter-breakdown-dmg">{formatInt(row.damage)}</span>
-                            <span className="meter-breakdown-share">{sharePct.toFixed(0)}</span>
-                            <span className="meter-breakdown-hits">{row.hits}</span>
+                            <span className="meter-breakdown-digimon-total">
+                              {formatInt(group.totalDamage)}
+                            </span>
+                            <span className="meter-breakdown-digimon-share muted">
+                              {groupSharePct.toFixed(0)}%
+                            </span>
                           </div>
+                          {group.skills.map((skill) => {
+                            const sharePct =
+                              group.totalDamage > 0
+                                ? (100 * skill.damage) / group.totalDamage
+                                : 0
+                            return (
+                              <div
+                                key={skill.storageKey}
+                                className="meter-breakdown-row meter-breakdown-row--compact meter-breakdown-row--nested"
+                              >
+                                <div
+                                  className="meter-breakdown-bar"
+                                  style={{
+                                    width: `${Math.min(100, sharePct)}%`,
+                                    background: meterBarBackgroundForSkill(skill.skillName),
+                                  }}
+                                  aria-hidden
+                                />
+                                <div className="meter-breakdown-row-grid meter-breakdown-row-grid--compact meter-breakdown-row-grid--skill">
+                                  <span className="meter-breakdown-skill" title={skill.skillName}>
+                                    {skill.iconUrl ? (
+                                      <img
+                                        className="meter-skill-icon"
+                                        src={skill.iconUrl}
+                                        alt=""
+                                        width={22}
+                                        height={22}
+                                      />
+                                    ) : (
+                                      <span
+                                        className="meter-skill-icon meter-skill-icon--empty"
+                                        aria-hidden
+                                      />
+                                    )}
+                                    <span className="meter-breakdown-skill-name">{skill.skillName}</span>
+                                  </span>
+                                  <span className="meter-breakdown-dmg">{formatInt(skill.damage)}</span>
+                                  <span className="meter-breakdown-share">{sharePct.toFixed(0)}</span>
+                                  <span className="meter-breakdown-hits">{skill.hits}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })
@@ -1248,55 +1088,81 @@ export default function MeterApp() {
               </div>
             </section>
           ) : (
-            <section
-              className="meter-breakdown meter-breakdown--compact"
-              aria-label={
-                showingFrozenBreakdown ? 'Damage by skill (last pull, until new hits)' : 'Damage by skill'
-              }
-            >
-              {showingFrozenBreakdown ? (
-                <div className="meter-breakdown-head-inline meter-breakdown-head-inline--meta-only">
-                  <span className="meter-breakdown-meta muted" title="Cleared when new damage arrives">
-                    last
-                  </span>
-                </div>
-              ) : null}
+            <section className="meter-breakdown meter-breakdown--compact meter-party" aria-label="Party DPS">
               <div className="meter-breakdown-table meter-breakdown-table--compact">
-                <div className="meter-breakdown-colhead meter-breakdown-colhead--compact">
-                  <span>Skill</span>
-                  <span className="meter-col-num">Dmg</span>
-                  <span className="meter-col-pct">%</span>
-                  <span className="meter-col-hits">#</span>
+                <div className="meter-breakdown-colhead meter-breakdown-colhead--compact meter-party-colhead">
+                  <span>Tamer</span>
+                  <span className="meter-col-num">DPS</span>
+                  <span className="meter-col-num">Total</span>
+                  <span className="meter-col-hits">s</span>
                 </div>
                 <div className="meter-breakdown-scroll meter-scroll--themed meter-breakdown-scroll--compact">
-                  {skillBreakdown.length === 0 ? (
-                    <p className="meter-breakdown-empty meter-breakdown-empty--compact meter-breakdown-empty-hint muted">
-                      Please ensure BATTLE logs are open and stretched wide enough to avoid entries going into
-                      multiple lines.
+                  {partyListRows.length === 0 ? (
+                    <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
+                      {streamSession.partyId
+                        ? 'Party roster loading… deal damage to populate DPS.'
+                        : 'Connect in-game, join a party, or wait for roster from EventStream.'}
                     </p>
                   ) : (
-                    skillBreakdown.map((row) => {
+                    partyListRows.map((row) => {
+                      const accentKey = row.isSelf && sbUser ? `self:${sbUser.id}` : row.rowKey
+                      const chrome = partyMemberChromeStyle(accentKey)
                       const sharePct =
-                        breakdownDamageTotal > 0 ? (100 * row.damage) / breakdownDamageTotal : 0
+                        partyListDamageSum > 0
+                          ? (100 * Math.max(0, row.total)) / partyListDamageSum
+                          : 0
                       return (
-                        <div key={row.skill} className="meter-breakdown-row meter-breakdown-row--compact">
+                        <button
+                          key={row.rowKey}
+                          type="button"
+                          className="meter-party-member"
+                          style={{
+                            borderLeftWidth: 3,
+                            borderLeftStyle: 'solid',
+                            borderLeftColor: chrome.borderLeftColor,
+                          }}
+                          onClick={() => setPartyDetailKey(row.rowKey)}
+                        >
                           <div
-                            className="meter-breakdown-bar"
+                            className="meter-party-member-bar"
                             style={{
                               width: `${Math.min(100, sharePct)}%`,
-                              background: meterBarBackgroundForSkill(row.skill),
+                              background: partyMemberBarBackground(accentKey),
                             }}
                             aria-hidden
                           />
-                          <div className="meter-breakdown-row-grid meter-breakdown-row-grid--compact">
-                            <span className="meter-breakdown-skill" title={row.skill}>
-                              {row.skill}
+                          <div className="meter-party-member-grid meter-party-member-grid--with-icon">
+                            <span
+                              className="meter-party-name"
+                              title={
+                                row.digimonName
+                                  ? `${row.tamerName} — ${row.digimonName}`
+                                  : row.tamerName
+                              }
+                            >
+                              {row.portraitUrl ? (
+                                <img
+                                  className="meter-party-portrait"
+                                  src={row.portraitUrl}
+                                  alt=""
+                                  width={22}
+                                  height={22}
+                                />
+                              ) : (
+                                <span className="meter-party-portrait meter-party-portrait--empty" aria-hidden />
+                              )}
+                              <span className="meter-party-name-stack">
+                                <span className="meter-party-name-text">{row.tamerName}</span>
+                                {row.digimonName ? (
+                                  <span className="meter-party-digimon">{row.digimonName}</span>
+                                ) : null}
+                              </span>
                             </span>
-                            <span className="meter-breakdown-dmg">{formatInt(row.damage)}</span>
-                            <span className="meter-breakdown-share">{sharePct.toFixed(0)}</span>
-                            <span className="meter-breakdown-hits">{row.hits}</span>
+                            <span className="meter-party-num">{formatInt(row.dps)}</span>
+                            <span className="meter-party-num">{formatInt(row.total)}</span>
+                            <span className="meter-party-num">{row.time.toFixed(0)}</span>
                           </div>
-                        </div>
+                        </button>
                       )
                     })
                   )}
@@ -1350,12 +1216,8 @@ export default function MeterApp() {
                         <button
                           type="button"
                           className="btn primary"
-                          disabled={sbBusy || uploadOnCooldown}
-                          title={
-                            uploadOnCooldown
-                              ? `Cannot upload for ${uploadCooldownSecondsLeft}s`
-                              : undefined
-                          }
+                          disabled={uploadButtonDisabled}
+                          title={uploadDisabledReason ?? undefined}
                           onClick={() => void uploadParse()}
                         >
                           {sbBusy
@@ -1463,127 +1325,12 @@ export default function MeterApp() {
                 </section>
 
                 <section className="field-group">
-                  <h3>Party DPS (live)</h3>
-                  {!supabase ? (
-                    <p className="hint muted" style={{ marginTop: 0 }}>
-                      Cloud features are not enabled in this build. Set <code>VITE_SUPABASE_URL</code> and{' '}
-                      <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env.local</code>, then restart the dev server.
-                    </p>
-                  ) : !sbUser ? (
-                    <p className="hint muted" style={{ marginTop: 0 }}>
-                      Sign in under Online to create or join a party. Everyone uses the same key; the meter
-                      shows live DPS for the group (nothing is written to your parse tables).
-                    </p>
-                  ) : (
-                    <>
-                      <p className="hint muted" style={{ marginTop: 0 }}>
-                        Party keys are not stored on a server: the name is only a Realtime channel. When the last
-                        person leaves, that channel is simply empty—the same characters can be used again anytime
-                        (use a random key if you want a private room). This app clears your saved key when you leave
-                        the party or sign out.
-                      </p>
-                      {partyChannelError ? (
-                        <p className="hint error" style={{ marginTop: 8 }}>
-                          {partyChannelError}
-                        </p>
-                      ) : null}
-                      <label className="check" style={{ marginTop: 10 }}>
-                        <input
-                          type="checkbox"
-                          checked={settings.meterPartyShowSelfDisplayName}
-                          onChange={(e) =>
-                            setSettings((s) => ({
-                              ...s,
-                              meterPartyShowSelfDisplayName: e.target.checked,
-                            }))
-                          }
-                        />
-                        Show display name instead of &quot;You&quot;
-                      </label>
-                      <label className="field">
-                        <span>Party key</span>
-                        <input
-                          className="mono"
-                          type="text"
-                          autoComplete="off"
-                          spellCheck={false}
-                          maxLength={24}
-                          placeholder="ABCD1234"
-                          value={partyKeyDraft}
-                          onChange={(e) => setPartyKeyDraft(e.target.value.toUpperCase())}
-                          readOnly={!!activePartyKey}
-                          aria-readonly={!!activePartyKey}
-                        />
-                      </label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {activePartyKey ? (
-                          <button
-                            type="button"
-                            className="btn ghost"
-                            onClick={() => {
-                              setActivePartyKey(null)
-                              setPartyDetailId(null)
-                              setPartyPeers({})
-                              setPartyKeyDraft('')
-                              setPartyChannelError(null)
-                              try {
-                                sessionStorage.removeItem(SESSION_PARTY_STORAGE_KEY)
-                              } catch {
-                                /* */
-                              }
-                            }}
-                          >
-                            Leave party
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="btn primary"
-                              disabled={!sanitizePartyKey(partyKeyDraft)}
-                              onClick={() => {
-                                const k = sanitizePartyKey(partyKeyDraft)
-                                if (!k) return
-                                setPartyChannelError(null)
-                                setPartyKeyDraft(k)
-                                setActivePartyKey(k)
-                                try {
-                                  sessionStorage.setItem(SESSION_PARTY_STORAGE_KEY, k)
-                                } catch {
-                                  /* */
-                                }
-                              }}
-                            >
-                              Join party
-                            </button>
-                            <button
-                              type="button"
-                              className="btn ghost"
-                              onClick={() => {
-                                const k = createRandomPartyKey()
-                                setPartyKeyDraft(k)
-                                setPartyChannelError(null)
-                                setActivePartyKey(k)
-                                try {
-                                  sessionStorage.setItem(SESSION_PARTY_STORAGE_KEY, k)
-                                } catch {
-                                  /* */
-                                }
-                              }}
-                            >
-                              Create party key
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      {activePartyKey ? (
-                        <p className="hint muted" style={{ marginTop: 8 }}>
-                          In party <code>{activePartyKey}</code>. The meter lists everyone&apos;s DPS; tap a player for
-                          skill breakdown.
-                        </p>
-                      ) : null}
-                    </>
-                  )}
+                  <h3>Party DPS</h3>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    Live party damage comes from the game EventStream API (same WebSocket as the Event Stream
+                    panel). Tamers and digimon portraits are read from the stream; skill breakdown per player
+                    will return when the API exposes it.
+                  </p>
                 </section>
               </aside>
             </div>

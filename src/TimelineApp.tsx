@@ -26,7 +26,8 @@ export default function TimelineApp() {
   const [runSessionActive, setRunSessionActive] = useState(false)
 
   const positionLocked = settings.timelinePositionLocked
-  const titleDragRef = useRef<HTMLDivElement>(null)
+  const titlebarDragRef = useRef<HTMLDivElement>(null)
+  const titlebarRef = useRef<HTMLElement>(null)
   /** Timer + Start / Reset / Lock / minimize / close — one rect for click-through hit-testing. */
   const titlebarActionsRef = useRef<HTMLDivElement>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
@@ -60,6 +61,13 @@ export default function TimelineApp() {
     const off = api.onTimelineAction((action) => {
       if (action === 'toggle') {
         toggleRunClock()
+      } else if (action === 'start') {
+        if (!running) {
+          start()
+          setRunSessionActive(true)
+        }
+      } else if (action === 'stop') {
+        if (running) stop()
       } else {
         resetTimeline()
       }
@@ -86,6 +94,11 @@ export default function TimelineApp() {
     const api = window.odysseyCompanion
     if (!api) return
     const applyFightPayload = (payload: unknown) => {
+      if (payload == null) {
+        setFightPayloadReject(null)
+        setFight(null)
+        return
+      }
       const r = normalizeFightPayloadDetailed(payload)
       if (r.ok) {
         setFightPayloadReject(null)
@@ -159,7 +172,7 @@ export default function TimelineApp() {
 
   /**
    * When position is locked, the window is click-through except over interactive controls:
-   * title drag strip, Start/Pause, Reset, Lock, minimize, close.
+   * full title bar (except buttons), Start/Pause, Reset, Lock, minimize, close.
    * Uses `setIgnoreMouseEvents` in the main process.
    */
   useEffect(() => {
@@ -205,7 +218,7 @@ export default function TimelineApp() {
         ignoreMouseRaf.current = null
         const interactive =
           nearResizeEdge(clientX, clientY) ||
-          inRect(clientX, clientY, titleDragRef.current) ||
+          inRect(clientX, clientY, titlebarRef.current) ||
           inRect(clientX, clientY, titlebarActionsRef.current)
         setIgnore(!interactive)
       })
@@ -249,8 +262,8 @@ export default function TimelineApp() {
       <div
         className={`timeline-backdrop ${ghostChrome ? 'timeline-backdrop--ghost' : ''}`}
       >
-        <header className="titlebar titlebar--timeline">
-          <div ref={titleDragRef} className="titlebar-drag titlebar-drag--inline">
+        <header ref={titlebarRef} className="titlebar titlebar--timeline">
+          <div ref={titlebarDragRef} className="titlebar-drag titlebar-drag--inline">
             <span className="logo-dot" aria-hidden />
             <div className="titlebar-inline-brand">
               <strong className="titlebar-inline-title">Timeline</strong>
@@ -324,7 +337,7 @@ export default function TimelineApp() {
               className={`btn icon ${positionLocked ? 'btn-lock-active' : ''}`}
               title={
                 positionLocked
-                  ? 'Unlock — drag from Timeline title, or use Start / Reset / Lock / minimize / close'
+                  ? 'Unlock — drag from the title bar, or use Start / Reset / Lock / minimize / close'
                   : 'Lock — click-through overlay (except title strip & controls)'
               }
               aria-pressed={positionLocked}
