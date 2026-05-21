@@ -237,6 +237,15 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     return () => ipcRenderer.removeListener('event-stream:status', wrapped)
   },
 
+  supabaseAuthStorageGetItem: (key: string) =>
+    ipcRenderer.invoke('supabase-auth-storage:get', key) as Promise<string | null>,
+
+  supabaseAuthStorageSetItem: (key: string, value: string) =>
+    ipcRenderer.invoke('supabase-auth-storage:set', key, value) as Promise<void>,
+
+  supabaseAuthStorageRemoveItem: (key: string) =>
+    ipcRenderer.invoke('supabase-auth-storage:remove', key) as Promise<void>,
+
   onBossTimerChime: (handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void) => {
     const wrapped = (_evt: unknown, payload: unknown) => {
       if (!payload || typeof payload !== 'object') return

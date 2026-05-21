@@ -287,6 +287,7 @@ function syncRosterMemberRows(session: MeterStreamSession) {
 function ingestHelloLike(session: MeterStreamSession, ev: EventStreamRecord) {
   ingestEventStreamMap(session, ev)
   if (!String(ev.dungeon_id ?? '').trim()) {
+    stopMeterTimerOnDungeonLeave(session, Number(ev.ts) || Date.now())
     leaveDungeonSession(session)
   }
   const tamer = String(ev.tamer ?? '').trim()
@@ -492,6 +493,7 @@ export function applyDungeonProgress(
   const eventMs = Number(ev.ts) || nowMs
 
   if (!dungeonId) {
+    stopMeterTimerOnDungeonLeave(session, eventMs)
     leaveDungeonSession(session)
     return { dungeonId: null, reset: false, needsNameFetch: false, outcome: null }
   }
@@ -535,6 +537,15 @@ function freezeMeterTimer(session: MeterStreamSession, endMs: number) {
   session.sessionEndMs = Math.max(session.sessionStartMs, endMs)
 }
 
+/** Stop the live clock when the player leaves the dungeon (map change, etc.). */
+function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: number) {
+  if (session.sessionStartMs == null || session.sessionEndMs != null) return
+  if (session.dungeonRunActive && session.lastRunOutcome == null) {
+    markDungeonRunFail(session)
+  }
+  freezeMeterTimer(session, eventMs)
+}
+
 function maybeMarkDungeonRunClear(
   session: MeterStreamSession,
   ev: EventStreamRecord,
@@ -555,6 +566,7 @@ function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRec
   const row = block as Record<string, unknown>
   const dungeonId = String(row.dungeon_id ?? '').trim()
   if (!dungeonId) {
+    stopMeterTimerOnDungeonLeave(session, Number(ev.ts) || Date.now())
     leaveDungeonSession(session)
     return
   }
@@ -587,6 +599,8 @@ export function ingestMeterEventStream(
 
   if (t === 'map_change') {
     ingestEventStreamMap(session, ev)
+    const leaveMs = Number(ev.ts) || Date.now()
+    stopMeterTimerOnDungeonLeave(session, leaveMs)
     leaveDungeonSession(session)
   } else if (t === 'dungeon_progress') {
     const r = applyDungeonProgress(session, ev)

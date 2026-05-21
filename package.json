@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -12,8 +12,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "prepare:dps-python": "node scripts/run-prepare-dps-python.mjs",
-    "pack": "npm run prepare:dps-python && npm run build && electron-builder --win",
-    "release": "npm run prepare:dps-python && npm run build && electron-builder --win --publish always",
+    "prepare:icons": "node scripts/generate-app-icon.mjs",
+    "pack": "npm run prepare:icons && npm run prepare:dps-python && npm run build && electron-builder --win",
+    "release": "npm run prepare:icons && npm run prepare:dps-python && npm run build && electron-builder --win --publish always",
     "release:overwrite": "cross-env EP_GH_IGNORE_TIME=true npm run release"
   },
   "dependencies": {
@@ -27,8 +28,10 @@
     "cross-env": "^10.1.0",
     "electron": "^33.2.0",
     "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sharp": "^0.34.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vite-plugin-electron": "^0.29.0",
@@ -38,6 +41,7 @@
     "appId": "gg.mist.odyssey.companion",
     "productName": "Odyssey Companion",
     "copyright": "Copyright © MistGG",
+    "icon": "build/icon.ico",
     "directories": {
       "output": "release"
     },
@@ -73,6 +77,7 @@
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -96,7 +101,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated meter logic to start and reset automatically\n- Added a meter auto upload"
+      "releaseNotes": "- Fixed meter not resetting after exiting the dungeon\n- Login info is now saved\n- App icon added"
     }
   }
 }

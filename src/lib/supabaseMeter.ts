@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { createSupabaseAuthStorage } from './supabaseAuthStorage'
 
 export type MeterHitLike = {
   skill: string
@@ -127,10 +128,13 @@ export function getSupabaseClient(url: string, anonKey: string): SupabaseClient 
   if (cachedClient?.client) {
     void cachedClient.client.removeAllChannels()
   }
+  const authStorage = createSupabaseAuthStorage()
   const client = createClient(u, k, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: false,
+      ...(authStorage ? { storage: authStorage } : {}),
     },
   })
   cachedClient = { url: u, key: k, client }

@@ -31,6 +31,11 @@ import {
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
 import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
+import {
+  supabaseAuthStorageGet,
+  supabaseAuthStorageRemove,
+  supabaseAuthStorageSet,
+} from './supabaseAuthStorage'
 
 /** Set `ODYSSEY_START_PANEL=meter`, `=timers`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
@@ -131,8 +136,8 @@ let tray: Tray | null = null
 let quitting = false
 
 /**
- * Drop your logo here (PNG with transparency recommended): `resources/app-icon.png`
- * at the repo root (next to `package.json`). Used for tray + window/taskbar icons.
+ * Odyssey logo for tray + window taskbar icons.
+ * Source SVG: `resources/app-icon.svg` — run `npm run prepare:icons` to regenerate PNG/ICO.
  */
 function appIconPath(): string {
   if (app.isPackaged) {
@@ -1318,6 +1323,18 @@ async function fetchMarketJson(url: string): Promise<unknown> {
   }
   return res.json() as Promise<unknown>
 }
+
+ipcMain.handle('supabase-auth-storage:get', async (_evt, key: unknown) => {
+  return supabaseAuthStorageGet(typeof key === 'string' ? key : '')
+})
+
+ipcMain.handle('supabase-auth-storage:set', async (_evt, key: unknown, value: unknown) => {
+  await supabaseAuthStorageSet(typeof key === 'string' ? key : '', typeof value === 'string' ? value : '')
+})
+
+ipcMain.handle('supabase-auth-storage:remove', async (_evt, key: unknown) => {
+  await supabaseAuthStorageRemove(typeof key === 'string' ? key : '')
+})
 
 ipcMain.handle('wiki:fetch-dungeons', async () => {
   wikiLog('GET', DUNGEONS_URL)

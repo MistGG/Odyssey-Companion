@@ -8,13 +8,8 @@ import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
+import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { getSupabaseClient, signInEmail, signOut, signUpWithProfile } from './lib/supabaseMeter'
-import {
-  confirmTimerReport,
-  loadTimerAdminReview,
-  restoreTimerHistory,
-  type TimerAdminReviewData,
-} from './lib/bossTimerScheduleSync'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -46,31 +41,6 @@ const NAV: { id: SettingsSectionId; label: string }[] = [
 
 function sectionScrollId(id: SettingsSectionId) {
   return `settings-section-${id}`
-}
-
-function formatAdminTime(value: number | string | null | undefined): string {
-  const ms = typeof value === 'number' ? value : typeof value === 'string' ? Date.parse(value) : NaN
-  if (!Number.isFinite(ms)) return 'Unknown'
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(ms))
-}
-
-function formatAdminDuration(ms: number | null | undefined): string {
-  if (!Number.isFinite(ms ?? NaN)) return 'Unknown'
-  const total = Math.round((ms ?? 0) / 1000)
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return m > 0 ? `${m}m ${s}s` : `${s}s`
-}
-
-function formatScheduleSummary(schedule: TimerAdminReviewData['schedule']): string {
-  if (!schedule) return 'No shared timer'
-  return `${formatAdminTime(schedule.anchor_utc_ms)} · alive ${formatAdminDuration(schedule.alive_window_ms)}`
 }
 
 /** Last nav section whose heading top is at or above a band below the scrollport top — matches manual scroll position. */
@@ -120,11 +90,6 @@ export default function SettingsApp() {
   const [onlineEmail, setOnlineEmail] = useState('')
   const [onlinePassword, setOnlinePassword] = useState('')
   const [onlineDisplayName, setOnlineDisplayName] = useState('')
-  const [timerAdminAllowed, setTimerAdminAllowed] = useState(false)
-  const [timerAdminData, setTimerAdminData] = useState<TimerAdminReviewData | null>(null)
-  const [timerAdminBusy, setTimerAdminBusy] = useState<'load' | string | null>(null)
-  const [timerAdminMsg, setTimerAdminMsg] = useState<string | null>(null)
-
   useEffect(() => {
     const api = window.odysseyCompanion
     if (!api) return
@@ -142,8 +107,11 @@ export default function SettingsApp() {
   useEffect(() => {
     if (!supabase) return
     let cancelled = false
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setOnlineUser(data.user ?? null)
+    void initSupabaseAuth(supabase).then(() => {
+      if (cancelled) return
+      void supabase.auth.getUser().then(({ data }) => {
+        if (!cancelled) setOnlineUser(data.user ?? null)
+      })
     })
     const {
       data: { subscription },
@@ -155,27 +123,6 @@ export default function SettingsApp() {
       subscription.unsubscribe()
     }
   }, [supabase])
-
-  useEffect(() => {
-    setTimerAdminAllowed(false)
-    setTimerAdminData(null)
-    setTimerAdminMsg(null)
-    if (!onlineUser) return
-    let cancelled = false
-    void loadTimerAdminReview().then((result) => {
-      if (cancelled) return
-      if (!result.ok) {
-        setTimerAdminAllowed(false)
-        setTimerAdminData(null)
-        return
-      }
-      setTimerAdminAllowed(true)
-      setTimerAdminData(result.data)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [onlineUser])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -363,57 +310,6 @@ export default function SettingsApp() {
       setOnlineMsg('Signed out.')
     })
   }, [supabase])
-
-  const handleLoadTimerAdmin = useCallback(() => {
-    setTimerAdminBusy('load')
-    setTimerAdminMsg(null)
-    void loadTimerAdminReview().then((result) => {
-      setTimerAdminBusy(null)
-      if (!result.ok) {
-        setTimerAdminData(null)
-        setTimerAdminAllowed(false)
-        setTimerAdminMsg(result.error)
-        return
-      }
-      setTimerAdminAllowed(true)
-      setTimerAdminData(result.data)
-      setTimerAdminMsg('Timer admin data refreshed.')
-    })
-  }, [])
-
-  const handleConfirmTimerReport = useCallback((reportId: string) => {
-    setTimerAdminBusy(`report:${reportId}`)
-    setTimerAdminMsg(null)
-    void confirmTimerReport(reportId).then((result) => {
-      if (!result.ok) {
-        setTimerAdminBusy(null)
-        setTimerAdminMsg(result.error)
-        return
-      }
-      void loadTimerAdminReview().then((refresh) => {
-        setTimerAdminBusy(null)
-        if (refresh.ok) setTimerAdminData(refresh.data)
-        setTimerAdminMsg(refresh.ok ? 'Report confirmed and shared timer updated.' : refresh.error)
-      })
-    })
-  }, [])
-
-  const handleRestoreTimerHistory = useCallback((historyId: string) => {
-    setTimerAdminBusy(`history:${historyId}`)
-    setTimerAdminMsg(null)
-    void restoreTimerHistory(historyId).then((result) => {
-      if (!result.ok) {
-        setTimerAdminBusy(null)
-        setTimerAdminMsg(result.error)
-        return
-      }
-      void loadTimerAdminReview().then((refresh) => {
-        setTimerAdminBusy(null)
-        if (refresh.ok) setTimerAdminData(refresh.data)
-        setTimerAdminMsg(refresh.ok ? 'Schedule restored from history.' : refresh.error)
-      })
-    })
-  }, [])
 
   return (
     <div className="shell shell--settings">
@@ -634,100 +530,6 @@ export default function SettingsApp() {
                   After each Normal or Hard dungeon clear, upload the party parse to the cloud (same as the
                   meter upload button). Requires sign-in. Story runs and failed runs are not uploaded.
                 </p>
-              </section>
-            ) : null}
-
-            {onlineUser && timerAdminAllowed ? (
-              <section className="field-group timer-admin-panel">
-                <div className="timer-admin-panel__head">
-                  <div>
-                    <h3 className="settings-app-subhead">Timer admin</h3>
-                    <p className="hint muted timer-admin-panel__summary">
-                      {timerAdminData
-                        ? `Shared timer: ${formatScheduleSummary(timerAdminData.schedule)}`
-                        : 'Review reports and restore timer history.'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn secondary"
-                    disabled={timerAdminBusy !== null}
-                    onClick={handleLoadTimerAdmin}
-                  >
-                    {timerAdminBusy === 'load' ? 'Loading...' : 'Refresh'}
-                  </button>
-                </div>
-                {timerAdminMsg ? <p className="hint timer-admin-panel__msg">{timerAdminMsg}</p> : null}
-
-                {timerAdminData ? (
-                  <div className="timer-admin-grid">
-                    <div className="timer-admin-card">
-                      <h4>Recent reports</h4>
-                      {timerAdminData.reports.length ? (
-                        <div className="timer-admin-list">
-                          {timerAdminData.reports.slice(0, 8).map((report) => (
-                            <div key={report.id} className="timer-admin-row">
-                              <div className="timer-admin-row__main">
-                                <strong>{report.event_type === 'spawn' ? 'Spawn' : 'Death'} report</strong>
-                                <span>{formatAdminTime(report.observed_utc_ms)}</span>
-                                <span className="muted">
-                                  {report.user_id ? 'Signed-in user' : 'Device report'} · alive{' '}
-                                  {formatAdminDuration(report.alive_window_ms)}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn ghost timer-admin-row__btn"
-                                disabled={timerAdminBusy !== null}
-                                onClick={() => handleConfirmTimerReport(report.id)}
-                              >
-                                {timerAdminBusy === `report:${report.id}` ? 'Confirming...' : 'Confirm'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="hint muted">No crowd reports yet.</p>
-                      )}
-                    </div>
-
-                    <div className="timer-admin-card">
-                      <h4>Schedule history</h4>
-                      {timerAdminData.history.length ? (
-                        <div className="timer-admin-list">
-                          {timerAdminData.history.slice(0, 8).map((history) => (
-                            <div key={history.id} className="timer-admin-row">
-                              <div className="timer-admin-row__main">
-                                <strong>
-                                  {history.source === 'crowd_consensus'
-                                    ? 'Crowd consensus'
-                                    : history.source === 'manual_rollback'
-                                      ? 'Manual restore'
-                                      : 'Admin update'}
-                                </strong>
-                                <span>{formatAdminTime(history.created_at)}</span>
-                                <span className="muted">
-                                  {formatScheduleSummary(history.new_schedule)}
-                                  {history.report_count ? ` · ${history.report_count} reports` : ''}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn ghost timer-admin-row__btn"
-                                disabled={timerAdminBusy !== null}
-                                onClick={() => handleRestoreTimerHistory(history.id)}
-                              >
-                                {timerAdminBusy === `history:${history.id}` ? 'Restoring...' : 'Restore'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="hint muted">No schedule history yet.</p>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
               </section>
             ) : null}
           </section>

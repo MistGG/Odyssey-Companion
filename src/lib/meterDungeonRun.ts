@@ -207,7 +207,6 @@ export function leaveDungeonSession(session: {
   dungeonDifficultyTier: number | null
   dungeonRunActive: boolean
   dungeonBossTargets: string[]
-  sessionEndMs?: number | null
 }) {
   session.dungeonId = null
   session.dungeonName = null
@@ -216,7 +215,6 @@ export function leaveDungeonSession(session: {
   session.dungeonDifficultyTier = null
   session.dungeonRunActive = false
   session.dungeonBossTargets = []
-  if ('sessionEndMs' in session) session.sessionEndMs = null
 }
 
 export function meterRunContextDisplay(session: {

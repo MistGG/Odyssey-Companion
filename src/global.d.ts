@@ -86,6 +86,10 @@ declare global {
       onEventStreamStatus?: (
         handler: (payload: { status: string; detail: string | null }) => void,
       ) => () => void
+      /** Main-process file storage — Supabase auth survives app updates. */
+      supabaseAuthStorageGetItem?: (key: string) => Promise<string | null>
+      supabaseAuthStorageSetItem?: (key: string, value: string) => Promise<void>
+      supabaseAuthStorageRemoveItem?: (key: string) => Promise<void>
     }
   }
 }

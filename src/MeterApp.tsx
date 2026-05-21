@@ -4,6 +4,7 @@ import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
+import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import {
@@ -543,8 +544,11 @@ export default function MeterApp() {
       return
     }
     let cancelled = false
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) setSbUser(data.session?.user ?? null)
+    void initSupabaseAuth(supabase).then(() => {
+      if (cancelled) return
+      void supabase.auth.getSession().then(({ data }) => {
+        if (!cancelled) setSbUser(data.session?.user ?? null)
+      })
     })
     const {
       data: { subscription },
