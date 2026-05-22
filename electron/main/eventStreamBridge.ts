@@ -3,7 +3,7 @@ import { ipcMain } from 'electron'
 import { EventStreamWsClient } from './eventStreamClient'
 
 const RETRY_MS = 3_000
-const CONNECT_TIMEOUT_MS = 5_000
+const CONNECT_TIMEOUT_MS = 8_000
 
 let client: EventStreamWsClient | null = null
 let resolveEventStreamWins: () => BrowserWindow[] = () => []
@@ -13,6 +13,8 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null
 let connectGen = 0
 let currentHost = '127.0.0.1'
 let currentPort = 8766
+/** Suppress `waiting` when we deliberately tear down the socket to reconnect. */
+let intentionalDisconnect = false
 
 function eventStreamTargets(): BrowserWindow[] {
   return resolveEventStreamWins().filter((w) => w && !w.isDestroyed())
@@ -63,8 +65,9 @@ function scheduleRetry(gen: number) {
   }, RETRY_MS)
 }
 
-async function disconnectClient() {
+async function disconnectClient(planned = false) {
   if (!client) return
+  if (planned) intentionalDisconnect = true
   const c = client
   client = null
   c.onText = null
@@ -78,16 +81,18 @@ function wireClient(next: EventStreamWsClient, gen: number) {
   next.onClose = () => {
     if (client !== next) return
     client = null
-    if (loopActive && gen === connectGen) {
+    const planned = intentionalDisconnect
+    intentionalDisconnect = false
+    if (loopActive && gen === connectGen && !planned) {
       broadcastStatus('waiting', null)
       scheduleRetry(gen)
-    } else {
+    } else if (!loopActive) {
       broadcastStatus('idle', null)
     }
   }
   next.onError = () => {
     if (client !== next) return
-    void disconnectClient()
+    void disconnectClient(true)
     if (loopActive && gen === connectGen) {
       broadcastStatus('waiting', null)
       scheduleRetry(gen)
@@ -99,7 +104,7 @@ async function runConnectAttempt(gen: number): Promise<void> {
   if (!loopActive || gen !== connectGen) return
 
   broadcastStatus('connecting', null)
-  await disconnectClient()
+  await disconnectClient(true)
   if (!loopActive || gen !== connectGen) return
 
   const next = new EventStreamWsClient()
@@ -112,6 +117,7 @@ async function runConnectAttempt(gen: number): Promise<void> {
       return
     }
     client = next
+    intentionalDisconnect = false
     broadcastStatus('connected', null)
   } catch {
     next.disconnect()
@@ -122,8 +128,15 @@ async function runConnectAttempt(gen: number): Promise<void> {
 }
 
 function startConnectionLoop(host: string, port: number) {
+  const sameEndpoint =
+    loopActive && client?.isConnected && host === currentHost && port === currentPort
+  if (sameEndpoint) {
+    broadcastStatus('connected', null)
+    return
+  }
+
   cancelRetryLoop()
-  void disconnectClient()
+  void disconnectClient(true)
   loopActive = true
   currentHost = host
   currentPort = port
@@ -149,7 +162,7 @@ export function registerEventStreamBridge(getWins: () => BrowserWindow[]) {
 
   ipcMain.handle('event-stream:disconnect', async () => {
     cancelRetryLoop()
-    await disconnectClient()
+    await disconnectClient(true)
     broadcastStatus('idle', null)
     return { ok: true as const }
   })
@@ -175,6 +188,6 @@ export function registerEventStreamBridge(getWins: () => BrowserWindow[]) {
 
 export async function shutdownEventStreamBridge() {
   cancelRetryLoop()
-  await disconnectClient()
+  await disconnectClient(true)
   broadcastStatus('idle', null)
 }

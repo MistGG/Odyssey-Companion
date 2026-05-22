@@ -206,6 +206,11 @@ export default function MeterApp() {
   const reconnectEventStream = useCallback(() => {
     const api = window.odysseyCompanion
     if (!api?.connectEventStream) return
+    if (eventStreamConnectedRef.current) {
+      requestPartyRosterSync()
+      void api.sendEventStreamQuery?.('all')
+      return
+    }
     const { host, port } = readEventStreamEndpoint()
     setReaderHint('Waiting for game…')
     void api.connectEventStream(host, port)
@@ -1107,9 +1112,13 @@ export default function MeterApp() {
                 <div className="meter-breakdown-scroll meter-scroll--themed meter-breakdown-scroll--compact">
                   {partyListRows.length === 0 ? (
                     <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
-                      {streamSession.partyId
-                        ? 'Party roster loading… deal damage to populate DPS.'
-                        : 'Waiting for party data from the game…'}
+                      {!eventStreamConnected
+                        ? 'Waiting for game…'
+                        : streamSession.selfTamerName?.trim()
+                          ? 'Deal damage to populate DPS.'
+                          : streamSession.partyId
+                            ? 'Party roster loading… deal damage to populate DPS.'
+                            : 'Waiting for party data…'}
                     </p>
                   ) : (
                     partyListRows.map((row) => {

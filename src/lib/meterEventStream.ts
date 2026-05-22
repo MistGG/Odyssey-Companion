@@ -23,7 +23,12 @@ import {
   type MeterDungeonRunOutcome,
 } from './meterDungeonRun'
 import type { DigimonWikiSkillCache, MeterSkillRow } from './meterWikiSkills'
-import { digimonIdFromStorage, digimonPortraitUrl, recordMeterSkillHit } from './meterWikiSkills'
+import {
+  digimonIdFromStorage,
+  digimonPortraitUrl,
+  recordMeterSkillHit,
+  syncMemberLatestDigimonPresentation,
+} from './meterWikiSkills'
 
 export type MeterSkillBreakdownRow = MeterSkillRow
 
@@ -116,13 +121,13 @@ export function putRosterAliases(
   const t = tamerName.trim()
   const official = officialDigimonName.trim()
   const icon = iconId.trim()
-  if (!t && !official && aliases.length === 0) return
+  if (!t) return
   const entry = {
-    tamerName: t || official || aliases[0]?.trim() || '',
+    tamerName: t,
     digimonName: official,
     iconId: icon,
   }
-  if (t) session.rosterByAlias.set(normKey(t), entry)
+  session.rosterByAlias.set(normKey(t), entry)
   if (official) session.rosterByAlias.set(normKey(official), entry)
   for (const raw of aliases) {
     const a = raw.trim()
@@ -136,6 +141,121 @@ function resolveTamerFromRoster(session: MeterStreamSession, aliases: string[]):
     if (hit?.tamerName) return hit.tamerName
   }
   return ''
+}
+
+/** Resolve combat attribution to a real tamer name (never a digimon nickname alone). */
+function canonicalPartyTamerKey(
+  session: MeterStreamSession,
+  candidate: string,
+  digimonFromHit = '',
+): string {
+  const tryNames = [candidate.trim(), digimonFromHit.trim()].filter(Boolean)
+  for (const name of tryNames) {
+    const alias = session.rosterByAlias.get(normKey(name))
+    if (alias?.tamerName.trim()) return alias.tamerName.trim()
+    const byTamerKey = session.rosterMembers.get(normKey(name))
+    if (byTamerKey?.tamerName.trim()) return byTamerKey.tamerName.trim()
+    for (const snap of session.rosterMembers.values()) {
+      if (snap.digimonNickname && normKey(snap.digimonNickname) === normKey(name)) {
+        return snap.tamerName.trim()
+      }
+      if (snap.digimonName && normKey(snap.digimonName) === normKey(name)) {
+        return snap.tamerName.trim()
+      }
+    }
+  }
+  if (session.selfTamerName?.trim()) {
+    const self = session.selfTamerName.trim()
+    if (tryNames.some((n) => normKey(n) === normKey(self))) return self
+    const nick = session.selfDigimonNickname?.trim()
+    const species = session.selfDigimonName?.trim()
+    if (nick && tryNames.some((n) => normKey(n) === normKey(nick))) return self
+    if (species && tryNames.some((n) => normKey(n) === normKey(species))) return self
+  }
+  const c = candidate.trim()
+  if (c && session.rosterMembers.has(normKey(c))) {
+    return session.rosterMembers.get(normKey(c))!.tamerName.trim()
+  }
+  return ''
+}
+
+function reconcileMemberRowsWithRoster(session: MeterStreamSession) {
+  for (const row of [...session.members.values()]) {
+    const alias = session.rosterByAlias.get(normKey(row.tamerName))
+    if (alias?.tamerName.trim() && normKey(alias.tamerName) !== row.key) {
+      const targetKey = normKey(alias.tamerName)
+      const existing = session.members.get(targetKey)
+      if (existing) mergeMemberIntoCanonical(session, row.key, targetKey)
+      else {
+        session.members.delete(row.key)
+        row.tamerName = alias.tamerName.trim()
+        row.key = targetKey
+        session.members.set(targetKey, row)
+      }
+      continue
+    }
+    let snap =
+      session.rosterMembers.get(row.key) ??
+      [...session.rosterMembers.values()].find((s) => normKey(s.tamerName) === row.key)
+    if (!snap) {
+      snap = [...session.rosterMembers.values()].find(
+        (s) =>
+          normKey(s.digimonNickname) === normKey(row.tamerName) ||
+          (s.digimonName && normKey(s.digimonName) === normKey(row.tamerName)),
+      )
+      if (snap) {
+        const targetKey = normKey(snap.tamerName)
+        const existing = session.members.get(targetKey)
+        if (existing && targetKey !== row.key) {
+          mergeMemberIntoCanonical(session, row.key, targetKey)
+          continue
+        }
+        if (targetKey !== row.key) {
+          session.members.delete(row.key)
+          row.key = targetKey
+          session.members.set(targetKey, row)
+        }
+      }
+    }
+    if (!snap) continue
+    row.tamerName = snap.tamerName
+    if (snap.digimonName.trim()) row.digimonName = snap.digimonName.trim()
+    else if (snap.digimonNickname.trim() && !row.digimonName.trim()) {
+      row.digimonName = snap.digimonNickname.trim()
+    }
+    if (snap.digimonId.trim()) row.digimonId = snap.digimonId.trim()
+    const portraitId = snap.iconId.trim() || streamIconIdForDigimon(session, row.digimonId) || ''
+    if (portraitId) {
+      row.iconId = portraitId
+      row.portraitUrl = portraitUrlForIcon(portraitId)
+    }
+    if (snap.isSelf) row.isSelf = true
+  }
+}
+
+function mergeMemberIntoCanonical(
+  session: MeterStreamSession,
+  sourceKey: string,
+  targetKey: string,
+) {
+  if (sourceKey === targetKey) return
+  const src = session.members.get(sourceKey)
+  const dst = session.members.get(targetKey)
+  if (!src || !dst) return
+  dst.totalDamage += src.totalDamage
+  if (dst.firstHitMs == null) dst.firstHitMs = src.firstHitMs
+  else if (src.firstHitMs != null) dst.firstHitMs = Math.min(dst.firstHitMs, src.firstHitMs)
+  for (const [skillKey, hit] of src.skills) {
+    const prev = dst.skills.get(skillKey)
+    if (prev) {
+      prev.damage += hit.damage
+      prev.hits += hit.hits
+    } else {
+      dst.skills.set(skillKey, { ...hit })
+    }
+  }
+  if (src.isSelf) dst.isSelf = true
+  session.members.delete(sourceKey)
 }
 
 function portraitUrlForIcon(iconId: string): string {
@@ -190,8 +310,11 @@ function upsertMember(
     const idChanged = Boolean(nextId && normKey(row.digimonId) !== normKey(nextId))
     if (nextId) row.digimonId = nextId
     if (opts.iconId?.trim()) {
-      row.iconId = opts.iconId.trim()
-      row.portraitUrl = portraitUrlForIcon(row.iconId)
+      const nextIcon = opts.iconId.trim()
+      if (nextIcon !== row.iconId) {
+        row.iconId = nextIcon
+        row.portraitUrl = portraitUrlForIcon(nextIcon)
+      }
     } else if (idChanged) {
       row.iconId = ''
       row.portraitUrl = ''
@@ -267,8 +390,10 @@ function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
       iconId: snap.iconId,
       isSelf: snap.isSelf,
     })
+    syncMemberLatestDigimonPresentation(memberRow, snap, undefined, snap.iconId)
     finalizeMemberAfterDigimonChange(session, memberRow)
   }
+  reconcileMemberRowsWithRoster(session)
 }
 
 function syncRosterMemberRows(session: MeterStreamSession) {
@@ -280,6 +405,7 @@ function syncRosterMemberRows(session: MeterStreamSession) {
       iconId: snap.iconId,
       isSelf: snap.isSelf,
     })
+    syncMemberLatestDigimonPresentation(memberRow, snap, undefined, snap.iconId)
     finalizeMemberAfterDigimonChange(session, memberRow)
   }
 }
@@ -294,20 +420,61 @@ function ingestHelloLike(session: MeterStreamSession, ev: EventStreamRecord) {
   const nickname = String(ev.digimon ?? '').trim()
   const digimonId = String(ev.digimon_id ?? '').trim()
   const iconId = String(ev.icon_id ?? '').trim()
+  const isDigimonChange = String(ev.type ?? '') === 'digimon_change'
   if (tamer) session.selfTamerName = tamer
   if (nickname) session.selfDigimonNickname = nickname
   if (digimonId) session.selfDigimonId = digimonId
   if (iconId) session.selfIconId = iconId
-  putRosterAliases(session, tamer, session.selfDigimonName ?? '', iconId, [nickname])
+
+  const displaySpecies = session.selfDigimonName?.trim() || nickname
   if (tamer) {
+    putRosterAliases(session, tamer, displaySpecies, iconId, [nickname])
+  }
+
+  if (session.selfTamerName) {
+    const selfKey = normKey(session.selfTamerName)
+    let snap = session.rosterMembers.get(selfKey)
+    if (!snap) {
+      snap = {
+        memberKey: selfKey,
+        tamerName: session.selfTamerName,
+        digimonName: displaySpecies,
+        digimonNickname: nickname,
+        digimonId,
+        iconId,
+        slot: null,
+        isSelf: true,
+        isLeader: false,
+      }
+      session.rosterMembers.set(selfKey, snap)
+    } else {
+      if (digimonId) snap.digimonId = digimonId
+      if (iconId) snap.iconId = iconId
+      if (nickname) snap.digimonNickname = nickname
+      if (displaySpecies && !snap.digimonName.trim()) snap.digimonName = displaySpecies
+    }
+
     const memberRow = upsertMember(session, {
-      tamerName: tamer,
-      digimonName: session.selfDigimonName ?? '',
+      tamerName: session.selfTamerName,
+      digimonName: displaySpecies,
       digimonId,
       iconId,
       isSelf: true,
     })
-    finalizeMemberAfterDigimonChange(session, memberRow)
+    syncMemberLatestDigimonPresentation(memberRow, snap, undefined, iconId)
+    if (isDigimonChange) {
+      memberRow.digimonId = digimonId || memberRow.digimonId
+      if (iconId) {
+        memberRow.iconId = iconId
+        memberRow.portraitUrl = portraitUrlForIcon(iconId)
+      }
+      if (nickname && !session.selfDigimonName?.trim()) {
+        memberRow.digimonName = nickname
+      }
+    } else {
+      finalizeMemberAfterDigimonChange(session, memberRow)
+    }
+    reconcileMemberRowsWithRoster(session)
   }
 }
 
@@ -381,10 +548,15 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
   if (!tamerName && digimonFromHit) {
     tamerName = resolveTamerFromRoster(session, [digimonFromHit])
   }
-  if (!tamerName && digimonFromHit) {
-    tamerName = digimonFromHit
+  if (!tamerName && fromSelf && session.selfTamerName) {
+    tamerName = session.selfTamerName
   }
-  if (!tamerName && session.selfTamerName) {
+  if (!tamerName && session.selfTamerName && session.rosterMembers.size === 0) {
+    tamerName = session.selfTamerName
+  }
+
+  tamerName = canonicalPartyTamerKey(session, tamerName, digimonFromHit)
+  if (fromSelf && session.selfTamerName) {
     tamerName = session.selfTamerName
   }
 
@@ -691,6 +863,7 @@ export function ingestMeterEventStream(
 
     const who = resolveAttacker(session, ev)
     if (who.tamerName) {
+      const canonKey = normKey(who.tamerName)
       const row = upsertMember(session, {
         tamerName: who.tamerName,
         digimonName: who.digimonName,
@@ -698,11 +871,23 @@ export function ingestMeterEventStream(
         iconId: who.iconId,
         isSelf: who.isSelf,
       })
+      if (row.key !== canonKey) {
+        const existing = session.members.get(canonKey)
+        if (existing) {
+          mergeMemberIntoCanonical(session, row.key, canonKey)
+        } else {
+          session.members.delete(row.key)
+          row.key = canonKey
+          row.tamerName = who.tamerName
+          session.members.set(canonKey, row)
+        }
+      }
       if (row.firstHitMs == null) row.firstHitMs = now
       row.totalDamage += dmg
       const cache = wikiCacheForDigimon(session, who.digimonId)
       recordMeterSkillHit(row, ev, cache, dmg, who.digimonId)
     }
+    reconcileMemberRowsWithRoster(session)
   }
 
   return { session, dungeonId, dungeonReset, runOutcome, sessionStarted }
@@ -837,13 +1022,16 @@ export function applyMemberPortraitForDigimon(
   member: MeterPartyMemberRow,
 ) {
   const id = member.digimonId.trim()
+  const snap = session.rosterMembers.get(member.key)
   const portraitId = id
-    ? streamIconIdForDigimon(session, id) || session.wikiByDigimonId.get(id)?.modelId.trim() || ''
-    : ''
+    ? streamIconIdForDigimon(session, id) ||
+      snap?.iconId.trim() ||
+      session.wikiByDigimonId.get(id)?.modelId.trim() ||
+      ''
+    : snap?.iconId.trim() || ''
   member.iconId = portraitId
   member.portraitUrl = portraitUrlForIcon(portraitId)
 
-  const snap = session.rosterMembers.get(member.key)
   if (snap && id && normKey(snap.digimonId) === normKey(id)) {
     snap.iconId = portraitId
   }
