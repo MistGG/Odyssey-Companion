@@ -37,6 +37,7 @@ import {
 import { fetchDungeonDetail } from './lib/dungeonDetailApi'
 import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDifficultyTags'
 import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
+import { userFacingAuthError, userFacingUploadError } from './lib/userFacingMessages'
 import {
   onTimelineBossCleared,
   onTimelineBossEngaged,
@@ -173,10 +174,9 @@ export default function MeterApp() {
     [applyWikiCache],
   )
 
-  const [readerError, setReaderError] = useState<string | null>(null)
   const [readerHint, setReaderHint] = useState<string | null>(null)
-  /** Distinct from errors: warning = offsets/patch likely; info = normal status line. */
-  const [readerHintKind, setReaderHintKind] = useState<'info' | 'warning'>('info')
+  const [eventStreamConnected, setEventStreamConnected] = useState(false)
+  const eventStreamConnectedRef = useRef(false)
 
   const [sbUser, setSbUser] = useState<User | null>(null)
   const [sbMsg, setSbMsg] = useState<string | null>(null)
@@ -203,9 +203,20 @@ export default function MeterApp() {
     void window.odysseyCompanion?.resetMeterSession?.()
   }, [bumpStream])
 
+  const reconnectEventStream = useCallback(() => {
+    const api = window.odysseyCompanion
+    if (!api?.connectEventStream) return
+    const { host, port } = readEventStreamEndpoint()
+    setReaderHint('Waiting for game…')
+    void api.connectEventStream(host, port)
+  }, [])
+
   const resetSession = useCallback(() => {
-    clearLocalSessionState()
-  }, [clearLocalSessionState])
+    reconnectEventStream()
+    if (eventStreamConnectedRef.current) {
+      clearLocalSessionState()
+    }
+  }, [clearLocalSessionState, reconnectEventStream])
 
   const positionLocked = settings.meterPositionLocked
 
@@ -406,9 +417,7 @@ export default function MeterApp() {
     const { host, port } = readEventStreamEndpoint()
     let disposed = false
 
-    setReaderHintKind('info')
-    setReaderHint('Connecting to EventStream…')
-    setReaderError(null)
+    setReaderHint('Waiting for game…')
 
     const offMsg = api.onEventStreamMessage(({ event }) => {
       const ev = event as EventStreamRecord
@@ -499,31 +508,23 @@ export default function MeterApp() {
 
     const offStatus = api.onEventStreamStatus?.((payload) => {
       const status = String(payload.status ?? '')
-      const detail = payload.detail?.trim() ?? ''
-      if (status === 'connected') {
-        setReaderError(null)
+      const connected = status === 'connected'
+      eventStreamConnectedRef.current = connected
+      setEventStreamConnected(connected)
+      if (connected) {
         setReaderHint(null)
         void api.sendEventStreamQuery?.('party')
         void api.sendEventStreamQuery?.('all')
       } else if (status === 'connecting') {
-        setReaderHintKind('info')
-        setReaderHint(detail || 'Connecting…')
-      } else if (status === 'error') {
-        setReaderError(detail || 'EventStream connection failed')
-        setReaderHint(null)
+        setReaderHint('Connecting…')
       } else if (status === 'idle') {
-        setReaderHintKind('info')
-        setReaderHint(detail || 'Disconnected')
+        setReaderHint(null)
+      } else {
+        setReaderHint('Waiting for game…')
       }
     })
 
-    void api.connectEventStream(host, port).then((r) => {
-      if (disposed) return
-      if (!r.ok) {
-        setReaderError(r.error ?? 'Could not connect to EventStream')
-        setReaderHint(null)
-      }
-    })
+    void api.connectEventStream(host, port)
 
     return () => {
       disposed = true
@@ -686,7 +687,7 @@ export default function MeterApp() {
         dungeon,
         members,
       })
-      if (error) setSbMsg(error)
+      if (error) setSbMsg(userFacingUploadError(error))
       else {
         const diff = dungeon.difficulty || 'dungeon'
         setSbMsg(
@@ -835,8 +836,10 @@ export default function MeterApp() {
               ref={resetBtnRef}
               type="button"
               className="btn meter-icon-tile"
-              title="RESET"
-              aria-label="RESET"
+              title={eventStreamConnected ? 'Reset session' : 'Connect to game'}
+              aria-label={
+                eventStreamConnected ? 'Reset session' : 'Connect to game'
+              }
               onClick={resetSession}
             >
               <svg
@@ -891,24 +894,8 @@ export default function MeterApp() {
         ) : null}
 
         <main ref={meterBodyRef} className="meter-body meter-body--compact">
-          {readerError ? (
-            <p className="meter-banner meter-banner--error meter-banner--compact" role="alert">
-              {readerError}
-              <span className="muted meter-banner-sub">
-                {' '}
-                Start the game EventStream bridge on{' '}
-                <code>
-                  ws://{readEventStreamEndpoint().host}:{readEventStreamEndpoint().port}
-                </code>
-                . Host/port match the Event Stream panel in Companion.
-              </span>
-            </p>
-          ) : null}
-          {!readerError && readerHint ? (
-            <p
-              className={`meter-banner meter-banner--${readerHintKind} muted meter-banner--compact`}
-              role={readerHintKind === 'warning' ? 'status' : undefined}
-            >
+          {readerHint ? (
+            <p className="meter-banner meter-banner--info muted meter-banner--compact" role="status">
               {readerHint}
             </p>
           ) : null}
@@ -1122,7 +1109,7 @@ export default function MeterApp() {
                     <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
                       {streamSession.partyId
                         ? 'Party roster loading… deal damage to populate DPS.'
-                        : 'Connect in-game, join a party, or wait for roster from EventStream.'}
+                        : 'Waiting for party data from the game…'}
                     </p>
                   ) : (
                     partyListRows.map((row) => {
@@ -1221,9 +1208,7 @@ export default function MeterApp() {
                   <h3>Cloud parse uploads</h3>
                   {!supabase ? (
                     <p className="hint muted" style={{ marginTop: 0 }}>
-                      Cloud sync is not enabled in this build. For development, set{' '}
-                      <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in{' '}
-                      <code>.env.local</code> at the project root, then restart the dev server.
+                      Cloud uploads are not available in this build.
                     </p>
                   ) : sbUser ? (
                     <>
@@ -1302,7 +1287,7 @@ export default function MeterApp() {
                             setSbMsg(null)
                             void signInEmail(supabase, authEmail, authPassword).then(({ error }) => {
                               setSbBusy(false)
-                              if (error) setSbMsg(error)
+                              if (error) setSbMsg(userFacingAuthError(error))
                               else setSbMsg('Signed in.')
                             })
                           }}
@@ -1324,7 +1309,7 @@ export default function MeterApp() {
                               authDisplayName,
                             ).then(({ error }) => {
                               setSbBusy(false)
-                              if (error) setSbMsg(error)
+                              if (error) setSbMsg(userFacingAuthError(error))
                               else {
                                 setSbMsg(
                                   'Account created. Confirm email, then sign in.',
@@ -1345,14 +1330,6 @@ export default function MeterApp() {
                   ) : null}
                 </section>
 
-                <section className="field-group">
-                  <h3>Party DPS</h3>
-                  <p className="hint muted" style={{ marginTop: 0 }}>
-                    Live party damage comes from the game EventStream API (same WebSocket as the Event Stream
-                    panel). Tamers and digimon portraits are read from the stream; skill breakdown per player
-                    will return when the API exposes it.
-                  </p>
-                </section>
               </aside>
             </div>
           </>

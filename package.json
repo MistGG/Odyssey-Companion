@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -101,7 +101,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed meter not resetting after exiting the dungeon\n- Login info is now saved\n- App icon added"
+      "releaseNotes": "- Added auto-retry to connect to the client in case there was no initial connection\n- Clicking the refresh icon on the meter will trigger this manually if there is no connection either"
     }
   }
 }

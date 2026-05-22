@@ -9,6 +9,7 @@ import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
+import { userFacingAuthError } from './lib/userFacingMessages'
 import { getSupabaseClient, signInEmail, signOut, signUpWithProfile } from './lib/supabaseMeter'
 import {
   normalizeSettingsSection,
@@ -287,7 +288,7 @@ export default function SettingsApp() {
     setOnlineMsg(null)
     void signInEmail(supabase, onlineEmail, onlinePassword).then(({ error }) => {
       setOnlineBusy(false)
-      setOnlineMsg(error ?? 'Signed in.')
+      setOnlineMsg(error ? userFacingAuthError(error) : 'Signed in.')
     })
   }, [onlineEmail, onlinePassword, supabase])
 
@@ -297,7 +298,11 @@ export default function SettingsApp() {
     setOnlineMsg(null)
     void signUpWithProfile(supabase, onlineEmail, onlinePassword, onlineDisplayName).then(({ error }) => {
       setOnlineBusy(false)
-      setOnlineMsg(error ?? 'Account created. Check your email if confirmation is enabled, then sign in.')
+      setOnlineMsg(
+        error
+          ? userFacingAuthError(error)
+          : 'Account created. Check your email if confirmation is enabled, then sign in.',
+      )
     })
   }, [onlineDisplayName, onlineEmail, onlinePassword, supabase])
 
@@ -456,8 +461,7 @@ export default function SettingsApp() {
               <h3 className="settings-app-subhead">Account</h3>
               {!supabase ? (
                 <p className="hint muted" style={{ marginTop: 0 }}>
-                  Online features are not enabled in this build. Set <code>VITE_SUPABASE_URL</code> and{' '}
-                  <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env.local</code>, then restart the app.
+                  Online sign-in and uploads are not available in this build.
                 </p>
               ) : onlineUser ? (
                 <>
