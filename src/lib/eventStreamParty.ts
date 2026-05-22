@@ -72,6 +72,29 @@ function normKey(s: string): string {
   return s.trim().toLowerCase()
 }
 
+const GARBAGE_LABEL_KEYS = new Set(['[object object]', 'undefined', 'null'])
+
+export function isGarbageStreamLabel(name: string): boolean {
+  const n = normKey(name)
+  return !n || GARBAGE_LABEL_KEYS.has(n)
+}
+
+/** EventStream often sends `{ name: "Tamer" }` instead of a plain string. */
+export function extractStreamEntityLabel(value: unknown): string {
+  if (typeof value === 'string') {
+    const s = value.trim()
+    return isGarbageStreamLabel(s) ? '' : s
+  }
+  if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>
+    for (const key of ['name', 'tamer', 'tamer_name', 'display_name', 'label', 'title']) {
+      const s = extractStreamEntityLabel(o[key])
+      if (s) return s
+    }
+  }
+  return ''
+}
+
 function memberKeyFromTamer(tamerName: string, memberId?: string): string {
   const id = memberId?.trim()
   if (id) return normKey(id)
@@ -84,7 +107,8 @@ export function parsePartyMemberAddedEvent(
   selfTamer = '',
 ): PartyMemberSnapshot | null {
   if (String(ev.type ?? '') !== 'party_member_added') return null
-  const tamerName = String(ev.tamer ?? ev.tamer_name ?? '').trim()
+  const tamerName =
+    extractStreamEntityLabel(ev.tamer) || String(ev.tamer_name ?? '').trim()
   const digimonNickname = String(ev.name ?? ev.digimon ?? ev.digimon_name ?? '').trim()
   if (!tamerName) return null
   const memberId = String(ev.member_id ?? ev.id ?? '').trim()
@@ -164,7 +188,6 @@ function parseMemberRow(
     tamerName = o.name.trim()
   }
 
-  if (!tamerName && digimonNickname) tamerName = digimonNickname
   if (!tamerName) return null
 
   const isSelf =
@@ -224,15 +247,20 @@ export function extractPartyId(ev: EventStreamRecord): string | null {
 }
 
 export function extractPartyTamerFromCombat(ev: EventStreamRecord): string {
-  const direct = String(
-    ev.tamer ?? ev.tamer_name ?? ev.hitter_tamer ?? ev.attacker_tamer ?? ev.member_tamer ?? '',
-  ).trim()
-  if (direct) return direct
+  let direct = extractStreamEntityLabel(ev.tamer)
+  if (!direct) {
+    direct = String(
+      ev.tamer_name ?? ev.hitter_tamer ?? ev.attacker_tamer ?? ev.member_tamer ?? '',
+    ).trim()
+  }
+  if (direct && !isGarbageStreamLabel(direct)) return direct
 
   if (ev.member && typeof ev.member === 'object') {
     const m = ev.member as Record<string, unknown>
-    const name = String(m.tamer ?? m.tamer_name ?? m.name ?? '').trim()
-    if (name) return name
+    const name =
+      extractStreamEntityLabel(m.tamer) ||
+      String(m.tamer_name ?? m.name ?? '').trim()
+    if (name && !isGarbageStreamLabel(name)) return name
   }
 
   return ''

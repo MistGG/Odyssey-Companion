@@ -137,7 +137,7 @@ let quitting = false
 
 /**
  * Odyssey logo for tray + window taskbar icons.
- * Source SVG: `resources/app-icon.svg` — run `npm run prepare:icons` to regenerate PNG/ICO.
+ * Source: `resources/app-icon-source.png` (or `.svg`) — run `npm run prepare:icons` to regenerate PNG/ICO.
  */
 function appIconPath(): string {
   if (app.isPackaged) {

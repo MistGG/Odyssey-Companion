@@ -79,12 +79,12 @@ export function combatHitStartsMeterTimer(
   session: { dungeonId: string | null; dungeonBossTargets: readonly string[] },
   ev: EventStreamRecord,
 ): boolean {
+  const inBossGatedDungeon =
+    Boolean(session.dungeonId?.trim()) && session.dungeonBossTargets.length > 0
+  if (!inBossGatedDungeon) return true
   const victim = String(ev.target ?? '').trim()
   if (!victim) return false
-  if (session.dungeonId?.trim() && session.dungeonBossTargets.length) {
-    return combatVictimIsDungeonBoss(victim, session.dungeonBossTargets)
-  }
-  return true
+  return combatVictimIsDungeonBoss(victim, session.dungeonBossTargets)
 }
 
 function objectiveRows(source: EventStreamRecord | unknown[]): unknown[] {

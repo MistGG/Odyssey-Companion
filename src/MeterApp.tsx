@@ -14,8 +14,15 @@ import {
   signOut,
   signUpWithProfile,
 } from './lib/supabaseMeter'
-import { partyMemberBarBackground, partyMemberChromeStyle } from './lib/meterPartyColor'
+import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
+import { isGarbageStreamLabel } from './lib/eventStreamParty'
+import {
+  isMeterDebugEnabled,
+  meterDebugClear,
+  meterDebugDump,
+  setMeterDebugEnabled,
+} from './lib/meterDebugLog'
 import {
   DEFAULT_EVENT_STREAM_HOST,
   DEFAULT_EVENT_STREAM_PORT,
@@ -28,6 +35,7 @@ import {
   createMeterStreamSession,
   ingestMeterEventStream,
   meterMemberSkillBreakdownByDigimon,
+  meterNeedsPartyIdentity,
   meterPartyRows,
   meterRunContextDisplay,
   rosterDigimonIds,
@@ -80,6 +88,12 @@ function readEventStreamEndpoint(): { host: string; port: number } {
 
 function requestPartyRosterSync() {
   void window.odysseyCompanion?.sendEventStreamQuery?.('party')
+}
+
+function requestEventStreamQueries() {
+  const api = window.odysseyCompanion
+  void api?.sendEventStreamQuery?.('party')
+  void api?.sendEventStreamQuery?.('all')
 }
 
 function clearStreamCombat(session: MeterStreamSession) {
@@ -177,6 +191,21 @@ export default function MeterApp() {
   const [readerHint, setReaderHint] = useState<string | null>(null)
   const [eventStreamConnected, setEventStreamConnected] = useState(false)
   const eventStreamConnectedRef = useRef(false)
+  const partySyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const partySyncStaggerTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const schedulePartySyncIfNeeded = useCallback((reason: string) => {
+    if (!eventStreamConnectedRef.current) return
+    if (!meterNeedsPartyIdentity(streamRef.current)) return
+    if (partySyncDebounceRef.current) clearTimeout(partySyncDebounceRef.current)
+    partySyncDebounceRef.current = window.setTimeout(() => {
+      partySyncDebounceRef.current = null
+      if (!eventStreamConnectedRef.current) return
+      if (!meterNeedsPartyIdentity(streamRef.current)) return
+      requestEventStreamQueries()
+      if (isMeterDebugEnabled()) meterDebugLog(`party sync (${reason})`)
+    }, 350)
+  }, [])
 
   const [sbUser, setSbUser] = useState<User | null>(null)
   const [sbMsg, setSbMsg] = useState<string | null>(null)
@@ -194,6 +223,27 @@ export default function MeterApp() {
   const streamSession = streamRef.current
   void streamRev
 
+  useEffect(() => {
+    if (!eventStreamConnected) return
+    const mapKey = `${streamSession.mapId ?? ''}\0${streamSession.mapName ?? ''}`
+    if (!mapKey.replace(/\0/g, '').trim()) return
+    schedulePartySyncIfNeeded('map-visible')
+  }, [
+    eventStreamConnected,
+    streamRev,
+    streamSession.mapId,
+    streamSession.mapName,
+    schedulePartySyncIfNeeded,
+  ])
+
+  useEffect(() => {
+    if (!eventStreamConnected) return
+    const id = window.setInterval(() => {
+      schedulePartySyncIfNeeded('watchdog')
+    }, 5000)
+    return () => window.clearInterval(id)
+  }, [eventStreamConnected, schedulePartySyncIfNeeded])
+
   const clearLocalSessionState = useCallback(() => {
     lastHitMsRef.current = null
     setPartyDetailKey(null)
@@ -207,8 +257,7 @@ export default function MeterApp() {
     const api = window.odysseyCompanion
     if (!api?.connectEventStream) return
     if (eventStreamConnectedRef.current) {
-      requestPartyRosterSync()
-      void api.sendEventStreamQuery?.('all')
+      requestEventStreamQueries()
       return
     }
     const { host, port } = readEventStreamEndpoint()
@@ -416,6 +465,29 @@ export default function MeterApp() {
   }, [])
 
   useEffect(() => {
+    const w = window as Window & {
+      __meterDebug?: {
+        enable: () => void
+        disable: () => void
+        dump: () => string
+        clear: () => void
+        enabled: () => boolean
+      }
+    }
+    w.__meterDebug = {
+      enable: () => {
+        setMeterDebugEnabled(true)
+        meterDebugClear()
+        console.info('[meter-debug] enabled — reproduce swap issue, then __meterDebug.dump()')
+      },
+      disable: () => setMeterDebugEnabled(false),
+      dump: () => meterDebugDump(),
+      clear: meterDebugClear,
+      enabled: isMeterDebugEnabled,
+    }
+  }, [])
+
+  useEffect(() => {
     const api = window.odysseyCompanion
     if (!api?.connectEventStream || !api.onEventStreamMessage) return
 
@@ -432,7 +504,23 @@ export default function MeterApp() {
         if (Number.isFinite(dmg) && dmg > 0) lastHitMsRef.current = Date.now()
       }
       const session = streamRef.current
-      const { dungeonReset, sessionStarted, runOutcome } = ingestMeterEventStream(session, ev)
+      const hadIdentity = !meterNeedsPartyIdentity(session)
+      const { dungeonReset, sessionStarted, runOutcome, requestPartySnapshot } =
+        ingestMeterEventStream(session, ev)
+      if (requestPartySnapshot && eventStreamConnectedRef.current) {
+        requestEventStreamQueries()
+      }
+      if (
+        !hadIdentity &&
+        meterNeedsPartyIdentity(session) &&
+        (t === 'hello' ||
+          t === 'map_change' ||
+          t === 'query_result' ||
+          ((t === 'skill_use' || t === 'party_skill') &&
+            Number(ev.damage) > 0))
+      ) {
+        schedulePartySyncIfNeeded(t)
+      }
       const companion = window.odysseyCompanion
       const timelineBridge = companion
         ? {
@@ -470,7 +558,8 @@ export default function MeterApp() {
         setPartyDetailKey(null)
         streamRef.current.lastRunOutcome = null
         streamRef.current.sessionEndMs = null
-        requestPartyRosterSync()
+        requestEventStreamQueries()
+        bumpStream()
       }
       if (sessionStarted) requestPartyRosterSync()
 
@@ -518,8 +607,15 @@ export default function MeterApp() {
       setEventStreamConnected(connected)
       if (connected) {
         setReaderHint(null)
-        void api.sendEventStreamQuery?.('party')
-        void api.sendEventStreamQuery?.('all')
+        requestEventStreamQueries()
+        for (const delayMs of [2000, 5000, 10000, 20000]) {
+          const timer = window.setTimeout(() => {
+            if (disposed || !eventStreamConnectedRef.current) return
+            if (meterNeedsPartyIdentity(streamRef.current)) requestEventStreamQueries()
+          }, delayMs)
+          partySyncStaggerTimersRef.current.push(timer)
+        }
+        schedulePartySyncIfNeeded('connected')
       } else if (status === 'connecting') {
         setReaderHint('Connecting…')
       } else if (status === 'idle') {
@@ -535,9 +631,12 @@ export default function MeterApp() {
       disposed = true
       offMsg()
       offStatus?.()
+      if (partySyncDebounceRef.current) clearTimeout(partySyncDebounceRef.current)
+      for (const timer of partySyncStaggerTimersRef.current) clearTimeout(timer)
+      partySyncStaggerTimersRef.current = []
       void api.disconnectEventStream?.()
     }
-  }, [bumpStream, ensureWikiForDigimon])
+  }, [bumpStream, ensureWikiForDigimon, schedulePartySyncIfNeeded])
 
   const supabase = useMemo(() => {
     const { url, anonKey } = getMeterSupabaseCredentials()
@@ -568,7 +667,7 @@ export default function MeterApp() {
   }, [supabase])
 
   const partyListRows = useMemo(() => {
-    return meterPartyRows(streamSession, Date.now()).map((row) => ({
+    return meterPartyRows(streamRef.current, Date.now()).map((row) => ({
       rowKey: row.key,
       tamerName: row.tamerName,
       digimonName: row.digimonName,
@@ -1114,16 +1213,16 @@ export default function MeterApp() {
                     <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
                       {!eventStreamConnected
                         ? 'Waiting for game…'
-                        : streamSession.selfTamerName?.trim()
+                        : !meterNeedsPartyIdentity(streamRef.current) ||
+                            streamRef.current.members.size > 0
                           ? 'Deal damage to populate DPS.'
-                          : streamSession.partyId
-                            ? 'Party roster loading… deal damage to populate DPS.'
+                          : eventStreamConnected
+                            ? 'Syncing party data…'
                             : 'Waiting for party data…'}
                     </p>
                   ) : (
                     partyListRows.map((row) => {
                       const accentKey = row.isSelf && sbUser ? `self:${sbUser.id}` : row.rowKey
-                      const chrome = partyMemberChromeStyle(accentKey)
                       const sharePct =
                         partyListDamageSum > 0
                           ? (100 * Math.max(0, row.total)) / partyListDamageSum
@@ -1133,11 +1232,6 @@ export default function MeterApp() {
                           key={row.rowKey}
                           type="button"
                           className="meter-party-member"
-                          style={{
-                            borderLeftWidth: 3,
-                            borderLeftStyle: 'solid',
-                            borderLeftColor: chrome.borderLeftColor,
-                          }}
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
                           <div
