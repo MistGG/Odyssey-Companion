@@ -1,4 +1,5 @@
 import type { MeterStreamSession } from './meterEventStream'
+import { isMeterSessionLeaderboardEligible } from './meterLeaderboardEligibility'
 import {
   meterMemberSkillBreakdownByDigimon,
   meterPartyRows,
@@ -32,6 +33,7 @@ export function buildMeterDungeonPartyParse(
     partyId: null,
     bossTargets: [...session.dungeonBossTargets],
     runOutcome: session.lastRunOutcome,
+    leaderboardEligible: isMeterSessionLeaderboardEligible(session),
   }
 
   const rows = meterPartyRows(session, nowMs)

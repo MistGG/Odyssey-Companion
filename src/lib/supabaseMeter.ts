@@ -50,6 +50,8 @@ export type MeterParseDungeonContext = {
   partyId: string | null
   bossTargets: string[]
   runOutcome: 'clear' | 'fail' | null
+  /** False for manual mid-run uploads and post-refresh slices — still stored for the user. */
+  leaderboardEligible: boolean
 }
 
 /** Stored in `meter_parses.payload`. Per-skill DPS and damage % are computed on the server/UI from `skills` + row `duration_sec`. */

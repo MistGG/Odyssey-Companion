@@ -154,9 +154,6 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
   let meterLocked =
     typeof raw.meterPositionLocked === 'boolean' ? raw.meterPositionLocked : undefined
 
-  let meterIdleReset =
-    typeof raw.meterAutoResetIdleSec === 'number' ? raw.meterAutoResetIdleSec : undefined
-
   let meterPartyShowSelf =
     typeof raw.meterPartyShowSelfDisplayName === 'boolean'
       ? raw.meterPartyShowSelfDisplayName
@@ -240,12 +237,6 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof meterLocked === 'boolean'
         ? meterLocked
         : DEFAULT_SETTINGS.meterPositionLocked,
-    meterAutoResetIdleSec:
-      typeof meterIdleReset === 'number' &&
-      Number.isFinite(meterIdleReset) &&
-      meterIdleReset >= 0
-        ? Math.min(86400, Math.round(meterIdleReset))
-        : DEFAULT_SETTINGS.meterAutoResetIdleSec,
     meterPartyShowSelfDisplayName:
       typeof meterPartyShowSelf === 'boolean'
         ? meterPartyShowSelf

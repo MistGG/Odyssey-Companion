@@ -99,6 +99,7 @@ function requestEventStreamQueries() {
 function clearStreamCombat(session: MeterStreamSession) {
   session.sessionStartMs = null
   session.sessionEndMs = null
+  session.lastRunOutcome = null
   for (const row of session.members.values()) {
     row.totalDamage = 0
     row.firstHitMs = null
@@ -122,7 +123,6 @@ export default function MeterApp() {
   const meterBodyRef = useRef<HTMLElement | null>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
-  const lastHitMsRef = useRef<number | null>(null)
   const streamRef = useRef<MeterStreamSession>(createMeterStreamSession())
   const timelineAutoRef = useRef<TimelineAutoDungeonState>({
     loadedKey: null,
@@ -245,7 +245,6 @@ export default function MeterApp() {
   }, [eventStreamConnected, schedulePartySyncIfNeeded])
 
   const clearLocalSessionState = useCallback(() => {
-    lastHitMsRef.current = null
     setPartyDetailKey(null)
     clearStreamCombat(streamRef.current)
     resetTimelineAutoState(timelineAutoRef.current)
@@ -403,24 +402,6 @@ export default function MeterApp() {
     }
   }, [positionLocked, cloudOpen])
 
-  useEffect(() => {
-    const idleSec = settings.meterAutoResetIdleSec
-    if (idleSec <= 0) return
-
-    const id = window.setInterval(() => {
-      const last = lastHitMsRef.current
-      if (last == null) return
-      if (Date.now() - last < idleSec * 1000) return
-      if (streamRef.current.sessionStartMs == null) return
-
-      lastHitMsRef.current = null
-      clearStreamCombat(streamRef.current)
-      bumpStream()
-    }, 250)
-
-    return () => window.clearInterval(id)
-  }, [settings.meterAutoResetIdleSec, bumpStream])
-
   const dungeonFetchReqRef = useRef(0)
 
   useEffect(() => {
@@ -499,10 +480,6 @@ export default function MeterApp() {
     const offMsg = api.onEventStreamMessage(({ event }) => {
       const ev = event as EventStreamRecord
       const t = String(ev.type ?? '')
-      if (t === 'skill_use' || t === 'party_skill' || t === 'hit_taken') {
-        const dmg = Number(ev.damage)
-        if (Number.isFinite(dmg) && dmg > 0) lastHitMsRef.current = Date.now()
-      }
       const session = streamRef.current
       const hadIdentity = !meterNeedsPartyIdentity(session)
       const { dungeonReset, sessionStarted, runOutcome, requestPartySnapshot } =
@@ -794,11 +771,17 @@ export default function MeterApp() {
       if (error) setSbMsg(userFacingUploadError(error))
       else {
         const diff = dungeon.difficulty || 'dungeon'
+        const ranked = dungeon.leaderboardEligible
         setSbMsg(
-          `${diff} parse uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). View on Odyssey Calc → Meter parses.`,
+          ranked
+            ? `${diff} clear uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). Counted on leaderboards — view on Odyssey Calc → Meter parses.`
+            : `${diff} parse uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). Saved to your parses only (not ranked — defeat the boss for leaderboards).`,
         )
         setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
-        setUploadToast({ text: 'Upload complete', kind: 'success' })
+        setUploadToast({
+          text: ranked ? 'Clear uploaded — ranked' : 'Uploaded — not ranked',
+          kind: 'success',
+        })
       }
     } finally {
       uploadInFlightRef.current = false

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added Digi Aura Module, this comes with 2 widgets currently, one to track buffs and one track attack speed\n- Added options to select which modules are launched at startup"
+      "releaseNotes": "- Removed idle reset time for DPS meter as it can invalidate leaderboard times and is not needed due to the Client API reporting boss deaths\n- Added additional logic for the leaderboard to remove invalid entries due to client issues, or parses that are manually reset during a boss fight, or meters that are started up mid boss fight"
     }
   }
 }

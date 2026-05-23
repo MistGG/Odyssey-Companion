@@ -246,7 +246,6 @@ export type OverlaySettings = {
    * After this many seconds without a damage hit, clear live DPS/total/time only.
    * Skill breakdown is frozen until new hits arrive. `0` disables.
    */
-  meterAutoResetIdleSec: number
   /**
    * Party meter: show your `profiles.display_name` for your own row (list and self skill breakdown) instead of "You".
    */
@@ -314,7 +313,6 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterBackdropOpacity: 0.82,
   meterAlwaysOnTop: true,
   meterPositionLocked: false,
-  meterAutoResetIdleSec: 10,
   meterPartyShowSelfDisplayName: false,
   hotkeysOnlyWhenCompanionFocused: false,
   meterAutoUploadAfterClear: false,

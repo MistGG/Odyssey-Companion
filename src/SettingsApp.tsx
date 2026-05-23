@@ -678,27 +678,6 @@ export default function SettingsApp() {
               />
               Lock meter — click-through except title bar (same as meter lock button)
             </label>
-            <label className="field">
-              <span>Reset current DPS after no hits (seconds)</span>
-              <input
-                type="number"
-                min={0}
-                max={86400}
-                step={1}
-                value={settings.meterAutoResetIdleSec}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
-                  setSettings((s) => ({
-                    ...s,
-                    meterAutoResetIdleSec: Math.min(86400, Math.max(0, Math.round(n))),
-                  }))
-                }}
-              />
-              <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                Default 10. 0 = disabled. Clears live DPS/total/time only; skills stay until new damage.
-              </span>
-            </label>
             <label className="check">
               <input
                 type="checkbox"

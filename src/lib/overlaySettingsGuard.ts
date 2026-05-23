@@ -81,9 +81,6 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     typeof o.meterBackdropOpacity !== 'number' ||
     typeof o.meterAlwaysOnTop !== 'boolean' ||
     typeof o.meterPositionLocked !== 'boolean' ||
-    typeof o.meterAutoResetIdleSec !== 'number' ||
-    !Number.isFinite(o.meterAutoResetIdleSec) ||
-    o.meterAutoResetIdleSec < 0 ||
     typeof o.meterPartyShowSelfDisplayName !== 'boolean' ||
     typeof o.hotkeysOnlyWhenCompanionFocused !== 'boolean' ||
     typeof o.meterAutoUploadAfterClear !== 'boolean' ||
