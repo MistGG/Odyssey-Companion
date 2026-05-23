@@ -30,6 +30,7 @@ declare global {
       showTimelineWindow: () => Promise<boolean>
       showMeterWindow: () => Promise<boolean>
       showTimersWindow: () => Promise<boolean>
+      showHudWindow: () => Promise<boolean>
       openSettings: (section?: string) => Promise<boolean>
       onSettingsNavigate: (handler: (section: string) => void) => () => void
       pushSettings: (settings: OverlaySettings) => void
@@ -37,6 +38,7 @@ declare global {
       applyTimelineWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyMeterWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       applyTimersWindowOptions: (opts: { alwaysOnTop: boolean }) => void
+      applyHudWindowOptions: (opts: { alwaysOnTop: boolean }) => void
       startMeterReader: () => Promise<{ ok: boolean; error?: string }>
       stopMeterReader: () => Promise<boolean>
       resetMeterSession: () => Promise<boolean>
@@ -48,6 +50,10 @@ declare global {
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       setMeterIgnoreMouseEvents?: (ignore: boolean) => void
       setTimersIgnoreMouseEvents?: (ignore: boolean) => void
+      setHudIgnoreMouseEvents?: (ignore: boolean) => void
+      beginHudWindowResize?: (edge: string) => Promise<{ ok: true } | { ok: false; error: string }>
+      updateHudWindowResize?: (screenX: number, screenY: number) => Promise<{ ok: true } | { ok: false }>
+      endHudWindowResize?: () => Promise<{ ok: true } | { ok: false }>
       /** Timers overlay: resize window to fit drop table, restore prior bounds when collapsed. */
       setTimersLootDetailExpanded?: (
         expanded: boolean,
@@ -86,6 +92,7 @@ declare global {
       onEventStreamStatus?: (
         handler: (payload: { status: string; detail: string | null }) => void,
       ) => () => void
+      sendEventStreamQuery?: (what: string) => Promise<{ ok: true } | { ok: false; error: string }>
       /** Main-process file storage — Supabase auth survives app updates. */
       supabaseAuthStorageGetItem?: (key: string) => Promise<string | null>
       supabaseAuthStorageSetItem?: (key: string, value: string) => Promise<void>

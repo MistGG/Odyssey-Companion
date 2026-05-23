@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url'
 import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
 import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
 import { normalizeSettingsSection } from '../../src/lib/settingsSection'
-import type { OverlaySettings } from '../../src/types'
+import type { OverlaySettings, StartupPanelKey } from '../../src/types'
+import { readOverlaySettingsFromDisk, writeOverlaySettingsToDisk } from './overlaySettingsDisk'
 import {
   bossTimerAlertTick,
   setActiveRaidBossAlerts,
@@ -32,14 +33,20 @@ import {
 } from './bossTimerAlerts'
 import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
 import {
+  boundsAfterHudResize,
+  parseHudResizeEdge,
+  type HudResizeEdge,
+} from './hudWindowResize'
+import {
   supabaseAuthStorageGet,
   supabaseAuthStorageRemove,
   supabaseAuthStorageSet,
 } from './supabaseAuthStorage'
 
-/** Set `ODYSSEY_START_PANEL=meter`, `=timers`, or `=settings` to launch only that window (UI dev). */
+/** Set `ODYSSEY_START_PANEL=meter`, `=timers`, `=hud`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
 const TIMERS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'timers'
+const HUD_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'hud'
 const SETTINGS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'settings'
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
@@ -119,6 +126,12 @@ let dungeonWin: BrowserWindow | null = null
 let timelineWin: BrowserWindow | null = null
 let meterWin: BrowserWindow | null = null
 let timersWin: BrowserWindow | null = null
+let hudWin: BrowserWindow | null = null
+let hudResizeSession: {
+  edge: HudResizeEdge
+  startBounds: Rectangle
+  startCursor: { x: number; y: number }
+} | null = null
 /** Bounds before expanding loot drop table — restored on collapse or tray hide. */
 let timersLootDetailSavedBounds: Rectangle | null = null
 /** Unified settings (fixed layout; not tied to overlay size). */
@@ -185,6 +198,7 @@ type WindowLayoutFile = {
   timeline?: Electron.Rectangle
   meter?: Electron.Rectangle
   timers?: Electron.Rectangle
+  hud?: Electron.Rectangle
   settings?: Electron.Rectangle
 }
 
@@ -219,6 +233,13 @@ const DEFAULT_TIMERS_SIZE = {
   height: 128,
   minWidth: 260,
   minHeight: 108,
+} as const
+
+const DEFAULT_HUD_SIZE = {
+  width: 420,
+  height: 320,
+  minWidth: 200,
+  minHeight: 150,
 } as const
 
 const DEFAULT_SETTINGS_SIZE = {
@@ -298,6 +319,18 @@ function normalizeTimersBounds(
   }
 }
 
+function normalizeHudBounds(
+  r?: Electron.Rectangle,
+): Pick<Electron.Rectangle, 'x' | 'y' | 'width' | 'height'> | undefined {
+  if (!r || typeof r.width !== 'number' || typeof r.height !== 'number') return undefined
+  return {
+    x: typeof r.x === 'number' ? Math.round(r.x) : 0,
+    y: typeof r.y === 'number' ? Math.round(r.y) : 0,
+    width: Math.max(DEFAULT_HUD_SIZE.minWidth, Math.round(r.width)),
+    height: Math.max(DEFAULT_HUD_SIZE.minHeight, Math.round(r.height)),
+  }
+}
+
 function normalizeSettingsBounds(
   r?: Electron.Rectangle,
 ): Pick<Electron.Rectangle, 'x' | 'y' | 'width' | 'height'> | undefined {
@@ -325,6 +358,9 @@ function persistWindowLayout(): void {
   }
   if (timersWin && !timersWin.isDestroyed()) {
     layout.timers = timersWin.getBounds()
+  }
+  if (hudWin && !hudWin.isDestroyed()) {
+    layout.hud = hudWin.getBounds()
   }
   if (settingsWin && !settingsWin.isDestroyed()) {
     layout.settings = settingsWin.getBounds()
@@ -355,6 +391,26 @@ function setWinAlwaysOnTop(win: BrowserWindow | null, flag: boolean) {
   }
 }
 
+/** Settings uses the same topmost tier as overlays so `moveTop()` can order it above them. */
+function setSettingsAlwaysOnTop(win: BrowserWindow | null, flag: boolean) {
+  setWinAlwaysOnTop(win, flag)
+}
+
+function raiseSettingsAboveCompanionPanels(focus = false) {
+  if (!settingsWin || settingsWin.isDestroyed() || !settingsWin.isVisible()) return
+  settingsWin.moveTop()
+  if (focus) {
+    settingsWin.focus()
+  }
+}
+
+/** When another panel is focused, keep settings painted above overlays if it is open. */
+function wireSettingsStaysAboveOnOverlayFocus(win: BrowserWindow) {
+  win.on('focus', () => {
+    raiseSettingsAboveCompanionPanels(false)
+  })
+}
+
 type HotkeyPayload = {
   toggle: string
   reset: string
@@ -375,6 +431,7 @@ function companionHotkeyWindowHasFocus(): boolean {
   if (timelineWin && !timelineWin.isDestroyed() && timelineWin.id === id) return true
   if (meterWin && !meterWin.isDestroyed() && meterWin.id === id) return true
   if (timersWin && !timersWin.isDestroyed() && timersWin.id === id) return true
+  if (hudWin && !hudWin.isDestroyed() && hudWin.id === id) return true
   if (settingsWin && !settingsWin.isDestroyed() && settingsWin.id === id) return true
   return false
 }
@@ -461,6 +518,12 @@ function timersLoadUrl() {
   return `${base}/?panel=timers`
 }
 
+function hudLoadUrl() {
+  if (!VITE_DEV_SERVER_URL) return
+  const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
+  return `${base}/?panel=hud`
+}
+
 function updateLoadUrl() {
   if (!VITE_DEV_SERVER_URL) return
   const base = VITE_DEV_SERVER_URL.replace(/\/$/, '')
@@ -504,13 +567,14 @@ function createSettingsWindow(sectionRaw?: unknown) {
     backgroundColor: '#0a0e16',
     transparent: false,
     frame: false,
+    alwaysOnTop: true,
     webPreferences: {
       preload,
       contextIsolation: true,
       sandbox: false,
     },
   })
-  setWinAlwaysOnTop(settingsWin, false)
+  setSettingsAlwaysOnTop(settingsWin, true)
   const url = settingsLoadUrl(section)
   if (url) {
     void settingsWin.loadURL(url)
@@ -528,7 +592,7 @@ function createSettingsWindow(sectionRaw?: unknown) {
     if (!b) centerSettingsWindow(settingsWin)
     settingsWin.show()
     settingsWin.setSkipTaskbar(false)
-    settingsWin.focus()
+    raiseSettingsAboveCompanionPanels(true)
   })
   settingsWin.on('closed', () => {
     settingsWin = null
@@ -547,7 +611,8 @@ function showSettingsWindow(sectionRaw?: unknown) {
   w.show()
   w.setSkipTaskbar(false)
   if (w.isMinimized()) w.restore()
-  w.focus()
+  setSettingsAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(true)
 }
 
 function pushUpdaterState(payload: Record<string, unknown>) {
@@ -626,12 +691,13 @@ function wireHideInsteadOfClose(win: BrowserWindow) {
   })
 }
 
-function createDungeonWindow() {
+function createDungeonWindow(options?: { show?: boolean }) {
   const layout = readWindowLayout()
   const b = normalizeDungeonBounds(layout.dungeon)
   dungeonWin = new BrowserWindow({
     icon: getWindowIcon(),
     title: 'Odyssey Companion — Dungeons',
+    show: options?.show ?? true,
     ...(b ?? {
       width: DEFAULT_DUNGEON_SIZE.width,
       height: DEFAULT_DUNGEON_SIZE.height,
@@ -667,6 +733,7 @@ function createDungeonWindow() {
   setWinAlwaysOnTop(dungeonWin, true)
   wireHideInsteadOfClose(dungeonWin)
   attachWindowLayoutTracking(dungeonWin)
+  wireSettingsStaysAboveOnOverlayFocus(dungeonWin)
 }
 
 function createTimelineWindow() {
@@ -720,6 +787,7 @@ function createTimelineWindow() {
   setWinAlwaysOnTop(timelineWin, true)
   wireHideInsteadOfClose(timelineWin)
   attachWindowLayoutTracking(timelineWin)
+  wireSettingsStaysAboveOnOverlayFocus(timelineWin)
 }
 
 function createMeterWindow() {
@@ -766,6 +834,7 @@ function createMeterWindow() {
   setWinAlwaysOnTop(meterWin, true)
   wireHideInsteadOfClose(meterWin)
   attachWindowLayoutTracking(meterWin)
+  wireSettingsStaysAboveOnOverlayFocus(meterWin)
 }
 
 function createTimersWindow() {
@@ -820,6 +889,55 @@ function createTimersWindow() {
     }
   })
   attachWindowLayoutTracking(timersWin)
+  wireSettingsStaysAboveOnOverlayFocus(timersWin)
+}
+
+function createHudWindow() {
+  const layout = readWindowLayout()
+  const b = normalizeHudBounds(layout.hud)
+  hudWin = new BrowserWindow({
+    icon: getWindowIcon(),
+    title: 'Odyssey Companion — Digi Aura',
+    ...(b ?? {
+      width: DEFAULT_HUD_SIZE.width,
+      height: DEFAULT_HUD_SIZE.height,
+    }),
+    minWidth: DEFAULT_HUD_SIZE.minWidth,
+    minHeight: DEFAULT_HUD_SIZE.minHeight,
+    resizable: true,
+    ...(os.platform() === 'win32'
+      ? { roundedCorners: false as const, thickFrame: true as const }
+      : {}),
+    backgroundColor: '#00000000',
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      sandbox: false,
+    },
+  })
+
+  const url = hudLoadUrl()
+  if (url) {
+    hudWin.loadURL(url)
+  } else {
+    hudWin.loadFile(indexHtml, { query: { panel: 'hud' } })
+  }
+
+  hudWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  setWinAlwaysOnTop(hudWin, true)
+  wireHideInsteadOfClose(hudWin)
+  attachWindowLayoutTracking(hudWin)
+  wireSettingsStaysAboveOnOverlayFocus(hudWin)
 }
 
 function showDungeonWindow() {
@@ -832,6 +950,7 @@ function showDungeonWindow() {
   if (w.isMinimized()) w.restore()
   w.focus()
   setWinAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(false)
 }
 
 function showTimelineWindow() {
@@ -844,6 +963,7 @@ function showTimelineWindow() {
   if (w.isMinimized()) w.restore()
   w.focus()
   setWinAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(false)
 }
 
 function showMeterWindow() {
@@ -856,6 +976,7 @@ function showMeterWindow() {
   if (w.isMinimized()) w.restore()
   w.focus()
   setWinAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(false)
 }
 
 function showMarketLoginWindow() {
@@ -903,6 +1024,20 @@ function showTimersWindow() {
   if (w.isMinimized()) w.restore()
   w.focus()
   setWinAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(false)
+}
+
+function showHudWindow() {
+  if (!hudWin || hudWin.isDestroyed()) {
+    createHudWindow()
+  }
+  const w = hudWin!
+  w.show()
+  w.setSkipTaskbar(false)
+  if (w.isMinimized()) w.restore()
+  w.focus()
+  setWinAlwaysOnTop(w, true)
+  raiseSettingsAboveCompanionPanels(false)
 }
 
 function dpsReaderScriptPath(): string {
@@ -1063,6 +1198,7 @@ function quitFromTray() {
   if (timelineWin && !timelineWin.isDestroyed()) timelineWin.destroy()
   if (meterWin && !meterWin.isDestroyed()) meterWin.destroy()
   if (timersWin && !timersWin.isDestroyed()) timersWin.destroy()
+  if (hudWin && !hudWin.isDestroyed()) hudWin.destroy()
   if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy()
   if (updateWin && !updateWin.isDestroyed()) updateWin.destroy()
   if (marketLoginWin && !marketLoginWin.isDestroyed()) marketLoginWin.destroy()
@@ -1071,17 +1207,41 @@ function quitFromTray() {
   timelineWin = null
   meterWin = null
   timersWin = null
+  hudWin = null
   settingsWin = null
   updateWin = null
   marketLoginWin = null
   app.quit()
 }
 
-function createTray() {
-  if (tray) return
-  tray = new Tray(getTrayIcon())
-  tray.setToolTip('Odyssey Companion')
-  const menu = Menu.buildFromTemplate([
+function broadcastSettingsPatch(payload: unknown) {
+  for (const w of [
+    dungeonWin,
+    timelineWin,
+    meterWin,
+    timersWin,
+    hudWin,
+    settingsWin,
+  ]) {
+    if (w && !w.isDestroyed()) {
+      w.webContents.send('settings:patch', payload)
+    }
+  }
+}
+
+function unlockHudLayoutFromTray() {
+  showHudWindow()
+  const patch = { hudLayoutLocked: false }
+  if (lastOverlaySettings) {
+    lastOverlaySettings = { ...lastOverlaySettings, hudLayoutLocked: false }
+  }
+  broadcastSettingsPatch(patch)
+  refreshTrayMenu()
+}
+
+function buildTrayMenuTemplate(): Electron.MenuItemConstructorOptions[] {
+  const hudLocked = lastOverlaySettings?.hudLayoutLocked === true
+  const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'Open main',
       click: () => showDungeonWindow(),
@@ -1099,6 +1259,10 @@ function createTray() {
       click: () => showTimersWindow(),
     },
     {
+      label: hudLocked ? 'Unlock Digi Aura' : 'Open Digi Aura',
+      click: () => (hudLocked ? unlockHudLayoutFromTray() : showHudWindow()),
+    },
+    {
       label: 'Settings',
       click: () => showSettingsWindow('general'),
     },
@@ -1107,8 +1271,20 @@ function createTray() {
       label: 'Quit',
       click: () => quitFromTray(),
     },
-  ])
-  tray.setContextMenu(menu)
+  ]
+  return items
+}
+
+function refreshTrayMenu() {
+  if (!tray) return
+  tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate()))
+}
+
+function createTray() {
+  if (tray) return
+  tray = new Tray(getTrayIcon())
+  tray.setToolTip('Odyssey Companion')
+  refreshTrayMenu()
   tray.on('click', () => {
     showDungeonWindow()
   })
@@ -1133,8 +1309,23 @@ function triggerMeterUploadFromHotkey() {
 }
 
 function createWindows() {
-  createDungeonWindow()
+  createDungeonWindow({ show: false })
   createTimelineWindow()
+}
+
+function openStartupPanels(settings: OverlaySettings) {
+  const panels = new Set<StartupPanelKey>(settings.startupPanels)
+  if (panels.has('main')) showDungeonWindow()
+  if (panels.has('timeline')) showTimelineWindow()
+  if (panels.has('meter')) showMeterWindow()
+  if (panels.has('timers')) showTimersWindow()
+  if (panels.has('hud')) showHudWindow()
+}
+
+function launchCompanionWindows(settings: OverlaySettings) {
+  lastOverlaySettings = settings
+  createWindows()
+  openStartupPanels(settings)
 }
 
 function releaseNotesPlain(info: {
@@ -1207,6 +1398,7 @@ if (!app.requestSingleInstanceLock()) {
 registerEventStreamBridge(() => {
   const wins: BrowserWindow[] = []
   if (meterWin && !meterWin.isDestroyed()) wins.push(meterWin)
+  if (hudWin && !hudWin.isDestroyed()) wins.push(hudWin)
   return wins
 })
 
@@ -1222,11 +1414,14 @@ app.whenReady().then(() => {
     createTimersWindow()
     timersWin?.show()
     timersWin?.setSkipTaskbar(false)
+  } else if (HUD_ONLY_STARTUP) {
+    createHudWindow()
+    hudWin?.show()
+    hudWin?.setSkipTaskbar(false)
   } else if (SETTINGS_ONLY_STARTUP) {
     showSettingsWindow('general')
   } else {
-    createWindows()
-    showDungeonWindow()
+    launchCompanionWindows(readOverlaySettingsFromDisk())
   }
   createTray()
   setupAutoUpdater()
@@ -1253,6 +1448,7 @@ app.on('window-all-closed', () => {
     timelineWin = null
     meterWin = null
     timersWin = null
+    hudWin = null
     settingsWin = null
     marketLoginWin = null
     return
@@ -1269,11 +1465,13 @@ app.on('activate', () => {
     } else if (TIMERS_ONLY_STARTUP) {
       createTimersWindow()
       timersWin?.show()
+    } else if (HUD_ONLY_STARTUP) {
+      createHudWindow()
+      hudWin?.show()
     } else if (SETTINGS_ONLY_STARTUP) {
       showSettingsWindow('general')
     } else {
-      createWindows()
-      showDungeonWindow()
+      launchCompanionWindows(readOverlaySettingsFromDisk())
     }
   }
 })
@@ -1283,6 +1481,8 @@ app.on('second-instance', () => {
     showMeterWindow()
   } else if (TIMERS_ONLY_STARTUP) {
     showTimersWindow()
+  } else if (HUD_ONLY_STARTUP) {
+    showHudWindow()
   } else if (SETTINGS_ONLY_STARTUP) {
     showSettingsWindow('general')
   } else {
@@ -1463,6 +1663,9 @@ function windowFromSenderExact(sender: WebContents): BrowserWindow | undefined {
   if (timersWin && !timersWin.isDestroyed() && timersWin.webContents.id === id) {
     return timersWin
   }
+  if (hudWin && !hudWin.isDestroyed() && hudWin.webContents.id === id) {
+    return hudWin
+  }
   if (settingsWin && !settingsWin.isDestroyed() && settingsWin.webContents.id === id) {
     return settingsWin
   }
@@ -1520,6 +1723,11 @@ ipcMain.handle('window:show-timers', () => {
   return true
 })
 
+ipcMain.handle('window:show-hud', () => {
+  showHudWindow()
+  return true
+})
+
 ipcMain.handle('window:open-settings', (_e, sectionArg: unknown) => {
   showSettingsWindow(sectionArg)
   return true
@@ -1538,6 +1746,14 @@ ipcMain.on('timers:apply-options', (_e, opts: unknown) => {
   const v = (opts as { alwaysOnTop?: unknown }).alwaysOnTop
   if (typeof v === 'boolean') {
     setWinAlwaysOnTop(timersWin, v)
+  }
+})
+
+ipcMain.on('hud:apply-options', (_e, opts: unknown) => {
+  if (!opts || typeof opts !== 'object') return
+  const v = (opts as { alwaysOnTop?: unknown }).alwaysOnTop
+  if (typeof v === 'boolean') {
+    setWinAlwaysOnTop(hudWin, v)
   }
 })
 
@@ -1632,6 +1848,62 @@ ipcMain.on('timers:set-ignore-mouse-events', (_e, ignore: unknown) => {
   }
 })
 
+ipcMain.on('hud:set-ignore-mouse-events', (_e, ignore: unknown) => {
+  if (!hudWin || hudWin.isDestroyed()) return
+  if (hudResizeSession) return
+  if (ignore === true) {
+    hudWin.setIgnoreMouseEvents(true, { forward: true })
+  } else {
+    hudWin.setIgnoreMouseEvents(false)
+  }
+})
+
+function hudWindowFromSender(sender: WebContents): BrowserWindow | null {
+  if (!hudWin || hudWin.isDestroyed()) return null
+  return sender.id === hudWin.webContents.id ? hudWin : null
+}
+
+ipcMain.handle('hud:begin-window-resize', (e, edgeRaw: unknown) => {
+  const win = hudWindowFromSender(e.sender)
+  if (!win) return { ok: false as const, error: 'no hud window' }
+  const edge = parseHudResizeEdge(edgeRaw)
+  if (!edge) return { ok: false as const, error: 'bad edge' }
+  win.setIgnoreMouseEvents(false)
+  hudResizeSession = {
+    edge,
+    startBounds: win.getBounds(),
+    startCursor: screen.getCursorScreenPoint(),
+  }
+  return { ok: true as const }
+})
+
+ipcMain.handle('hud:update-window-resize', (e, screenX: unknown, screenY: unknown) => {
+  const win = hudWindowFromSender(e.sender)
+  if (!win || !hudResizeSession) return { ok: false as const }
+  const sx = Number(screenX)
+  const sy = Number(screenY)
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return { ok: false as const }
+  const dx = sx - hudResizeSession.startCursor.x
+  const dy = sy - hudResizeSession.startCursor.y
+  win.setBounds(
+    boundsAfterHudResize(
+      hudResizeSession.startBounds,
+      hudResizeSession.edge,
+      dx,
+      dy,
+      DEFAULT_HUD_SIZE.minWidth,
+      DEFAULT_HUD_SIZE.minHeight,
+    ),
+  )
+  return { ok: true as const }
+})
+
+ipcMain.handle('hud:end-window-resize', (e) => {
+  if (!hudWindowFromSender(e.sender)) return { ok: false as const }
+  hudResizeSession = null
+  return { ok: true as const }
+})
+
 ipcMain.on('timeline:apply-options', (_e, opts: TimelineOptionsPayload) => {
   setWinAlwaysOnTop(timelineWin, !!opts.alwaysOnTop)
 })
@@ -1639,6 +1911,7 @@ ipcMain.on('timeline:apply-options', (_e, opts: TimelineOptionsPayload) => {
 ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   if (isOverlaySettings(payload)) {
     lastOverlaySettings = payload
+    writeOverlaySettingsToDisk(payload)
   }
   if (payload && typeof payload === 'object' && 'timelineAlwaysOnTop' in payload) {
     const v = (payload as { timelineAlwaysOnTop: unknown }).timelineAlwaysOnTop
@@ -1657,6 +1930,15 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
     if (typeof v === 'boolean') {
       setWinAlwaysOnTop(timersWin, v)
     }
+  }
+  if (payload && typeof payload === 'object' && 'hudAlwaysOnTop' in payload) {
+    const v = (payload as { hudAlwaysOnTop: unknown }).hudAlwaysOnTop
+    if (typeof v === 'boolean') {
+      setWinAlwaysOnTop(hudWin, v)
+    }
+  }
+  if (payload && typeof payload === 'object' && 'hudLayoutLocked' in payload) {
+    refreshTrayMenu()
   }
   // Never echo `settings:patch` back to the sender — causes an infinite loop in renderers
   // (useEffect → pushSettings → patch → setSettings → useEffect …) and freezes the UI.
@@ -1688,6 +1970,13 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
     timersWin.webContents.id !== senderId
   ) {
     timersWin.webContents.send('settings:patch', payload)
+  }
+  if (
+    hudWin &&
+    !hudWin.isDestroyed() &&
+    hudWin.webContents.id !== senderId
+  ) {
+    hudWin.webContents.send('settings:patch', payload)
   }
   if (
     settingsWin &&

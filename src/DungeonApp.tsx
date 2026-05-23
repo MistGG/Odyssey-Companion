@@ -324,6 +324,14 @@ export default function DungeonApp() {
           <button
             type="button"
             className="btn ghost"
+            title="Show Digi Aura overlay"
+            onClick={() => void window.odysseyCompanion?.showHudWindow()}
+          >
+            Digi Aura
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
             title="Show DPS meter overlay"
             onClick={() => void window.odysseyCompanion?.showMeterWindow()}
           >

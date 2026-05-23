@@ -51,6 +51,9 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   showTimersWindow: () =>
     ipcRenderer.invoke('window:show-timers') as Promise<boolean>,
 
+  showHudWindow: () =>
+    ipcRenderer.invoke('window:show-hud') as Promise<boolean>,
+
   openSettings: (section?: string) =>
     ipcRenderer.invoke('window:open-settings', section ?? 'general') as Promise<boolean>,
 
@@ -77,6 +80,10 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   applyTimersWindowOptions: (opts: { alwaysOnTop: boolean }) => {
     ipcRenderer.send('timers:apply-options', opts)
+  },
+
+  applyHudWindowOptions: (opts: { alwaysOnTop: boolean }) => {
+    ipcRenderer.send('hud:apply-options', opts)
   },
 
   startMeterReader: () =>
@@ -121,6 +128,23 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   setTimersIgnoreMouseEvents: (ignore: boolean) => {
     ipcRenderer.send('timers:set-ignore-mouse-events', ignore)
   },
+
+  setHudIgnoreMouseEvents: (ignore: boolean) => {
+    ipcRenderer.send('hud:set-ignore-mouse-events', ignore)
+  },
+
+  beginHudWindowResize: (edge: string) =>
+    ipcRenderer.invoke('hud:begin-window-resize', edge) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
+  updateHudWindowResize: (screenX: number, screenY: number) =>
+    ipcRenderer.invoke('hud:update-window-resize', screenX, screenY) as Promise<
+      { ok: true } | { ok: false }
+    >,
+
+  endHudWindowResize: () =>
+    ipcRenderer.invoke('hud:end-window-resize') as Promise<{ ok: true } | { ok: false }>,
 
   /** Grow / restore timers window when overlay loot drop table is toggled. */
   setTimersLootDetailExpanded: (expanded: boolean, contentHeightPx?: number | null) =>

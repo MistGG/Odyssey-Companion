@@ -1,4 +1,14 @@
-import { DEFAULT_SETTINGS, type HotkeyConfig, type HotkeysApplyPayload, type OverlaySettings } from '../types'
+import {
+  DEFAULT_SETTINGS,
+  STARTUP_PANEL_KEYS,
+  type HotkeyConfig,
+  type HotkeysApplyPayload,
+  type HudWidget,
+  type OverlaySettings,
+  type StartupPanelKey,
+} from '../types'
+import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG, normalizeAttackSpeedWidgetConfig } from './hudAttackSpeedWidget'
+import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, normalizeBuffTrackerWidgetConfig } from './hudBuffTrackerWidget'
 
 const KEY = 'dmo-overlay-settings-v1'
 
@@ -39,6 +49,66 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
       ? raw.meterUploadParse
       : DEFAULT_SETTINGS.hotkeys.meterUploadParse
   return { toggle, reset, meterReconnect, meterResetSession, meterUploadParse }
+}
+
+function normalizeStartupPanels(raw: unknown): StartupPanelKey[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_SETTINGS.startupPanels]
+  const valid = new Set<string>(STARTUP_PANEL_KEYS)
+  const out: StartupPanelKey[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const key = item.trim() as StartupPanelKey
+    if (!valid.has(key)) continue
+    if (out.includes(key)) continue
+    out.push(key)
+  }
+  return out.length > 0 ? out : [...DEFAULT_SETTINGS.startupPanels]
+}
+
+function normalizeHudWidgets(raw: unknown, legacyWidgetOpacity?: number): HudWidget[] {
+  if (!Array.isArray(raw)) return DEFAULT_SETTINGS.hudWidgets
+  const legacy =
+    typeof legacyWidgetOpacity === 'number' && Number.isFinite(legacyWidgetOpacity)
+      ? legacyWidgetOpacity
+      : undefined
+  const out: HudWidget[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const w = item as Record<string, unknown>
+    if (typeof w.id !== 'string' || !w.id.trim()) continue
+    if (typeof w.x !== 'number' || !Number.isFinite(w.x)) continue
+    if (typeof w.y !== 'number' || !Number.isFinite(w.y)) continue
+    if (w.type === 'attack_speed') {
+      out.push({
+        id: w.id.trim(),
+        type: 'attack_speed',
+        x: Math.round(w.x),
+        y: Math.round(w.y),
+        attackSpeed: normalizeAttackSpeedWidgetConfig(
+          w.attackSpeed ?? DEFAULT_ATTACK_SPEED_WIDGET_CONFIG,
+          legacy,
+        ),
+      })
+      continue
+    }
+    if (w.type === 'buff_tracker') {
+      out.push({
+        id: w.id.trim(),
+        type: 'buff_tracker',
+        x: Math.round(w.x),
+        y: Math.round(w.y),
+        buffTracker: normalizeBuffTrackerWidgetConfig(
+          w.buffTracker ?? DEFAULT_BUFF_TRACKER_WIDGET_CONFIG,
+          legacy,
+        ),
+      })
+    }
+  }
+  return out
+}
+
+export function parseOverlaySettingsJson(raw: unknown): OverlaySettings {
+  return normalizeLoaded(raw)
 }
 
 function normalizeLoaded(raw: unknown): OverlaySettings {
@@ -136,8 +206,19 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossChimeRepeats = Math.min(5, Math.max(1, Math.round(raw.bossTimerChimeRepeats)))
   }
 
+  let hudBackdrop =
+    typeof raw.hudBackdropOpacity === 'number' ? raw.hudBackdropOpacity : undefined
+  let hudTop = typeof raw.hudAlwaysOnTop === 'boolean' ? raw.hudAlwaysOnTop : undefined
+  let hudLocked =
+    typeof raw.hudLayoutLocked === 'boolean' ? raw.hudLayoutLocked : undefined
+  const legacyHudWidgetOpacity =
+    typeof raw.hudWidgetOpacity === 'number' ? raw.hudWidgetOpacity : undefined
+  const hudWidgets = normalizeHudWidgets(raw.hudWidgets, legacyHudWidgetOpacity)
+  const startupPanels = normalizeStartupPanels(raw.startupPanels)
+
   return {
     ...DEFAULT_SETTINGS,
+    startupPanels,
     hotkeys,
     timelineBackdropOpacity:
       typeof timelineBackdrop === 'number'
@@ -202,6 +283,14 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossTimerChimeStyle: bossChime ?? DEFAULT_SETTINGS.bossTimerChimeStyle,
     bossTimerChimeVolume: bossChimeVol ?? DEFAULT_SETTINGS.bossTimerChimeVolume,
     bossTimerChimeRepeats: bossChimeRepeats ?? DEFAULT_SETTINGS.bossTimerChimeRepeats,
+    hudBackdropOpacity:
+      typeof hudBackdrop === 'number'
+        ? Math.min(1, Math.max(0, hudBackdrop))
+        : DEFAULT_SETTINGS.hudBackdropOpacity,
+    hudAlwaysOnTop: typeof hudTop === 'boolean' ? hudTop : DEFAULT_SETTINGS.hudAlwaysOnTop,
+    hudLayoutLocked:
+      typeof hudLocked === 'boolean' ? hudLocked : DEFAULT_SETTINGS.hudLayoutLocked,
+    hudWidgets,
   }
 }
 

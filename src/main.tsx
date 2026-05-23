@@ -6,6 +6,7 @@ import DungeonApp from './DungeonApp'
 import TimelineApp from './TimelineApp'
 import MeterApp from './MeterApp'
 import TimersApp from './TimersApp'
+import HudApp from './HudApp'
 import SettingsApp from './SettingsApp'
 import UpdateApp from './UpdateApp'
 import './index.css'
@@ -19,6 +20,9 @@ if (panel === 'meter') {
 }
 if (panel === 'timers') {
   document.body.classList.add('body--timers')
+}
+if (panel === 'hud') {
+  document.body.classList.add('body--hud')
 }
 if (panel === 'settings') {
   document.body.classList.add('body--settings')
@@ -34,7 +38,9 @@ const panelLabel =
       ? 'meter'
       : panel === 'timers'
         ? 'timers'
-        : panel === 'settings'
+        : panel === 'hud'
+          ? 'hud'
+          : panel === 'settings'
           ? 'settings'
           : panel === 'update'
             ? 'update'
@@ -49,6 +55,8 @@ const appTree = (
       <MeterApp />
     ) : panel === 'timers' ? (
       <TimersApp />
+    ) : panel === 'hud' ? (
+      <HudApp />
     ) : panel === 'settings' ? (
       <SettingsApp />
     ) : panel === 'update' ? (
@@ -60,5 +68,5 @@ const appTree = (
 )
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  panel === 'meter' || panel === 'timers' ? appTree : <React.StrictMode>{appTree}</React.StrictMode>,
+  panel === 'meter' || panel === 'timers' || panel === 'hud' ? appTree : <React.StrictMode>{appTree}</React.StrictMode>,
 )

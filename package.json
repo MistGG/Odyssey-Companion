@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.38",
+  "version": "0.1.39",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
     "dev:timers": "cross-env ODYSSEY_START_PANEL=timers vite",
+    "dev:hud": "cross-env ODYSSEY_START_PANEL=hud vite",
     "dev:settings": "cross-env ODYSSEY_START_PANEL=settings vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -101,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added auto-retry to connect to the client in case there was no initial connection\n- Clicking the refresh icon on the meter will trigger this manually if there is no connection either"
+      "releaseNotes": "- Added Digi Aura Module, this comes with 2 widgets currently, one to track buffs and one track attack speed\n- Added options to select which modules are launched at startup"
     }
   }
 }

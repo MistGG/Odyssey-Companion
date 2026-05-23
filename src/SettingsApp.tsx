@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { AppVersionInfo, HotkeyConfig, LatestReleaseResult, OverlaySettings } from './types'
+import type {
+  AppVersionInfo,
+  HotkeyConfig,
+  LatestReleaseResult,
+  OverlaySettings,
+  StartupPanelKey,
+} from './types'
+import { STARTUP_PANEL_KEYS } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
@@ -31,12 +38,21 @@ const HOTKEY_METER: {
   { label: 'Upload parse to cloud', slot: 'meterUploadParse' },
 ]
 
+const STARTUP_PANEL_LABELS: Record<StartupPanelKey, string> = {
+  main: 'Main (dungeons)',
+  timeline: 'Timeline',
+  meter: 'DPS meter',
+  timers: 'Boss timers',
+  hud: 'Digi Aura',
+}
+
 const NAV: { id: SettingsSectionId; label: string }[] = [
-  { id: 'general', label: 'Hotkeys' },
+  { id: 'general', label: 'General' },
   { id: 'online', label: 'Online' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'meter', label: 'DPS meter' },
   { id: 'timers', label: 'Boss timers' },
+  { id: 'hud', label: 'Digi Aura' },
   { id: 'updates', label: 'Updates' },
 ]
 
@@ -103,6 +119,7 @@ export default function SettingsApp() {
     api.applyTimelineWindowOptions?.({ alwaysOnTop: settings.timelineAlwaysOnTop })
     api.applyMeterWindowOptions?.({ alwaysOnTop: settings.meterAlwaysOnTop })
     api.applyTimersWindowOptions?.({ alwaysOnTop: settings.timersAlwaysOnTop })
+    api.applyHudWindowOptions?.({ alwaysOnTop: settings.hudAlwaysOnTop })
   }, [settings])
 
   useEffect(() => {
@@ -151,6 +168,7 @@ export default function SettingsApp() {
         api.applyTimelineWindowOptions?.({ alwaysOnTop: merged.timelineAlwaysOnTop })
         api.applyMeterWindowOptions?.({ alwaysOnTop: merged.meterAlwaysOnTop })
         api.applyTimersWindowOptions?.({ alwaysOnTop: merged.timersAlwaysOnTop })
+        api.applyHudWindowOptions?.({ alwaysOnTop: merged.hudAlwaysOnTop })
         return merged
       })
     })
@@ -370,7 +388,39 @@ export default function SettingsApp() {
 
         <main ref={mainScrollRef} className="settings-app-main meter-scroll--themed">
           <section id={sectionScrollId('general')} className="settings-app-section">
-            <h2 className="settings-app-section__title">Hotkeys</h2>
+            <h2 className="settings-app-section__title">General</h2>
+
+            <h3 className="settings-app-subhead" style={{ marginTop: 0 }}>
+              Panels at startup
+            </h3>
+            <div className="settings-panel-toggles" role="group" aria-label="Panels at startup">
+              {STARTUP_PANEL_KEYS.map((key) => {
+                const on = settings.startupPanels.includes(key)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`settings-panel-toggles__item${on ? ' settings-panel-toggles__item--on' : ''}`}
+                    aria-pressed={on}
+                    onClick={() => {
+                      setSettings((s) => {
+                        const has = s.startupPanels.includes(key)
+                        let next = has
+                          ? s.startupPanels.filter((p) => p !== key)
+                          : [...s.startupPanels, key]
+                        if (next.length === 0) next = ['main']
+                        return { ...s, startupPanels: next }
+                      })
+                    }}
+                  >
+                    <span className="settings-panel-toggles__label">{STARTUP_PANEL_LABELS[key]}</span>
+                    <span className="settings-panel-toggles__state">{on ? 'Opens' : 'Off'}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <h3 className="settings-app-subhead">Hotkeys</h3>
             <p className="hint muted" style={{ marginTop: 0 }}>
               Registered globally with Windows by default (including over the game). Use the option below if you need
               the same keys for typing elsewhere.
@@ -861,6 +911,62 @@ export default function SettingsApp() {
                   {timerTestHint}
                 </p>
               ) : null}
+            </section>
+          </section>
+
+          <section id={sectionScrollId('hud')} className="settings-app-section">
+            <h2 className="settings-app-section__title">Digi Aura</h2>
+            <section className="field-group" style={{ marginTop: 0 }}>
+              <h3 className="settings-app-subhead">Overlay</h3>
+              <label className="field">
+                <span>Edit-mode panel strength</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={settings.hudBackdropOpacity}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      hudBackdropOpacity: Number(e.target.value),
+                    }))
+                  }
+                />
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.hudAlwaysOnTop}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      hudAlwaysOnTop: e.target.checked,
+                    }))
+                  }
+                />
+                Keep Digi Aura above other apps
+              </label>
+              {settings.hudLayoutLocked ? (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ marginTop: 12 }}
+                  onClick={() =>
+                    setSettings((s) => ({
+                      ...s,
+                      hudLayoutLocked: false,
+                    }))
+                  }
+                >
+                  Unlock layout for editing
+                </button>
+              ) : (
+                <p className="hint muted" style={{ marginTop: 10 }}>
+                  Use the lock button in the Digi Aura title bar to hide chrome and pin widget positions. Unlock here or from
+                  the tray menu.
+                </p>
+              )}
             </section>
           </section>
 

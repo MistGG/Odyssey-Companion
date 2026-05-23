@@ -138,6 +138,71 @@ export type MonsterDetail = {
   locations?: MonsterLocation[]
 }
 
+export type HudWidgetType = 'attack_speed' | 'buff_tracker'
+
+/** Companion panels that may open when the app starts (settings excluded). */
+export const STARTUP_PANEL_KEYS = ['main', 'timeline', 'meter', 'timers', 'hud'] as const
+
+export type StartupPanelKey = (typeof STARTUP_PANEL_KEYS)[number]
+
+/** Per-widget options for the attack speed HUD element. */
+export type AttackSpeedWidgetConfig = {
+  /** When set, speed below threshold uses threshold colors (null = off). */
+  threshold: number | null
+  thresholdTextColor: string
+  thresholdBackgroundColor: string
+  /** Hide the "Attack speed" caption above the value. */
+  hideLabel: boolean
+  /** Font size in px for the ASP value readout. */
+  valueFontSizePx: number
+  /** Widget box width in px. */
+  widgetWidthPx: number
+  /** Fixed height in px, or `null` to size to content. */
+  widgetHeightPx: number | null
+  /** Background panel opacity (0–1); content stays fully opaque. */
+  backgroundOpacity: number
+}
+
+/** Saved buff row for blacklist (persisted in overlay settings). */
+export type BuffTrackerSavedBuff = {
+  buffId: string
+  buffName: string
+  skillIcon: string | null
+}
+
+/** Per-widget options for the buff tracker HUD element. */
+export type BuffTrackerWidgetConfig = {
+  /** Buffs hidden from the widget; persisted across sessions. */
+  blacklistedBuffs: BuffTrackerSavedBuff[]
+  /** Hide the widget title (“Buffs”). */
+  hideBuffsLabel: boolean
+  /** Hide per-buff name labels; show icon and timer only. */
+  hideBuffLabel: boolean
+  /** Hide per-buff countdown timers. */
+  hideCountdown: boolean
+  /** Buffs in a row: name above icon, timer below icon. */
+  horizontalLayout: boolean
+  /** Hide the “No active buffs” placeholder when the list is empty. */
+  hideEmptyMessage: boolean
+  /** Seconds remaining when rows blink and show tenths (default 5). */
+  expiringWarningSec: number
+  /** Background panel opacity (0–1); content stays fully opaque. */
+  backgroundOpacity: number
+  /** When layout is locked, hide the widget if there are no active buffs. */
+  hideWhenNoActiveBuffs: boolean
+  /** Scales the whole widget and contents (0.5–2). */
+  widgetScale: number
+}
+
+export type HudWidget = {
+  id: string
+  type: HudWidgetType
+  x: number
+  y: number
+  attackSpeed?: AttackSpeedWidgetConfig
+  buffTracker?: BuffTrackerWidgetConfig
+}
+
 export type HotkeyConfig = {
   /** Same accelerator toggles Start ↔ Pause (clock pause only; Reset restores reference timeline). */
   toggle: string
@@ -156,6 +221,8 @@ export type HotkeysApplyPayload = HotkeyConfig & {
 }
 
 export type OverlaySettings = {
+  /** Which companion panels to show on app launch. Default: main only. */
+  startupPanels: StartupPanelKey[]
   hotkeys: HotkeyConfig
   /**
    * Timeline window only: background strength (0 = fully transparent so only timeline UI shows, 1 = solid).
@@ -219,9 +286,21 @@ export type OverlaySettings = {
   bossTimerChimeVolume: number
   /** How many times to play the chime in a row (1–5). */
   bossTimerChimeRepeats: number
+  /** Digi Aura overlay — panel opacity in edit mode (0–1). */
+  hudBackdropOpacity: number
+  /** Keep HUD above other apps. */
+  hudAlwaysOnTop: boolean
+  /**
+   * When true: title bar and backdrop hidden; widgets only, with click-through on empty areas.
+   * Unlock only via tray or Settings (not the HUD lock button).
+   */
+  hudLayoutLocked: boolean
+  /** Placed HUD widgets (positions persisted while editing layout). */
+  hudWidgets: HudWidget[]
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
+  startupPanels: ['main'],
   hotkeys: {
     toggle: 'F9',
     reset: 'F11',
@@ -248,6 +327,10 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   bossTimerChimeStyle: 'warmDuo',
   bossTimerChimeVolume: 0.45,
   bossTimerChimeRepeats: 1,
+  hudBackdropOpacity: 0.78,
+  hudAlwaysOnTop: true,
+  hudLayoutLocked: false,
+  hudWidgets: [],
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */
