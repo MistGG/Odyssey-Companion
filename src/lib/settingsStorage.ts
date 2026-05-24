@@ -9,6 +9,8 @@ import {
 } from '../types'
 import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG, normalizeAttackSpeedWidgetConfig } from './hudAttackSpeedWidget'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, normalizeBuffTrackerWidgetConfig } from './hudBuffTrackerWidget'
+import { DEFAULT_BOSS_ALERTS_WIDGET_CONFIG, normalizeBossAlertsWidgetConfig } from './hudBossAlertsWidget'
+import { normalizeBossTimerChimeStyle } from './bossTimerWebChime'
 
 const KEY = 'dmo-overlay-settings-v1'
 
@@ -102,6 +104,19 @@ function normalizeHudWidgets(raw: unknown, legacyWidgetOpacity?: number): HudWid
           legacy,
         ),
       })
+      continue
+    }
+    if (w.type === 'boss_alerts') {
+      out.push({
+        id: w.id.trim(),
+        type: 'boss_alerts',
+        x: Math.round(w.x),
+        y: Math.round(w.y),
+        bossAlerts: normalizeBossAlertsWidgetConfig(
+          w.bossAlerts ?? DEFAULT_BOSS_ALERTS_WIDGET_CONFIG,
+          legacy,
+        ),
+      })
     }
   }
   return out
@@ -186,12 +201,10 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       ? raw.bossTimerNotifyWhenUiClosed
       : undefined
   const chimeRaw = raw.bossTimerChimeStyle
-  let bossChime: OverlaySettings['bossTimerChimeStyle'] | undefined
-  if (chimeRaw === 'off' || chimeRaw === 'warmDuo' || chimeRaw === 'airy') {
-    bossChime = chimeRaw
-  } else if (chimeRaw === 'gentle' || chimeRaw === 'standard') {
-    bossChime = 'warmDuo'
-  }
+  const bossChime =
+    chimeRaw !== undefined && chimeRaw !== null
+      ? normalizeBossTimerChimeStyle(chimeRaw)
+      : undefined
 
   let bossChimeVol: number | undefined
   if (typeof raw.bossTimerChimeVolume === 'number' && Number.isFinite(raw.bossTimerChimeVolume)) {

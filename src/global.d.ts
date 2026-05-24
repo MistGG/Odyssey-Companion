@@ -79,7 +79,11 @@ declare global {
       bossTimerTestToast: () => Promise<{ ok: true } | { ok: false; error: string }>
       /** Timers window: play Web Audio chime when main fires a pre-spawn sound reminder. */
       onBossTimerChime?: (
-        handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void,
+        handler: (payload: {
+          style: 'braveHeart' | 'digivice' | 'digibeep'
+          volume: number
+          repeats: number
+        }) => void,
       ) => () => void
       connectEventStream?: (
         host: string,

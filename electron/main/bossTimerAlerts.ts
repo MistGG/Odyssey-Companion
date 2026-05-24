@@ -4,12 +4,16 @@ import type { RaidBossAlertSnapshot, RaidBossStatus } from '../../src/lib/raidTi
 
 let activeBossAlerts: RaidBossAlertSnapshot[] = []
 
-export type ParsedChimeStyle = 'off' | 'warmDuo' | 'airy'
+export type ParsedChimeStyle = 'off' | 'braveHeart' | 'digivice' | 'digibeep'
 
 export function parseBossTimerChimeStyle(raw: unknown): ParsedChimeStyle {
-  if (raw === 'off' || raw === 'warmDuo' || raw === 'airy') return raw
-  if (raw === 'gentle' || raw === 'standard') return 'warmDuo'
-  return 'warmDuo'
+  if (raw === 'off' || raw === 'braveHeart' || raw === 'digivice' || raw === 'digibeep') {
+    return raw
+  }
+  if (raw === 'warmDuo' || raw === 'airy' || raw === 'gentle' || raw === 'standard') {
+    return 'braveHeart'
+  }
+  return 'braveHeart'
 }
 
 function dispatchTimersWebChime(
@@ -124,7 +128,11 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
       void new Notification({ title, body }).show()
     }
     if (wantSound) {
-      dispatchTimersWebChime(timersWin, chime, settings.bossTimerChimeVolume, settings.bossTimerChimeRepeats)
+      const repeats =
+        chime === 'braveHeart'
+          ? 1
+          : Math.min(5, Math.max(1, Math.round(settings.bossTimerChimeRepeats)))
+      dispatchTimersWebChime(timersWin, chime, settings.bossTimerChimeVolume, repeats)
     }
   }
 }

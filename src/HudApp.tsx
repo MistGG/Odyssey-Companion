@@ -1,7 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import type { AttackSpeedWidgetConfig, BuffTrackerWidgetConfig, HudWidget, HudWidgetType, OverlaySettings } from './types'
+import type {
+  AttackSpeedWidgetConfig,
+  BossAlertsWidgetConfig,
+  BuffTrackerWidgetConfig,
+  HudWidget,
+  HudWidgetType,
+  OverlaySettings,
+} from './types'
 import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG } from './lib/hudAttackSpeedWidget'
+import {
+  applyHudBossAlertsFightLoaded,
+  bossAlertsFightKey,
+  computeHudBossAlerts,
+  createHudBossAlertsState,
+  ingestHudBossAlertsEvent,
+  type HudBossAlertRow,
+  type HudBossAlertsState,
+} from './lib/hudBossAlerts'
+import {
+  playBossAlertSound,
+  shouldPlaySoundForTargetCount,
+} from './lib/hudBossAlertSound'
+import {
+  DEFAULT_BOSS_ALERTS_WIDGET_CONFIG,
+  normalizeBossAlertsWidgetConfig,
+} from './lib/hudBossAlertsWidget'
+import {
+  createBossAlertsDemoSession,
+  tickBossAlertsDemoSession,
+  type BossAlertsDemoSession,
+} from './lib/hudBossAlertsDemo'
+import { loadRandomHardBossAlertsFight } from './lib/hudBossAlertsTest'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG } from './lib/hudBuffTrackerWidget'
+import { loadTimelineFightForDungeon } from './lib/loadTimelineFightForDungeon'
 import AttackSpeedWidgetSettingsMenu from './components/hud/AttackSpeedWidgetSettingsMenu'
 import BuffTrackerWidgetSettingsMenu from './components/hud/BuffTrackerWidgetSettingsMenu'
 import HudWidgetAddMenu from './components/hud/HudWidgetAddMenu'
@@ -20,6 +51,8 @@ import {
   EVENT_STREAM_STORAGE_PORT,
 } from './lib/eventStreamConstants'
 import AttackSpeedWidget from './components/hud/AttackSpeedWidget'
+import BossAlertsWidget from './components/hud/BossAlertsWidget'
+import BossAlertsWidgetSettingsMenu from './components/hud/BossAlertsWidgetSettingsMenu'
 import BuffTrackerWidget from './components/hud/BuffTrackerWidget'
 import {
   createHudBuffTrackerState,
@@ -86,10 +119,31 @@ export default function HudApp() {
     x: number
     y: number
   } | null>(null)
+  const [bossAlertsSettingsMenu, setBossAlertsSettingsMenu] = useState<{
+    widgetId: string
+    x: number
+    y: number
+  } | null>(null)
   const [widgetAddMenu, setWidgetAddMenu] = useState<{ x: number; y: number } | null>(null)
   const [buffTrackerState, setBuffTrackerState] = useState<HudBuffTrackerState>(() =>
     createHudBuffTrackerState(),
   )
+  const [bossAlertsState, setBossAlertsState] = useState<HudBossAlertsState>(() =>
+    createHudBossAlertsState(),
+  )
+  const [bossAlertsTick, setBossAlertsTick] = useState(0)
+  const [bossAlertsTestBusy, setBossAlertsTestBusy] = useState(false)
+  const [bossAlertsTestHint, setBossAlertsTestHint] = useState<string | null>(null)
+  const [bossAlertsDemo, setBossAlertsDemo] = useState<{
+    active: boolean
+    widgetId: string | null
+    label: string | null
+    alerts: HudBossAlertRow[]
+  }>({ active: false, widgetId: null, label: null, alerts: [] })
+  const bossAlertsDemoSessionRef = useRef<BossAlertsDemoSession | null>(null)
+  const bossAlertsDemoWidgetIdRef = useRef<string | null>(null)
+  const bossAlertsSoundPlayedRef = useRef<Map<string, Set<string>>>(new Map())
+  const stopBossAlertsDemoRef = useRef<() => void>(() => {})
   const [thresholdPreviewWidgetId, setThresholdPreviewWidgetId] = useState<string | null>(null)
   const eventStreamConnectedRef = useRef(false)
 
@@ -113,10 +167,15 @@ export default function HudApp() {
     setBuffTrackerSettingsMenu(null)
   }, [])
 
+  const closeBossAlertsSettingsMenu = useCallback(() => {
+    setBossAlertsSettingsMenu(null)
+  }, [])
+
   const closeHudWidgetSettingsMenus = useCallback(() => {
     closeAttackSpeedSettingsMenu()
     closeBuffTrackerSettingsMenu()
-  }, [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu])
+    closeBossAlertsSettingsMenu()
+  }, [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu])
 
   const toggleThresholdPreview = useCallback((widgetId: string) => {
     setThresholdPreviewWidgetId((current) => (current === widgetId ? null : widgetId))
@@ -180,6 +239,30 @@ export default function HudApp() {
         parseAttackSpeedFromQueryResult(event) ?? parseDigimonAttackSpeed(event)
       if (speed != null) setAttackSpeed(speed)
       setBuffTrackerState((prev) => ingestHudBuffTrackerEvent(prev, event))
+
+      if (
+        String(event.type ?? '') === 'dungeon_progress' &&
+        String(event.dungeon_id ?? '').trim()
+      ) {
+        stopBossAlertsDemoRef.current()
+      }
+
+      setBossAlertsState((prev) => {
+        const bossResult = ingestHudBossAlertsEvent(prev, event)
+        if (bossResult.dungeonReset || bossResult.requestFightLoad) {
+          bossAlertsSoundPlayedRef.current.clear()
+        }
+        if (bossResult.requestFightLoad) {
+          const { dungeonId, difficulty } = bossResult.requestFightLoad
+          const key = bossAlertsFightKey(dungeonId, difficulty)
+          void loadTimelineFightForDungeon(dungeonId, difficulty).then((built) => {
+            setBossAlertsState((s) =>
+              applyHudBossAlertsFightLoaded(s, key, built.ok ? built.payload : null),
+            )
+          })
+        }
+        return bossResult.state
+      })
     })
 
     const offStatus = api.onEventStreamStatus?.((payload) => {
@@ -199,6 +282,8 @@ export default function HudApp() {
       } else if (status === 'idle') {
         setAttackSpeed(null)
         setBuffTrackerState(createHudBuffTrackerState())
+        setBossAlertsState(createHudBossAlertsState())
+        stopBossAlertsDemoRef.current()
       }
     })
 
@@ -222,6 +307,22 @@ export default function HudApp() {
     const id = window.setInterval(() => {
       setBuffTrackerState((prev) => pruneExpiredBuffs(prev))
     }, 500)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setBossAlertsTick((t) => t + 1)
+      const session = bossAlertsDemoSessionRef.current
+      const widgetId = bossAlertsDemoWidgetIdRef.current
+      if (!session || !widgetId) return
+      const cfg =
+        settingsRef.current.hudWidgets.find((w) => w.id === widgetId)?.bossAlerts ??
+        DEFAULT_BOSS_ALERTS_WIDGET_CONFIG
+      const { session: next, alerts } = tickBossAlertsDemoSession(session, Date.now(), cfg)
+      bossAlertsDemoSessionRef.current = next
+      setBossAlertsDemo((prev) => (prev.active ? { ...prev, alerts } : prev))
+    }, 100)
     return () => window.clearInterval(id)
   }, [])
 
@@ -355,22 +456,32 @@ export default function HudApp() {
   const addHudWidget = useCallback((type: HudWidgetType) => {
     setSettings((s) => {
       if (s.hudWidgets.some((w) => w.type === type)) return s
-      const widget: HudWidget =
-        type === 'attack_speed'
-          ? {
-              id: newWidgetId(),
-              type: 'attack_speed',
-              x: 16,
-              y: HUD_WIDGET_DEFAULT_Y,
-              attackSpeed: { ...DEFAULT_ATTACK_SPEED_WIDGET_CONFIG },
-            }
-          : {
-              id: newWidgetId(),
-              type: 'buff_tracker',
-              x: 16,
-              y: HUD_WIDGET_DEFAULT_Y + 72,
-              buffTracker: { ...DEFAULT_BUFF_TRACKER_WIDGET_CONFIG },
-            }
+      let widget: HudWidget
+      if (type === 'attack_speed') {
+        widget = {
+          id: newWidgetId(),
+          type: 'attack_speed',
+          x: 16,
+          y: HUD_WIDGET_DEFAULT_Y,
+          attackSpeed: { ...DEFAULT_ATTACK_SPEED_WIDGET_CONFIG },
+        }
+      } else if (type === 'buff_tracker') {
+        widget = {
+          id: newWidgetId(),
+          type: 'buff_tracker',
+          x: 16,
+          y: HUD_WIDGET_DEFAULT_Y + 72,
+          buffTracker: { ...DEFAULT_BUFF_TRACKER_WIDGET_CONFIG },
+        }
+      } else {
+        widget = {
+          id: newWidgetId(),
+          type: 'boss_alerts',
+          x: 16,
+          y: HUD_WIDGET_DEFAULT_Y + 144,
+          bossAlerts: { ...DEFAULT_BOSS_ALERTS_WIDGET_CONFIG },
+        }
+      }
       return { ...s, hudWidgets: [...s.hudWidgets, widget] }
     })
   }, [])
@@ -427,20 +538,82 @@ export default function HudApp() {
     [],
   )
 
+  const updateBossAlertsWidgetConfig = useCallback(
+    (widgetId: string, config: BossAlertsWidgetConfig) => {
+      const normalized = normalizeBossAlertsWidgetConfig(config)
+      setSettings((s) => ({
+        ...s,
+        hudWidgets: s.hudWidgets.map((w) =>
+          w.id === widgetId && w.type === 'boss_alerts'
+            ? { ...w, bossAlerts: normalized }
+            : w,
+        ),
+      }))
+    },
+    [],
+  )
+
   const openBuffTrackerSettingsMenu = useCallback(
     (widgetId: string, clientX: number, clientY: number) => {
       closeAttackSpeedSettingsMenu()
+      closeBossAlertsSettingsMenu()
       setBuffTrackerSettingsMenu({ widgetId, x: clientX, y: clientY })
     },
-    [closeAttackSpeedSettingsMenu],
+    [closeAttackSpeedSettingsMenu, closeBossAlertsSettingsMenu],
+  )
+
+  const stopBossAlertsDemo = useCallback(() => {
+    bossAlertsDemoSessionRef.current = null
+    bossAlertsDemoWidgetIdRef.current = null
+    setBossAlertsDemo({ active: false, widgetId: null, label: null, alerts: [] })
+    setBossAlertsTestHint(null)
+    bossAlertsSoundPlayedRef.current.clear()
+  }, [])
+
+  stopBossAlertsDemoRef.current = stopBossAlertsDemo
+
+  const startBossAlertsTest = useCallback(async (widgetId: string) => {
+    setBossAlertsTestBusy(true)
+    setBossAlertsTestHint(null)
+    bossAlertsSoundPlayedRef.current.clear()
+    try {
+      const { fight, label } = await loadRandomHardBossAlertsFight()
+      const cfg =
+        settingsRef.current.hudWidgets.find((w) => w.id === widgetId)?.bossAlerts ??
+        DEFAULT_BOSS_ALERTS_WIDGET_CONFIG
+      const session = createBossAlertsDemoSession(fight, cfg, label)
+      bossAlertsDemoSessionRef.current = session
+      bossAlertsDemoWidgetIdRef.current = widgetId
+      setBossAlertsDemo({
+        active: true,
+        widgetId,
+        label,
+        alerts: [session.row],
+      })
+      setBossAlertsTestHint(`Preview: ${label}`)
+    } catch (e) {
+      setBossAlertsTestHint(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBossAlertsTestBusy(false)
+    }
+  }, [])
+
+  const openBossAlertsSettingsMenu = useCallback(
+    (widgetId: string, clientX: number, clientY: number) => {
+      closeAttackSpeedSettingsMenu()
+      closeBuffTrackerSettingsMenu()
+      setBossAlertsSettingsMenu({ widgetId, x: clientX, y: clientY })
+    },
+    [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu],
   )
 
   const openAttackSpeedSettingsMenu = useCallback(
     (widgetId: string, clientX: number, clientY: number) => {
       closeBuffTrackerSettingsMenu()
+      closeBossAlertsSettingsMenu()
       setAttackSpeedSettingsMenu({ widgetId, x: clientX, y: clientY })
     },
-    [closeBuffTrackerSettingsMenu],
+    [closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu],
   )
 
   const onWidgetDragStart = useCallback(
@@ -553,6 +726,48 @@ export default function HudApp() {
             layoutLocked={layoutLocked}
             onDragStart={onWidgetDragStart(widget)}
             onOpenSettings={(x, y) => openBuffTrackerSettingsMenu(widget.id, x, y)}
+          />
+        </div>
+      )
+    }
+    if (widget.type === 'boss_alerts') {
+      const cfg = widget.bossAlerts ?? DEFAULT_BOSS_ALERTS_WIDGET_CONFIG
+      void bossAlertsTick
+      const demoActive =
+        bossAlertsDemo.active && bossAlertsDemo.widgetId === widget.id
+      const alerts = demoActive
+        ? bossAlertsDemo.alerts
+        : computeHudBossAlerts(bossAlertsState, Date.now(), cfg)
+      const played = bossAlertsSoundPlayedRef.current.get(widget.id) ?? new Set<string>()
+      if (!bossAlertsSoundPlayedRef.current.has(widget.id)) {
+        bossAlertsSoundPlayedRef.current.set(widget.id, played)
+      }
+      for (const row of alerts) {
+        if (played.has(row.key)) continue
+        played.add(row.key)
+        if (shouldPlaySoundForTargetCount(row.targetCount, cfg)) {
+          playBossAlertSound(cfg)
+        }
+      }
+      return (
+        <div
+          key={widget.id}
+          className="hud-widget-slot"
+          style={{ left: widget.x, top: widget.y }}
+        >
+          <BossAlertsWidget
+            ref={(el) => registerWidgetRef(widget.id, el)}
+            alerts={alerts}
+            fightLoading={demoActive ? false : bossAlertsState.fightLoading}
+            inDungeon={demoActive || Boolean(bossAlertsState.dungeonId?.trim())}
+            bossEngaged={demoActive || bossAlertsState.bossEngagedAtMs != null}
+            testMode={demoActive}
+            testLabel={demoActive ? bossAlertsDemo.label : bossAlertsState.testLabel}
+            config={cfg}
+            draggable={editMode}
+            layoutLocked={layoutLocked}
+            onDragStart={onWidgetDragStart(widget)}
+            onOpenSettings={(x, y) => openBossAlertsSettingsMenu(widget.id, x, y)}
           />
         </div>
       )
@@ -696,6 +911,25 @@ export default function HudApp() {
             updateBuffTrackerWidgetConfig(buffTrackerSettingsMenu.widgetId, cfg)
           }
           onClose={closeBuffTrackerSettingsMenu}
+        />
+      ) : null}
+      {bossAlertsSettingsMenu && editMode ? (
+        <BossAlertsWidgetSettingsMenu
+          x={bossAlertsSettingsMenu.x}
+          y={bossAlertsSettingsMenu.y}
+          config={
+            settings.hudWidgets.find((w) => w.id === bossAlertsSettingsMenu.widgetId)
+              ?.bossAlerts ?? DEFAULT_BOSS_ALERTS_WIDGET_CONFIG
+          }
+          onChange={(cfg) =>
+            updateBossAlertsWidgetConfig(bossAlertsSettingsMenu.widgetId, cfg)
+          }
+          onClose={closeBossAlertsSettingsMenu}
+          onStartTest={() => startBossAlertsTest(bossAlertsSettingsMenu.widgetId)}
+          onStopTest={stopBossAlertsDemo}
+          testLoading={bossAlertsTestBusy}
+          testRunning={bossAlertsDemo.active}
+          testHint={bossAlertsTestHint}
         />
       ) : null}
     </div>

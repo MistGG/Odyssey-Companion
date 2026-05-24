@@ -270,11 +270,17 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   supabaseAuthStorageRemoveItem: (key: string) =>
     ipcRenderer.invoke('supabase-auth-storage:remove', key) as Promise<void>,
 
-  onBossTimerChime: (handler: (payload: { style: 'warmDuo' | 'airy'; volume: number; repeats: number }) => void) => {
+  onBossTimerChime: (
+    handler: (payload: {
+      style: 'braveHeart' | 'digivice' | 'digibeep'
+      volume: number
+      repeats: number
+    }) => void,
+  ) => {
     const wrapped = (_evt: unknown, payload: unknown) => {
       if (!payload || typeof payload !== 'object') return
       const p = payload as { style?: unknown; volume?: unknown; repeats?: unknown }
-      if (p.style !== 'warmDuo' && p.style !== 'airy') return
+      if (p.style !== 'braveHeart' && p.style !== 'digivice' && p.style !== 'digibeep') return
       const volume =
         typeof p.volume === 'number' && Number.isFinite(p.volume) ? Math.min(1, Math.max(0, p.volume)) : 0.45
       const repeats =

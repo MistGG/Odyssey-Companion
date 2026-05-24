@@ -1,29 +1,48 @@
 /**
- * Web Audio chimes for boss-timer reminders (renderer only).
- * Voices: Warm duo (two soft notes), Airy (slow attack, longer tail).
+ * Boss-timer reminder sounds (renderer) — bundled MP3 clips.
  */
 
-import type { OverlaySettings } from '../types'
+import type { BossTimerChimeStyle, OverlaySettings } from '../types'
+import braveHeartUrl from '../assets/sounds/boss-timer/brave_heart.mp3'
+import digiviceUrl from '../assets/sounds/boss-timer/digivice.mp3'
+import digibeepUrl from '../assets/sounds/boss-timer/digibeep.mp3'
 
-export type BossTimerChimeVoice = 'warmDuo' | 'airy'
+export type BossTimerChimeVoice = Exclude<BossTimerChimeStyle, 'off'>
 
 export type BossTimerChimeIpcPayload = {
   style: BossTimerChimeVoice
   /** 0–1 */
   volume: number
-  /** Full chime sequences to play (1–5). */
+  /** How many times to play the clip (1–5). */
   repeats: number
 }
 
 export type PlayBossTimerWebChimeOpts = {
   voice: BossTimerChimeVoice
-  /** 0–1, scales overall loudness */
   volume: number
-  /** Play the full chime this many times (1–5). Default 1. */
   repeats?: number
 }
 
+const CHIME_SRC: Record<BossTimerChimeVoice, string> = {
+  braveHeart: braveHeartUrl,
+  digivice: digiviceUrl,
+  digibeep: digibeepUrl,
+}
+
+const CHIME_LABEL: Record<BossTimerChimeVoice, string> = {
+  braveHeart: 'Brave Heart',
+  digivice: 'Digivice',
+  digibeep: 'Digi Beep',
+}
+
+/** Pause between repeat plays (after fade-out completes). */
+const REPEAT_GAP_MS = 2000
+/** Fade duration: at least this many seconds, or a fraction of clip length. */
+const FADE_TAIL_MIN_SEC = 0.4
+const FADE_TAIL_RATIO = 0.25
+
 let sharedCtx: AudioContext | null = null
+let lastAudio: HTMLAudioElement | null = null
 
 function clamp01(v: number): number {
   if (!Number.isFinite(v)) return 0
@@ -35,12 +54,11 @@ function clampRepeats(n: number | undefined): number {
   return Math.min(5, Math.max(1, Math.round(n)))
 }
 
-/** Seconds from start of one full voice to start of the next repeat. */
-function voiceCycleSeconds(voice: BossTimerChimeVoice): number {
-  return voice === 'airy' ? 1.08 : 0.9
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-function getAudioContext(): AudioContext {
+async function getRunningContext(): Promise<AudioContext> {
   if (typeof window === 'undefined') {
     throw new Error('Web Audio requires a browser window')
   }
@@ -50,81 +68,139 @@ function getAudioContext(): AudioContext {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     sharedCtx = new AC()
   }
+  if (sharedCtx.state === 'suspended') {
+    await sharedCtx.resume().catch(() => {})
+  }
   return sharedCtx
 }
 
-async function ensureRunning(ctx: AudioContext): Promise<void> {
-  if (ctx.state === 'suspended') {
-    await ctx.resume().catch(() => {})
+export function normalizeBossTimerChimeStyle(raw: unknown): BossTimerChimeStyle {
+  if (raw === 'off' || raw === 'braveHeart' || raw === 'digivice' || raw === 'digibeep') {
+    return raw
   }
+  if (raw === 'warmDuo' || raw === 'airy' || raw === 'gentle' || raw === 'standard') {
+    return 'braveHeart'
+  }
+  return 'braveHeart'
 }
 
-function blip(
-  ctx: AudioContext,
-  dest: AudioNode,
-  startTime: number,
-  freqHz: number,
-  durationSec: number,
-  peakGain: number,
-  attackSec = Math.min(0.018, durationSec * 0.22),
-): void {
-  const osc = ctx.createOscillator()
-  const g = ctx.createGain()
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(freqHz, startTime)
-  const t0 = startTime
-  const floor = 0.0001
-  const pk = Math.max(peakGain, floor * 2)
-  g.gain.setValueAtTime(floor, t0)
-  g.gain.exponentialRampToValueAtTime(pk, t0 + attackSec)
-  g.gain.exponentialRampToValueAtTime(floor, t0 + durationSec)
-  osc.connect(g).connect(dest)
-  osc.start(t0)
-  osc.stop(t0 + durationSec + 0.04)
+export function bossTimerChimeStyleLabel(style: BossTimerChimeStyle): string {
+  if (style === 'off') return 'Off'
+  return CHIME_LABEL[style]
 }
 
-function scheduleVoice(ctx: AudioContext, master: GainNode, t0: number, voice: BossTimerChimeVoice): void {
-  if (voice === 'warmDuo') {
-    blip(ctx, master, t0, 392, 0.24, 0.32)
-    blip(ctx, master, t0 + 0.12, 523.25, 0.26, 0.32)
+/** Brave Heart ignores the repeats setting. */
+export function bossTimerChimeRepeatsConfigurable(style: BossTimerChimeStyle): boolean {
+  return style !== 'off' && style !== 'braveHeart'
+}
+
+export function effectiveBossTimerChimeRepeats(
+  style: BossTimerChimeStyle,
+  repeats: number,
+): number {
+  if (style === 'off') return 0
+  if (style === 'braveHeart') return 1
+  return clampRepeats(repeats)
+}
+
+function chimeSrc(voice: BossTimerChimeVoice): string {
+  return CHIME_SRC[voice]
+}
+
+function waitForMetadata(audio: HTMLAudioElement): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      resolve(true)
+      return
+    }
+    const onReady = () => {
+      cleanup()
+      resolve(Number.isFinite(audio.duration) && audio.duration > 0)
+    }
+    const onFail = () => {
+      cleanup()
+      resolve(false)
+    }
+    const cleanup = () => {
+      audio.removeEventListener('loadedmetadata', onReady)
+      audio.removeEventListener('error', onFail)
+    }
+    audio.addEventListener('loadedmetadata', onReady, { once: true })
+    audio.addEventListener('error', onFail, { once: true })
+  })
+}
+
+async function playChimeOnce(ctx: AudioContext, src: string, volume: number): Promise<void> {
+  const audio = new Audio(src)
+  lastAudio = audio
+
+  const hasMeta = await waitForMetadata(audio)
+  if (!hasMeta) {
+    await new Promise<void>((resolve) => {
+      const done = () => resolve()
+      audio.addEventListener('ended', done, { once: true })
+      audio.addEventListener('error', done, { once: true })
+      audio.volume = volume
+      void audio.play().catch(done)
+    })
     return
   }
-  if (voice === 'airy') {
-    blip(ctx, master, t0, 587.33, 0.55, 0.22, 0.05)
+
+  const source = ctx.createMediaElementSource(audio)
+  const gain = ctx.createGain()
+  source.connect(gain).connect(ctx.destination)
+
+  const duration = audio.duration
+  const fadeLen = Math.min(duration * 0.9, Math.max(FADE_TAIL_MIN_SEC, duration * FADE_TAIL_RATIO))
+  const t0 = ctx.currentTime + 0.02
+
+  gain.gain.setValueAtTime(volume, t0)
+  if (duration > fadeLen + 0.05) {
+    gain.gain.setValueAtTime(volume, t0 + duration - fadeLen)
+    gain.gain.linearRampToValueAtTime(0.0001, t0 + duration)
+  } else {
+    gain.gain.linearRampToValueAtTime(0.0001, t0 + Math.max(0.08, duration))
   }
+
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      try {
+        source.disconnect()
+        gain.disconnect()
+      } catch {
+        /* already disconnected */
+      }
+      resolve()
+    }
+    audio.addEventListener('ended', done, { once: true })
+    audio.addEventListener('error', done, { once: true })
+    void audio.play().catch(done)
+  })
 }
 
-/**
- * Play a reminder chime. `volume` is 0–1 (from settings slider).
- */
 export async function playBossTimerWebChime(opts: PlayBossTimerWebChimeOpts): Promise<void> {
   const vol = clamp01(opts.volume)
   if (vol <= 0.001) return
 
-  const repeats = clampRepeats(opts.repeats)
-  const cycle = voiceCycleSeconds(opts.voice)
+  const repeats = effectiveBossTimerChimeRepeats(opts.voice, opts.repeats ?? 1)
+  if (repeats < 1) return
 
-  const ctx = getAudioContext()
-  await ensureRunning(ctx)
+  const src = chimeSrc(opts.voice)
+  if (!src) return
 
-  const t0 = ctx.currentTime + 0.02
-  const master = ctx.createGain()
-  /** Base trim × user volume — keeps defaults gentle even at 100%. */
-  master.gain.setValueAtTime(0.16 * vol, t0)
-  master.connect(ctx.destination)
-
-  for (let i = 0; i < repeats; i++) {
-    scheduleVoice(ctx, master, t0 + i * cycle, opts.voice)
+  if (lastAudio) {
+    lastAudio.pause()
+    lastAudio.currentTime = 0
   }
 
-  const cleanupMs = Math.ceil((0.02 + repeats * cycle + 0.35) * 1000) + 200
-  window.setTimeout(() => {
-    try {
-      master.disconnect()
-    } catch {
-      /* already disconnected */
+  const ctx = await getRunningContext()
+
+  for (let i = 0; i < repeats; i++) {
+    await playChimeOnce(ctx, src, vol)
+    if (i < repeats - 1) {
+      await sleep(REPEAT_GAP_MS)
     }
-  }, Math.max(400, cleanupMs))
+  }
 }
 
 export async function playBossTimerWebChimeFromSetting(

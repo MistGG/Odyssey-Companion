@@ -31,6 +31,12 @@ function isHudWidget(v: unknown): v is HudWidget {
     }
     return true
   }
+  if (w.type === 'boss_alerts') {
+    if (w.bossAlerts !== undefined && (typeof w.bossAlerts !== 'object' || w.bossAlerts === null)) {
+      return false
+    }
+    return true
+  }
   return false
 }
 
@@ -96,8 +102,9 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
       o.bossTimerNotifyMethod !== 'sound' &&
       o.bossTimerNotifyMethod !== 'both') ||
     (o.bossTimerChimeStyle !== 'off' &&
-      o.bossTimerChimeStyle !== 'warmDuo' &&
-      o.bossTimerChimeStyle !== 'airy') ||
+      o.bossTimerChimeStyle !== 'braveHeart' &&
+      o.bossTimerChimeStyle !== 'digivice' &&
+      o.bossTimerChimeStyle !== 'digibeep') ||
     typeof o.bossTimerChimeVolume !== 'number' ||
     !Number.isFinite(o.bossTimerChimeVolume) ||
     o.bossTimerChimeVolume < 0 ||

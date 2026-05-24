@@ -14,6 +14,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
+import { bossTimerChimeRepeatsConfigurable } from './lib/bossTimerWebChime'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { userFacingAuthError } from './lib/userFacingMessages'
@@ -778,8 +779,7 @@ export default function SettingsApp() {
                   <option value="both">Toast and sound</option>
                 </select>
                 <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                  Sound plays in the timers window (Web Audio). If the timers process is not running, you may only get
-                  a toast.
+                  Sound plays in the timers window. If the timers process is not running, you may only get a toast.
                 </span>
               </label>
               <label className="field">
@@ -794,8 +794,9 @@ export default function SettingsApp() {
                   }
                 >
                   <option value="off">Off</option>
-                  <option value="warmDuo">Warm Duo</option>
-                  <option value="airy">Airy</option>
+                  <option value="braveHeart">Brave Heart</option>
+                  <option value="digivice">Digivice</option>
+                  <option value="digibeep">Digi Beep</option>
                 </select>
               </label>
               <label className="field">
@@ -814,7 +815,7 @@ export default function SettingsApp() {
                   }
                 />
                 <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                  {Math.round(settings.bossTimerChimeVolume * 100)}% — applies to sound and both; toast volume follows
+                  {Math.round(settings.bossTimerChimeVolume * 100)}% applies to sound and both; toast volume follows
                   Windows.
                 </span>
               </label>
@@ -825,6 +826,7 @@ export default function SettingsApp() {
                   min={1}
                   max={5}
                   step={1}
+                  disabled={!bossTimerChimeRepeatsConfigurable(settings.bossTimerChimeStyle)}
                   value={settings.bossTimerChimeRepeats}
                   onChange={(e) =>
                     setSettings((s) => ({
@@ -834,7 +836,9 @@ export default function SettingsApp() {
                   }
                 />
                 <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                  {settings.bossTimerChimeRepeats}× in a row — applies to sound and both.
+                  {settings.bossTimerChimeStyle === 'braveHeart'
+                    ? 'Brave Heart always plays once (repeats disabled).'
+                    : `${settings.bossTimerChimeRepeats}× fades out, then ${2}s pause between plays.`}
                 </span>
               </label>
             </section>
@@ -853,7 +857,7 @@ export default function SettingsApp() {
                       setTimerTestBusy(null)
                       if (r.ok) {
                         setTimerTestHintIsError(false)
-                        setTimerTestHint('Sent — check notifications / Action Center.')
+                        setTimerTestHint('Sent. Check notifications / Action Center.')
                       } else {
                         setTimerTestHintIsError(true)
                         setTimerTestHint(r.error ?? 'Failed')

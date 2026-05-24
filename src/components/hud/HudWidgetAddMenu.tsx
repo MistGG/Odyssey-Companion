@@ -7,6 +7,7 @@ const MENU_VIEWPORT_MARGIN = 8
 const HUD_WIDGET_CATALOG: { type: HudWidgetType; label: string }[] = [
   { type: 'attack_speed', label: 'Attack speed' },
   { type: 'buff_tracker', label: 'Buff tracker' },
+  { type: 'boss_alerts', label: 'Boss alerts' },
 ]
 
 function clampMenuToViewport(x: number, y: number, width: number, height: number) {

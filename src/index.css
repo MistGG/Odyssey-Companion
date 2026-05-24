@@ -4914,6 +4914,167 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   padding: 2px 0;
 }
 
+.hud-widget--boss-alerts {
+  --hud-boss-alerts-scale: 1;
+  zoom: var(--hud-boss-alerts-scale);
+  min-width: 200px;
+  max-width: min(96vw, 360px);
+  padding: 6px 8px 8px;
+  gap: 4px;
+}
+
+.hud-widget--boss-alerts::before {
+  border-color: rgba(120, 200, 255, calc(var(--hud-widget-alpha) * 0.25));
+}
+
+.hud-widget--boss-alerts-empty {
+  min-width: 160px;
+}
+
+.hud-boss-alerts__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-boss-alerts__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: rgba(255, 120, 80, calc(0.08 * var(--hud-widget-alpha)));
+  border: 1px solid rgba(255, 140, 90, calc(0.2 * var(--hud-widget-alpha)));
+}
+
+.hud-boss-alerts__row--urgent {
+  animation: hud-boss-alert-blink 0.85s ease-in-out infinite;
+  border-color: rgba(255, 90, 90, calc(0.55 * var(--hud-widget-alpha)));
+  background: rgba(255, 60, 60, calc(0.14 * var(--hud-widget-alpha)));
+}
+
+@keyframes hud-boss-alert-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.hud-boss-alerts__timer {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 200, 150, 0.98);
+  min-width: 2.5em;
+}
+
+.hud-boss-alerts__row--urgent .hud-boss-alerts__timer {
+  color: rgba(255, 140, 140, 0.98);
+}
+
+.hud-boss-alerts__skill {
+  font-size: 11px;
+  line-height: 1.25;
+  color: rgba(230, 240, 255, 0.92);
+}
+
+.hud-boss-alerts__boss {
+  font-size: 10px;
+}
+
+.hud-boss-alerts__sep {
+  font-size: 10px;
+}
+
+.hud-boss-alerts__empty {
+  font-size: 11px;
+  color: rgba(160, 180, 210, 0.7);
+  padding: 2px 0;
+}
+
+.hud-boss-alerts__test-banner {
+  font-size: 10px;
+  line-height: 1.3;
+  margin: 0 0 4px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: rgba(120, 180, 255, calc(0.12 * var(--hud-widget-alpha)));
+  border: 1px solid rgba(120, 180, 255, calc(0.22 * var(--hud-widget-alpha)));
+}
+
+.hud-widget-settings-menu--boss-alerts {
+  max-width: min(96vw, 320px);
+}
+
+.hud-widget-settings-menu__fieldset {
+  border: 1px solid rgba(120, 200, 255, 0.12);
+  border-radius: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px 10px;
+}
+
+.hud-widget-settings-menu__legend {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(160, 180, 210, 0.75);
+  padding: 0 4px;
+}
+
+.hud-widget-settings-menu__sound-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.hud-widget-settings-menu__sound-name {
+  flex: 1 1 100%;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-widget-settings-menu__sound-btn {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.hud-widget-settings-menu__file-input {
+  display: none;
+}
+
+.hud-widget-settings-menu__test-run {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.hud-widget-settings-menu__test-status {
+  display: block;
+  margin: 12px 0 0;
+  line-height: 1.4;
+}
+
+.hud-widget-settings-menu__test-run--stop {
+  background: rgba(200, 48, 48, 0.92);
+  border-color: rgba(255, 100, 100, 0.45);
+  color: #fff;
+}
+
+.hud-widget-settings-menu__test-run--stop:hover:not(:disabled) {
+  background: rgba(235, 70, 70, 0.98);
+  color: #fff;
+}
+
 .hud-buff-tracker-settings__history {
   margin-bottom: 10px;
 }

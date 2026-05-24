@@ -138,7 +138,7 @@ export type MonsterDetail = {
   locations?: MonsterLocation[]
 }
 
-export type HudWidgetType = 'attack_speed' | 'buff_tracker'
+export type HudWidgetType = 'attack_speed' | 'buff_tracker' | 'boss_alerts'
 
 /** Companion panels that may open when the app starts (settings excluded). */
 export const STARTUP_PANEL_KEYS = ['main', 'timeline', 'meter', 'timers', 'hud'] as const
@@ -194,6 +194,30 @@ export type BuffTrackerWidgetConfig = {
   widgetScale: number
 }
 
+/** Which mechanic types trigger the alert sound. */
+export type BossAlertSoundFor = 'single' | 'multi' | 'both'
+
+/** Boss mechanic warnings from wiki skill schedule. */
+export type BossAlertsWidgetConfig = {
+  /** Show alerts this many seconds before the predicted cast (default 5). */
+  warnLeadSec: number
+  /** Wiki skills with `target_count === 1`. */
+  trackSingleTarget: boolean
+  /** Wiki skills with `target_count > 1` (default on). */
+  trackMultiTarget: boolean
+  alertSoundEnabled: boolean
+  /** `file://` path from the file picker (Electron). */
+  alertSoundFilePath: string | null
+  /** Fallback when path cannot be used (short clips). */
+  alertSoundDataUrl: string | null
+  alertSoundVolume: number
+  alertSoundFor: BossAlertSoundFor
+  backgroundOpacity: number
+  widgetScale: number
+  hideEmptyMessage: boolean
+  hideWhenInactive: boolean
+}
+
 export type HudWidget = {
   id: string
   type: HudWidgetType
@@ -201,6 +225,7 @@ export type HudWidget = {
   y: number
   attackSpeed?: AttackSpeedWidgetConfig
   buffTracker?: BuffTrackerWidgetConfig
+  bossAlerts?: BossAlertsWidgetConfig
 }
 
 export type HotkeyConfig = {
@@ -280,7 +305,7 @@ export type OverlaySettings = {
    */
   bossTimerNotifyWhenUiClosed: boolean
   /** Chime voice for pre-spawn sound alerts (Web Audio in the timers window). */
-  bossTimerChimeStyle: 'off' | 'warmDuo' | 'airy'
+  bossTimerChimeStyle: 'off' | 'braveHeart' | 'digivice' | 'digibeep'
   /** Chime loudness 0–1 (Web Audio master trim). */
   bossTimerChimeVolume: number
   /** How many times to play the chime in a row (1–5). */
@@ -322,7 +347,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   bossTimerNotifyLeadMin: 15,
   bossTimerNotifyMethod: 'toast',
   bossTimerNotifyWhenUiClosed: true,
-  bossTimerChimeStyle: 'warmDuo',
+  bossTimerChimeStyle: 'braveHeart',
   bossTimerChimeVolume: 0.45,
   bossTimerChimeRepeats: 1,
   hudBackdropOpacity: 0.78,
