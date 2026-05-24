@@ -174,6 +174,9 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       ? raw.meterPartyShowSelfDisplayName
       : undefined
 
+  let meterDiagnosticCapture =
+    typeof raw.meterDiagnosticCapture === 'boolean' ? raw.meterDiagnosticCapture : undefined
+
   let hotkeysFocusOnly =
     typeof raw.hotkeysOnlyWhenCompanionFocused === 'boolean'
       ? raw.hotkeysOnlyWhenCompanionFocused
@@ -254,6 +257,10 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof meterPartyShowSelf === 'boolean'
         ? meterPartyShowSelf
         : DEFAULT_SETTINGS.meterPartyShowSelfDisplayName,
+    meterDiagnosticCapture:
+      typeof meterDiagnosticCapture === 'boolean'
+        ? meterDiagnosticCapture
+        : DEFAULT_SETTINGS.meterDiagnosticCapture,
     hotkeysOnlyWhenCompanionFocused:
       typeof hotkeysFocusOnly === 'boolean'
         ? hotkeysFocusOnly

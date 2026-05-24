@@ -20,15 +20,10 @@ import { isGarbageStreamLabel } from './lib/eventStreamParty'
 import {
   isMeterDebugEnabled,
   meterDebugClear,
-  meterDebugDump,
   setMeterDebugEnabled,
 } from './lib/meterDebugLog'
-import {
-  DEFAULT_EVENT_STREAM_HOST,
-  DEFAULT_EVENT_STREAM_PORT,
-  EVENT_STREAM_STORAGE_HOST,
-  EVENT_STREAM_STORAGE_PORT,
-} from './lib/eventStreamConstants'
+import { buildMeterDebugReport } from './lib/meterDebugReport'
+import { readEventStreamEndpoint } from './lib/eventStreamConstants'
 import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
 import {
   applyWikiOfficialDigimonName,
@@ -71,20 +66,6 @@ function formatInt(n: number) {
 
 /** After a successful cloud parse upload, block another upload to reduce duplicates / spam. */
 const METER_UPLOAD_COOLDOWN_MS = 30_000
-
-function readEventStreamEndpoint(): { host: string; port: number } {
-  let host = DEFAULT_EVENT_STREAM_HOST
-  let port = Number(DEFAULT_EVENT_STREAM_PORT)
-  try {
-    const h = localStorage.getItem(EVENT_STREAM_STORAGE_HOST)?.trim()
-    const p = localStorage.getItem(EVENT_STREAM_STORAGE_PORT)?.trim()
-    if (h) host = h
-    if (p) port = Number(p) || port
-  } catch {
-    /* */
-  }
-  return { host, port }
-}
 
 function requestPartyRosterSync() {
   void window.odysseyCompanion?.sendEventStreamQuery?.('party')
@@ -445,6 +426,44 @@ export default function MeterApp() {
     }
   }, [])
 
+  const applyMeterDiagnosticCapture = useCallback((enabled: boolean) => {
+    setMeterDebugEnabled(enabled)
+    if (enabled) meterDebugClear()
+  }, [])
+
+  useEffect(() => {
+    applyMeterDiagnosticCapture(settings.meterDiagnosticCapture)
+  }, [settings.meterDiagnosticCapture, applyMeterDiagnosticCapture])
+
+  useEffect(() => {
+    const api = window.odysseyCompanion
+    if (!api?.onMeterSetDiagnosticCapture) return
+    return api.onMeterSetDiagnosticCapture((enabled) => {
+      applyMeterDiagnosticCapture(enabled)
+    })
+  }, [applyMeterDiagnosticCapture])
+
+  useEffect(() => {
+    const api = window.odysseyCompanion
+    if (!api?.onMeterCollectDebugReport || !api.sendMeterDebugReportReady) return
+    return api.onMeterCollectDebugReport(async ({ requestId }) => {
+      try {
+        const version = (await api.getAppVersion?.())?.version ?? 'unknown'
+        const text = buildMeterDebugReport(streamRef.current, {
+          appVersion: version,
+          eventStreamConnected: eventStreamConnectedRef.current,
+          readerHint,
+        })
+        api.sendMeterDebugReportReady({ requestId, text })
+      } catch (e) {
+        api.sendMeterDebugReportReady({
+          requestId,
+          error: e instanceof Error ? e.message : String(e),
+        })
+      }
+    })
+  }, [readerHint])
+
   useEffect(() => {
     const w = window as Window & {
       __meterDebug?: {
@@ -457,16 +476,20 @@ export default function MeterApp() {
     }
     w.__meterDebug = {
       enable: () => {
-        setMeterDebugEnabled(true)
-        meterDebugClear()
-        console.info('[meter-debug] enabled — reproduce swap issue, then __meterDebug.dump()')
+        applyMeterDiagnosticCapture(true)
+        console.info('[meter-debug] enabled — reproduce issue, then copy report from Settings')
       },
-      disable: () => setMeterDebugEnabled(false),
-      dump: () => meterDebugDump(),
+      disable: () => applyMeterDiagnosticCapture(false),
+      dump: () =>
+        buildMeterDebugReport(streamRef.current, {
+          appVersion: 'dev',
+          eventStreamConnected: eventStreamConnectedRef.current,
+          readerHint,
+        }),
       clear: meterDebugClear,
       enabled: isMeterDebugEnabled,
     }
-  }, [])
+  }, [applyMeterDiagnosticCapture, readerHint])
 
   useEffect(() => {
     const api = window.odysseyCompanion

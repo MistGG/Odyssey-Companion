@@ -46,6 +46,22 @@ declare global {
       onMeterTelemetry: (handler: (msg: unknown) => void) => () => void
       onMeterClearSessionUi: (handler: () => void) => () => void
       onMeterTriggerUploadParse: (handler: () => void) => () => void
+      setMeterDiagnosticCapture?: (
+        enabled: boolean,
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
+      copyMeterDebugReport?: () => Promise<{ ok: true } | { ok: false; error: string }>
+      saveMeterDebugReport?: () => Promise<
+        { ok: true; filePath?: string } | { ok: false; error: string }
+      >
+      sendMeterDebugReportReady?: (payload: {
+        requestId: string
+        text?: string
+        error?: string
+      }) => void
+      onMeterCollectDebugReport?: (
+        handler: (payload: { requestId: string }) => void,
+      ) => () => void
+      onMeterSetDiagnosticCapture?: (handler: (enabled: boolean) => void) => () => void
       /** Electron timeline window only: OS-level click-through when `true`. */
       setTimelineIgnoreMouseEvents?: (ignore: boolean) => void
       setMeterIgnoreMouseEvents?: (ignore: boolean) => void

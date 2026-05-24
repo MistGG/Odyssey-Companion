@@ -275,6 +275,8 @@ export type OverlaySettings = {
    * Party meter: show your `profiles.display_name` for your own row (list and self skill breakdown) instead of "You".
    */
   meterPartyShowSelfDisplayName: boolean
+  /** Record EventStream / meter lines for support debug reports. */
+  meterDiagnosticCapture: boolean
   /**
    * When true: timeline/meter hotkeys are registered only while a Companion window
    * (dungeon, timeline, or meter) is focused, so keys remain available for typing in other apps.
@@ -339,6 +341,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterAlwaysOnTop: true,
   meterPositionLocked: false,
   meterPartyShowSelfDisplayName: false,
+  meterDiagnosticCapture: false,
   hotkeysOnlyWhenCompanionFocused: false,
   meterAutoUploadAfterClear: false,
   timersBackdropOpacity: 0.86,

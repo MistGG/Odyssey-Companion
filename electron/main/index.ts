@@ -31,6 +31,7 @@ import {
   setActiveRaidBossAlerts,
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
+import { registerMeterDebugReportIpc } from './meterDebugReportIpc'
 import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
 import {
   boundsAfterHudResize,
@@ -1401,6 +1402,8 @@ registerEventStreamBridge(() => {
   if (hudWin && !hudWin.isDestroyed()) wins.push(hudWin)
   return wins
 })
+
+registerMeterDebugReportIpc(() => meterWin, showMeterWindow)
 
 app.whenReady().then(() => {
   app.on('browser-window-focus', scheduleHotkeysFocusRefresh)

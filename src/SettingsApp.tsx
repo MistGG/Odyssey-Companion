@@ -95,6 +95,8 @@ export default function SettingsApp() {
   const [releaseNotesContent, setReleaseNotesContent] = useState<LatestReleaseResult | undefined>(undefined)
 
   const [timerTestBusy, setTimerTestBusy] = useState<'toast' | 'sound' | null>(null)
+  const [meterReportBusy, setMeterReportBusy] = useState(false)
+  const [meterReportHint, setMeterReportHint] = useState<string | null>(null)
   const [timerTestHint, setTimerTestHint] = useState<string | null>(null)
   const [timerTestHintIsError, setTimerTestHintIsError] = useState(false)
 
@@ -692,6 +694,73 @@ export default function SettingsApp() {
               />
               Party meter: show your display name instead of &quot;You&quot;
             </label>
+
+            <section className="field-group" style={{ marginTop: 16 }}>
+              <h3 className="settings-app-subhead">Troubleshooting</h3>
+              <p className="hint muted" style={{ margin: '0 0 10px' }}>
+                Record meter events while reproducing an issue, then export a report and send it
+                to Mist on Discord
+              </p>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.meterDiagnosticCapture}
+                  onChange={(e) => {
+                    const enabled = e.target.checked
+                    setSettings((s) => ({ ...s, meterDiagnosticCapture: enabled }))
+                    void window.odysseyCompanion?.setMeterDiagnosticCapture?.(enabled)
+                  }}
+                />
+                Record meter diagnostics
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={meterReportBusy}
+                  onClick={() => {
+                    setMeterReportHint(null)
+                    setMeterReportBusy(true)
+                    void window.odysseyCompanion?.copyMeterDebugReport?.().then((r) => {
+                      setMeterReportBusy(false)
+                      if (r?.ok) {
+                        setMeterReportHint('Debug report copied to clipboard.')
+                      } else {
+                        setMeterReportHint(r?.error ?? 'Could not copy report.')
+                      }
+                    })
+                  }}
+                >
+                  {meterReportBusy ? 'Working…' : 'Copy debug report'}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={meterReportBusy}
+                  onClick={() => {
+                    setMeterReportHint(null)
+                    setMeterReportBusy(true)
+                    void window.odysseyCompanion?.saveMeterDebugReport?.().then((r) => {
+                      setMeterReportBusy(false)
+                      if (r?.ok) {
+                        setMeterReportHint(
+                          r.filePath ? `Saved to ${r.filePath}` : 'Debug report saved.',
+                        )
+                      } else {
+                        setMeterReportHint(r?.error ?? 'Could not save report.')
+                      }
+                    })
+                  }}
+                >
+                  Save debug report…
+                </button>
+              </div>
+              {meterReportHint ? (
+                <p className="hint" style={{ marginTop: 10 }} role="status">
+                  {meterReportHint}
+                </p>
+              ) : null}
+            </section>
           </section>
 
           <section id={sectionScrollId('timers')} className="settings-app-section">

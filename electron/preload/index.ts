@@ -116,6 +116,52 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     return () => ipcRenderer.removeListener('meter:trigger-upload-parse', wrapped)
   },
 
+  setMeterDiagnosticCapture: (enabled: boolean) =>
+    ipcRenderer.invoke('meter:set-diagnostic-capture', enabled) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
+  copyMeterDebugReport: () =>
+    ipcRenderer.invoke('meter:copy-debug-report') as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
+  saveMeterDebugReport: () =>
+    ipcRenderer.invoke('meter:save-debug-report') as Promise<
+      { ok: true; filePath?: string } | { ok: false; error: string }
+    >,
+
+  sendMeterDebugReportReady: (payload: {
+    requestId: string
+    text?: string
+    error?: string
+  }) => {
+    ipcRenderer.send('meter:debug-report-ready', payload)
+  },
+
+  onMeterCollectDebugReport: (
+    handler: (payload: { requestId: string }) => void,
+  ) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const p = payload as { requestId?: string }
+      if (typeof p.requestId !== 'string' || !p.requestId) return
+      handler({ requestId: p.requestId })
+    }
+    ipcRenderer.on('meter:collect-debug-report', wrapped)
+    return () => ipcRenderer.removeListener('meter:collect-debug-report', wrapped)
+  },
+
+  onMeterSetDiagnosticCapture: (handler: (enabled: boolean) => void) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const enabled = Boolean((payload as { enabled?: boolean }).enabled)
+      handler(enabled)
+    }
+    ipcRenderer.on('meter:set-diagnostic-capture', wrapped)
+    return () => ipcRenderer.removeListener('meter:set-diagnostic-capture', wrapped)
+  },
+
   /** When locked: pass `true` so the timeline window ignores mouse (click-through); `false` receives clicks (drag strip / lock). */
   setTimelineIgnoreMouseEvents: (ignore: boolean) => {
     ipcRenderer.send('timeline:set-ignore-mouse-events', ignore)

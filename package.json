@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.41",
+  "version": "0.1.42",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added Boss Alert widget to Digi Aura\n- Added Digimon sound chimes for Boss Timers in settings"
+      "releaseNotes": "- Added support for debug logging"
     }
   }
 }
