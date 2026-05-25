@@ -32,6 +32,11 @@ import {
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
 import { registerMeterDebugReportIpc } from './meterDebugReportIpc'
+import {
+  clearFightEngageEpoch,
+  getFightEngageEpoch,
+  setFightEngageEpoch,
+} from './fightEngageEpoch'
 import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
 import {
   boundsAfterHudResize,
@@ -1400,6 +1405,7 @@ registerEventStreamBridge(() => {
   const wins: BrowserWindow[] = []
   if (meterWin && !meterWin.isDestroyed()) wins.push(meterWin)
   if (hudWin && !hudWin.isDestroyed()) wins.push(hudWin)
+  if (timelineWin && !timelineWin.isDestroyed()) wins.push(timelineWin)
   return wins
 })
 
@@ -1727,7 +1733,11 @@ ipcMain.handle('window:show-timers', () => {
 })
 
 ipcMain.handle('window:show-hud', () => {
-  showHudWindow()
+  if (lastOverlaySettings?.hudLayoutLocked === true) {
+    unlockHudLayoutFromTray()
+  } else {
+    showHudWindow()
+  }
   return true
 })
 
@@ -1990,9 +2000,23 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   }
 })
 
-function sendTimelineActionToWindow(action: 'toggle' | 'reset' | 'start' | 'stop'): boolean {
+type TimelineActionMessage =
+  | 'toggle'
+  | 'reset'
+  | 'start'
+  | 'stop'
+  | { action: 'toggle' | 'reset' | 'start' | 'stop'; offsetMs?: number }
+
+function sendTimelineActionToWindow(
+  action: 'toggle' | 'reset' | 'start' | 'stop',
+  opts?: { offsetMs?: number },
+): boolean {
   if (!timelineWin?.webContents || timelineWin.isDestroyed()) return false
-  timelineWin.webContents.send('timeline-action', action)
+  const payload: TimelineActionMessage =
+    action === 'start' && opts?.offsetMs != null && opts.offsetMs > 0
+      ? { action: 'start', offsetMs: Math.round(opts.offsetMs) }
+      : action
+  timelineWin.webContents.send('timeline-action', payload)
   return true
 }
 
@@ -2023,10 +2047,30 @@ ipcMain.handle('timeline:clear-fight', () => {
   return true
 })
 
-ipcMain.handle('timeline:send-action', (_e, action: unknown) => {
-  const a = String(action ?? '')
-  if (a !== 'toggle' && a !== 'reset' && a !== 'start' && a !== 'stop') return false
-  return sendTimelineActionToWindow(a)
+ipcMain.handle(
+  'timeline:send-action',
+  (_e, action: unknown, opts?: { offsetMs?: number }) => {
+    const a = String(action ?? '')
+    if (a !== 'toggle' && a !== 'reset' && a !== 'start' && a !== 'stop') return false
+    return sendTimelineActionToWindow(a, opts)
+  },
+)
+
+ipcMain.handle('fight-engage:set', (_e, payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return false
+  const p = payload as { dungeonKey?: string; engagedAtMs?: number }
+  const dungeonKey = String(p.dungeonKey ?? '').trim()
+  const engagedAtMs = Number(p.engagedAtMs)
+  if (!dungeonKey || !Number.isFinite(engagedAtMs) || engagedAtMs <= 0) return false
+  setFightEngageEpoch({ dungeonKey, engagedAtMs })
+  return true
+})
+
+ipcMain.handle('fight-engage:get', () => getFightEngageEpoch())
+
+ipcMain.handle('fight-engage:clear', () => {
+  clearFightEngageEpoch()
+  return true
 })
 
 ipcMain.handle('timeline:get-last-fight', () => lastFightPayload ?? null)

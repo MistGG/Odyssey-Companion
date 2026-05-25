@@ -79,8 +79,23 @@ declare global {
       clearFightInTimeline: () => Promise<boolean>
       getLastFight: () => Promise<unknown | null>
       notifyTimelineReady: () => Promise<boolean>
-      sendTimelineAction: (action: 'toggle' | 'reset' | 'start' | 'stop') => Promise<boolean>
-      onTimelineAction: (handler: (action: 'toggle' | 'reset' | 'start' | 'stop') => void) => () => void
+      sendTimelineAction: (
+        action: 'toggle' | 'reset' | 'start' | 'stop',
+        opts?: { offsetMs?: number },
+      ) => Promise<boolean>
+      setFightEngageEpoch: (epoch: { dungeonKey: string; engagedAtMs: number }) => Promise<boolean>
+      getFightEngageEpoch: () => Promise<{ dungeonKey: string; engagedAtMs: number } | null>
+      clearFightEngageEpoch: () => Promise<boolean>
+      onTimelineAction: (
+        handler: (
+          action:
+            | 'toggle'
+            | 'reset'
+            | 'start'
+            | 'stop'
+            | { action: 'toggle' | 'reset' | 'start' | 'stop'; offsetMs?: number },
+        ) => void,
+      ) => () => void
       onSettingsPatch: (handler: (patch: unknown) => void) => () => void
       onFightLoaded: (handler: (payload: unknown) => void) => () => void
       getAppVersion: () => Promise<AppVersionInfo>

@@ -21,6 +21,7 @@ import {
   leaveDungeonSession,
   markDungeonRunClear,
   markDungeonRunFail,
+  shouldStartNewDungeonPull,
   syncDungeonBossTargets,
   type MeterDungeonRunOutcome,
 } from './meterDungeonRun'
@@ -993,10 +994,7 @@ export function applyDungeonProgress(
     return { dungeonId, reset: false, needsNameFetch: false, outcome: 'clear' }
   }
 
-  const newPull =
-    !session.dungeonRunActive ||
-    session.lastRunOutcome != null ||
-    (prevDungeonId != null && prevDungeonId !== dungeonId)
+  const newPull = shouldStartNewDungeonPull(session, dungeonId)
 
   if (newPull) {
     session.lastRunOutcome = null
@@ -1080,6 +1078,8 @@ export function ingestMeterEventStream(
   runOutcome: MeterDungeonRunOutcome | null
   /** First combat hit started the meter window (0s). */
   sessionStarted: boolean
+  /** Wall/stream time when the meter window started (for timeline engage epoch). */
+  fightEngagedAtMs: number | null
   /** Request party + all queries (map/dungeon instance enter). */
   requestPartySnapshot: boolean
 } {
@@ -1088,6 +1088,7 @@ export function ingestMeterEventStream(
   let dungeonReset = false
   let runOutcome: MeterDungeonRunOutcome | null = null
   let sessionStarted = false
+  let fightEngagedAtMs: number | null = null
   let requestPartySnapshot = false
 
   if (t === 'map_change') {
@@ -1189,6 +1190,7 @@ export function ingestMeterEventStream(
         dungeonReset,
         runOutcome,
         sessionStarted,
+        fightEngagedAtMs,
         requestPartySnapshot,
       }
     }
@@ -1196,6 +1198,7 @@ export function ingestMeterEventStream(
     if (!timerActive) {
       session.sessionStartMs = now
       sessionStarted = true
+      fightEngagedAtMs = now
     }
 
     const who = resolveAttacker(session, ev)
@@ -1238,6 +1241,7 @@ export function ingestMeterEventStream(
     dungeonReset,
     runOutcome,
     sessionStarted,
+    fightEngagedAtMs,
     requestPartySnapshot,
   }
 }

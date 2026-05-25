@@ -27,6 +27,21 @@ export function useStopwatch() {
     setRunning(true)
   }, [running])
 
+  /** Start (or resume) with fight time already elapsed — e.g. boss engaged before timeline loaded. */
+  const startAtElapsed = useCallback(
+    (offsetMs: number) => {
+      accumulatedRef.current = Math.max(0, offsetMs)
+      setElapsedMs(Math.floor(accumulatedRef.current))
+      if (!running) {
+        startedAtRef.current = performance.now()
+        setRunning(true)
+      } else {
+        setLap((x) => x + 1)
+      }
+    },
+    [running],
+  )
+
   const stop = useCallback(() => {
     if (!running) return
     const start = startedAtRef.current
@@ -48,5 +63,5 @@ export function useStopwatch() {
     }
   }, [running])
 
-  return { elapsedMs, running, start, stop, reset }
+  return { elapsedMs, running, start, startAtElapsed, stop, reset }
 }

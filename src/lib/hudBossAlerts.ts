@@ -1,10 +1,16 @@
 import type { EventStreamRecord } from './eventStreamFormat'
+import { eventStreamTimeMs } from './fightEngageEpoch'
 import type { BossAlertsWidgetConfig, TimelineFightPayload } from '../types'
 import { shouldTrackSkillTargetCount } from './hudBossAlertSound'
+import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 import {
+  allKillObjectivesComplete,
   combatHitStartsMeterTimer,
+  deathIndicatesBossClear,
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
+  markDungeonRunClear,
+  shouldStartNewDungeonPull,
 } from './meterDungeonRun'
 import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
 import { formatEffectTypeDisplay } from './effectTypeDisplay'
@@ -26,6 +32,9 @@ export type HudBossAlertsState = {
   fightKey: string | null
   fightLoading: boolean
   bossEngagedAtMs: number | null
+  /** Mirrors meter session — new pull after clear/fail or dungeon id change. */
+  dungeonRunActive: boolean
+  lastRunOutcome: MeterDungeonRunOutcome | null
   testMode: boolean
   testLabel: string | null
 }
@@ -39,18 +48,19 @@ export function createHudBossAlertsState(): HudBossAlertsState {
     fightKey: null,
     fightLoading: false,
     bossEngagedAtMs: null,
+    dungeonRunActive: false,
+    lastRunOutcome: null,
     testMode: false,
     testLabel: null,
   }
 }
 
-export function bossAlertsFightKey(dungeonId: string, difficulty: string): string {
-  return `${dungeonId.trim()}|${difficulty.trim()}`
+function markHudDungeonRunClear(state: HudBossAlertsState) {
+  markDungeonRunClear(state)
 }
 
-function eventMs(ev: EventStreamRecord): number {
-  const ts = Number(ev.ts)
-  return Number.isFinite(ts) && ts > 0 ? ts : Date.now()
+export function bossAlertsFightKey(dungeonId: string, difficulty: string): string {
+  return `${dungeonId.trim()}|${difficulty.trim()}`
 }
 
 function resetBossPull(state: HudBossAlertsState) {
@@ -66,6 +76,8 @@ function clearDungeon(state: HudBossAlertsState) {
   state.fightLoading = false
   state.testMode = false
   state.testLabel = null
+  state.dungeonRunActive = false
+  state.lastRunOutcome = null
   resetBossPull(state)
 }
 
@@ -141,6 +153,8 @@ export type HudBossAlertsIngestResult = {
   requestFightLoad: { dungeonId: string; difficulty: string } | null
   /** New boss pull — reset engagement clock. */
   dungeonReset: boolean
+  /** First boss hit this pull — share engage time with timeline via main process. */
+  fightJustEngaged: { dungeonId: string; difficulty: string; engagedAtMs: number } | null
 }
 
 export function ingestHudBossAlertsEvent(
@@ -150,26 +164,28 @@ export function ingestHudBossAlertsEvent(
   const next = { ...state, dungeonBossTargets: [...state.dungeonBossTargets] }
   let requestFightLoad: HudBossAlertsIngestResult['requestFightLoad'] = null
   let dungeonReset = false
+  let fightJustEngaged: HudBossAlertsIngestResult['fightJustEngaged'] = null
 
   const t = String(ev.type ?? '')
 
   if (t === 'map_change') {
-    const map = String(ev.map ?? '').trim()
-    if (!map || !next.dungeonId) {
-      clearDungeon(next)
-      return { state: next, requestFightLoad: null, dungeonReset: false }
-    }
     if (next.testMode) {
       clearDungeon(next)
-      return { state: next, requestFightLoad: null, dungeonReset: false }
+      return { state: next, requestFightLoad: null, dungeonReset: false, fightJustEngaged: null }
     }
+    // Match timeline/meter: any map change while in a dungeon instance ends the pull.
+    if (next.dungeonId?.trim()) {
+      clearDungeon(next)
+      return { state: next, requestFightLoad: null, dungeonReset: true, fightJustEngaged: null }
+    }
+    return { state: next, requestFightLoad: null, dungeonReset: false, fightJustEngaged: null }
   }
 
   if (t === 'dungeon_progress') {
     const dungeonId = String(ev.dungeon_id ?? '').trim() || null
     if (!dungeonId) {
       clearDungeon(next)
-      return { state: next, requestFightLoad: null, dungeonReset: false }
+      return { state: next, requestFightLoad: null, dungeonReset: false, fightJustEngaged: null }
     }
 
     next.testMode = false
@@ -180,18 +196,26 @@ export function ingestHudBossAlertsEvent(
     const targets = extractBossTargetsFromObjectives(ev)
     if (targets.length) next.dungeonBossTargets = targets
 
+    if (allKillObjectivesComplete(ev) && next.dungeonRunActive) {
+      markHudDungeonRunClear(next)
+      resetBossPull(next)
+      dungeonReset = true
+      next.dungeonId = dungeonId
+      if (difficulty) next.dungeonDifficulty = difficulty
+      return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
+    }
+
     const prevKey = next.fightKey
     const newKey = difficulty ? bossAlertsFightKey(dungeonId, difficulty) : null
-    const idChanged = dungeonId !== next.dungeonId
     const newPull =
-      !next.dungeonId ||
-      idChanged ||
-      (prevKey != null && newKey != null && prevKey !== newKey)
+      !next.dungeonId?.trim() || shouldStartNewDungeonPull(next, dungeonId)
 
     next.dungeonId = dungeonId
     if (difficulty) next.dungeonDifficulty = difficulty
 
     if (newPull) {
+      next.lastRunOutcome = null
+      next.dungeonRunActive = true
       dungeonReset = true
       resetBossPull(next)
       if (newKey) {
@@ -205,18 +229,35 @@ export function ingestHudBossAlertsEvent(
       next.fight = null
       next.fightLoading = true
       requestFightLoad = { dungeonId, difficulty }
+    } else if (newKey && difficulty && !next.fight && !requestFightLoad) {
+      next.fightKey = newKey
+      next.fightLoading = true
+      requestFightLoad = { dungeonId, difficulty }
     }
 
-    return { state: next, requestFightLoad, dungeonReset }
+    return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
+  }
+
+  if (t === 'death') {
+    if (
+      next.dungeonId?.trim() &&
+      next.dungeonBossTargets.length > 0 &&
+      next.bossEngagedAtMs != null &&
+      !deathIndicatesBossClear(ev, next.dungeonBossTargets)
+    ) {
+      resetBossPull(next)
+      dungeonReset = true
+    }
+    return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
   }
 
   if (!next.dungeonId?.trim() || next.dungeonBossTargets.length === 0) {
-    return { state: next, requestFightLoad, dungeonReset }
+    return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
   }
 
   const combatTypes = new Set(['skill_use', 'party_skill', 'hit_taken', 'enemy_skill'])
   if (!combatTypes.has(t)) {
-    return { state: next, requestFightLoad, dungeonReset }
+    return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
   }
 
   const dmg = Number(ev.damage)
@@ -226,11 +267,20 @@ export function ingestHudBossAlertsEvent(
       dungeonBossTargets: next.dungeonBossTargets,
     }
     if (combatHitStartsMeterTimer(sessionLike, ev) && next.bossEngagedAtMs == null) {
-      next.bossEngagedAtMs = eventMs(ev)
+      const engagedAtMs = eventStreamTimeMs(ev)
+      next.bossEngagedAtMs = engagedAtMs
+      const diff = next.dungeonDifficulty?.trim()
+      if (diff) {
+        fightJustEngaged = {
+          dungeonId: next.dungeonId!,
+          difficulty: diff,
+          engagedAtMs,
+        }
+      }
     }
   }
 
-  return { state: next, requestFightLoad, dungeonReset }
+  return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
 }
 
 export function applyHudBossAlertsFightLoaded(

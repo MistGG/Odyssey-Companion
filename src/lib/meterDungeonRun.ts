@@ -183,6 +183,25 @@ export function combatKilledDungeonBoss(
   return Number.isFinite(hp) && hp <= 0
 }
 
+/** Same pull-boundary rules as `applyDungeonProgress` in the meter stream. */
+export function shouldStartNewDungeonPull(
+  session: {
+    dungeonId: string | null
+    dungeonRunActive: boolean
+    lastRunOutcome: MeterDungeonRunOutcome | null
+  },
+  incomingDungeonId: string,
+): boolean {
+  const prev = session.dungeonId?.trim() || null
+  const id = incomingDungeonId.trim()
+  if (!id) return false
+  return (
+    !session.dungeonRunActive ||
+    session.lastRunOutcome != null ||
+    (prev != null && prev !== id)
+  )
+}
+
 export function markDungeonRunClear(session: {
   dungeonRunActive: boolean
   lastRunOutcome: MeterDungeonRunOutcome | null

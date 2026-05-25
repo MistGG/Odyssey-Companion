@@ -214,12 +214,34 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   notifyTimelineReady: () =>
     ipcRenderer.invoke('timeline:renderer-ready') as Promise<boolean>,
 
-  sendTimelineAction: (action: 'toggle' | 'reset' | 'start' | 'stop') =>
-    ipcRenderer.invoke('timeline:send-action', action) as Promise<boolean>,
+  sendTimelineAction: (
+    action: 'toggle' | 'reset' | 'start' | 'stop',
+    opts?: { offsetMs?: number },
+  ) => ipcRenderer.invoke('timeline:send-action', action, opts) as Promise<boolean>,
 
-  onTimelineAction: (handler: (action: 'toggle' | 'reset' | 'start' | 'stop') => void) => {
-    const wrapped = (_evt: unknown, action: 'toggle' | 'reset' | 'start' | 'stop') => {
-      handler(action)
+  setFightEngageEpoch: (epoch: { dungeonKey: string; engagedAtMs: number }) =>
+    ipcRenderer.invoke('fight-engage:set', epoch) as Promise<boolean>,
+
+  getFightEngageEpoch: () =>
+    ipcRenderer.invoke('fight-engage:get') as Promise<{
+      dungeonKey: string
+      engagedAtMs: number
+    } | null>,
+
+  clearFightEngageEpoch: () => ipcRenderer.invoke('fight-engage:clear') as Promise<boolean>,
+
+  onTimelineAction: (
+    handler: (
+      action:
+        | 'toggle'
+        | 'reset'
+        | 'start'
+        | 'stop'
+        | { action: 'toggle' | 'reset' | 'start' | 'stop'; offsetMs?: number },
+    ) => void,
+  ) => {
+    const wrapped = (_evt: unknown, action: unknown) => {
+      handler(action as Parameters<typeof handler>[0])
     }
     ipcRenderer.on('timeline-action', wrapped)
     return () => ipcRenderer.removeListener('timeline-action', wrapped)

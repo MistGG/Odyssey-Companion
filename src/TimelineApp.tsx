@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { OverlaySettings, TimelineFightPayload } from './types'
+import type { EventStreamRecord } from './lib/eventStreamFormat'
+import { readEventStreamEndpoint } from './lib/eventStreamConstants'
 import { loadSettings, saveSettings } from './lib/settingsStorage'
+import {
+  createTimelineAutoBridge,
+  processTimelineAutoStreamEvent,
+  type TimelineAutoDungeonState,
+} from './lib/timelineAutoDungeon'
+import { createMeterStreamSession, ingestMeterEventStream } from './lib/meterEventStream'
 import { useStopwatch } from './lib/useStopwatch'
 import { SkillTimelineList } from './components/SkillTimelineList'
 import { TimelineRunQueue } from './components/TimelineRunQueue'
@@ -21,7 +29,7 @@ export default function TimelineApp() {
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
   const [fight, setFight] = useState<TimelineFightPayload | null>(null)
   const [fightPayloadReject, setFightPayloadReject] = useState<string | null>(null)
-  const { elapsedMs, running, start, stop, reset } = useStopwatch()
+  const { elapsedMs, running, start, startAtElapsed, stop, reset } = useStopwatch()
   /** After first Start, keep the run-queue view until Reset (Pause only stops the clock). */
   const [runSessionActive, setRunSessionActive] = useState(false)
 
@@ -32,6 +40,13 @@ export default function TimelineApp() {
   const titlebarActionsRef = useRef<HTMLDivElement>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
+  const streamRef = useRef(createMeterStreamSession())
+  const timelineAutoRef = useRef<TimelineAutoDungeonState>({
+    loadedKey: null,
+    loadInFlight: false,
+    pendingBossStart: false,
+  })
+  const eventStreamConnectedRef = useRef(false)
 
   const resetTimeline = useCallback(() => {
     stop()
@@ -59,21 +74,27 @@ export default function TimelineApp() {
     const api = window.odysseyCompanion
     if (!api) return
     const off = api.onTimelineAction((action) => {
-      if (action === 'toggle') {
+      const kind = typeof action === 'string' ? action : action.action
+      const offsetMs =
+        typeof action === 'object' && action.action === 'start' ? action.offsetMs : undefined
+      if (kind === 'toggle') {
         toggleRunClock()
-      } else if (action === 'start') {
+      } else if (kind === 'start') {
         if (!running) {
-          start()
+          if (offsetMs != null && offsetMs > 0) startAtElapsed(offsetMs)
+          else start()
           setRunSessionActive(true)
+        } else if (offsetMs != null && offsetMs > 0) {
+          startAtElapsed(offsetMs)
         }
-      } else if (action === 'stop') {
+      } else if (kind === 'stop') {
         if (running) stop()
-      } else {
+      } else if (kind === 'reset') {
         resetTimeline()
       }
     })
     return () => off()
-  }, [toggleRunClock, resetTimeline])
+  }, [toggleRunClock, resetTimeline, running, start, startAtElapsed, stop])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -88,6 +109,49 @@ export default function TimelineApp() {
       })
     })
     return () => off()
+  }, [])
+
+  useEffect(() => {
+    const api = window.odysseyCompanion
+    if (!api?.connectEventStream || !api.onEventStreamMessage) return
+
+    const { host, port } = readEventStreamEndpoint()
+    let disposed = false
+
+    const requestStreamQueries = () => {
+      void api.sendEventStreamQuery?.('party')
+      void api.sendEventStreamQuery?.('all')
+    }
+
+    const offMsg = api.onEventStreamMessage(({ event }) => {
+      const ev = event as EventStreamRecord
+      const session = streamRef.current
+      const ingest = ingestMeterEventStream(session, ev)
+      const companion = window.odysseyCompanion
+      const bridge = companion ? createTimelineAutoBridge(companion) : undefined
+      processTimelineAutoStreamEvent(
+        bridge,
+        timelineAutoRef.current,
+        session,
+        ev,
+        ingest,
+      )
+    })
+
+    const offStatus = api.onEventStreamStatus?.((payload) => {
+      const status = String(payload.status ?? '')
+      const connected = status === 'connected'
+      eventStreamConnectedRef.current = connected
+      if (connected && !disposed) requestStreamQueries()
+    })
+
+    void api.connectEventStream(host, port)
+
+    return () => {
+      disposed = true
+      offMsg()
+      offStatus?.()
+    }
   }, [])
 
   useEffect(() => {

@@ -42,11 +42,10 @@ import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDi
 import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
 import { userFacingAuthError, userFacingUploadError } from './lib/userFacingMessages'
 import {
-  onTimelineBossCleared,
-  onTimelineBossEngaged,
+  createTimelineAutoBridge,
+  processTimelineAutoStreamEvent,
   onTimelineLeftDungeon,
   resetTimelineAutoState,
-  scheduleTimelineAutoLoad,
   type TimelineAutoDungeonState,
 } from './lib/timelineAutoDungeon'
 import {
@@ -414,15 +413,7 @@ export default function MeterApp() {
     const companion = window.odysseyCompanion
     if (!companion?.clearFightInTimeline) return
     if (!streamRef.current.dungeonId?.trim()) {
-      onTimelineLeftDungeon(
-        {
-          loadFightIntoTimeline: (payload: unknown) =>
-            companion.loadFightIntoTimeline(payload, { silent: true }),
-          clearFightInTimeline: companion.clearFightInTimeline,
-          sendTimelineAction: companion.sendTimelineAction,
-        },
-        timelineAutoRef.current,
-      )
+      onTimelineLeftDungeon(createTimelineAutoBridge(companion), timelineAutoRef.current)
     }
   }, [])
 
@@ -505,7 +496,7 @@ export default function MeterApp() {
       const t = String(ev.type ?? '')
       const session = streamRef.current
       const hadIdentity = !meterNeedsPartyIdentity(session)
-      const { dungeonReset, sessionStarted, runOutcome, requestPartySnapshot } =
+      const { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome, requestPartySnapshot } =
         ingestMeterEventStream(session, ev)
       if (requestPartySnapshot && eventStreamConnectedRef.current) {
         requestEventStreamQueries()
@@ -522,37 +513,14 @@ export default function MeterApp() {
         schedulePartySyncIfNeeded(t)
       }
       const companion = window.odysseyCompanion
-      const timelineBridge = companion
-        ? {
-            loadFightIntoTimeline: (payload: unknown) =>
-              companion.loadFightIntoTimeline(payload, { silent: true }),
-            clearFightInTimeline: companion.clearFightInTimeline,
-            sendTimelineAction: companion.sendTimelineAction,
-          }
-        : undefined
-
-      if (t === 'map_change' || (t === 'dungeon_progress' && !session.dungeonId?.trim())) {
-        onTimelineLeftDungeon(timelineBridge, timelineAutoRef.current)
-      } else if (t === 'dungeon_progress' && session.dungeonId?.trim()) {
-        scheduleTimelineAutoLoad(timelineBridge, session, timelineAutoRef.current, {
-          dungeonReset,
-        })
-      } else if (
-        t === 'query_result' &&
-        session.dungeonId?.trim() &&
-        session.dungeonDifficulty?.trim()
-      ) {
-        scheduleTimelineAutoLoad(timelineBridge, session, timelineAutoRef.current, {
-          dungeonReset: false,
-        })
-      }
-
-      if (sessionStarted) {
-        onTimelineBossEngaged(timelineBridge, timelineAutoRef.current)
-      }
-      if (runOutcome === 'clear') {
-        onTimelineBossCleared(timelineBridge, timelineAutoRef.current)
-      }
+      const timelineBridge = companion ? createTimelineAutoBridge(companion) : undefined
+      processTimelineAutoStreamEvent(
+        timelineBridge,
+        timelineAutoRef.current,
+        session,
+        ev,
+        { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome },
+      )
 
       if (dungeonReset) {
         setPartyDetailKey(null)

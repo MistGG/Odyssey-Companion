@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added support for debug logging"
+      "releaseNotes": "- Synced Boss Alerts and Timeline\n- Fixed an issue where the borders of Digi Aura were still interactible even when locked"
     }
   }
 }

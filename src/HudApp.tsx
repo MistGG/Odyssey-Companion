@@ -32,6 +32,7 @@ import {
 } from './lib/hudBossAlertsDemo'
 import { loadRandomHardBossAlertsFight } from './lib/hudBossAlertsTest'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG } from './lib/hudBuffTrackerWidget'
+import { fightEngageDungeonKey } from './lib/fightEngageEpoch'
 import { loadTimelineFightForDungeon } from './lib/loadTimelineFightForDungeon'
 import AttackSpeedWidgetSettingsMenu from './components/hud/AttackSpeedWidgetSettingsMenu'
 import BuffTrackerWidgetSettingsMenu from './components/hud/BuffTrackerWidgetSettingsMenu'
@@ -252,6 +253,17 @@ export default function HudApp() {
         if (bossResult.dungeonReset || bossResult.requestFightLoad) {
           bossAlertsSoundPlayedRef.current.clear()
         }
+        if (bossResult.dungeonReset) {
+          void api.clearFightEngageEpoch?.()
+          stopBossAlertsDemoRef.current()
+        }
+        if (bossResult.fightJustEngaged) {
+          const { dungeonId, difficulty, engagedAtMs } = bossResult.fightJustEngaged
+          void api.setFightEngageEpoch?.({
+            dungeonKey: fightEngageDungeonKey(dungeonId, difficulty),
+            engagedAtMs,
+          })
+        }
         if (bossResult.requestFightLoad) {
           const { dungeonId, difficulty } = bossResult.requestFightLoad
           const key = bossAlertsFightKey(dungeonId, difficulty)
@@ -404,6 +416,13 @@ export default function HudApp() {
       return nearResizeEdge(x, y)
     }
 
+    const overHudWidget = (x: number, y: number) => {
+      for (const el of widgetElements()) {
+        if (inRect(x, y, el)) return true
+      }
+      return false
+    }
+
     /** Edit mode: receive all mouse events so resize handles and drag work reliably. */
     if (!layoutLocked) {
       lastIgnoreSent.current = null
@@ -418,8 +437,7 @@ export default function HudApp() {
       if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
       ignoreMouseRaf.current = requestAnimationFrame(() => {
         ignoreMouseRaf.current = null
-        const overResize = overResizeZone(clientX, clientY)
-        setIgnore(!overResize)
+        setIgnore(!overHudWidget(clientX, clientY))
       })
     }
 
@@ -777,7 +795,9 @@ export default function HudApp() {
 
   return (
     <div className={shellCls} style={shellStyle}>
-      <HudResizeHandles ref={resizeLayerRef} onResizePointerDown={onResizePointerDown} />
+      {editMode ? (
+        <HudResizeHandles ref={resizeLayerRef} onResizePointerDown={onResizePointerDown} />
+      ) : null}
       <div className={`hud-stage${editMode ? ' hud-stage--edit' : ' hud-stage--locked'}`}>
         {editMode ? (
           <div
