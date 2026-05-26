@@ -8,12 +8,23 @@ import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import {
+  displayNameFromUserMetadata,
   getSupabaseClient,
   insertMeterParse,
   signInEmail,
   signOut,
   signUpWithProfile,
 } from './lib/supabaseMeter'
+import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
+import { startMeterEquippedThemeSync } from './lib/meterEquippedThemeSync'
+import {
+  resolveMeterPartyBarTheme,
+  meterPartyBarThemeStyle,
+  meterPartyBarThemeBarClassName,
+  METER_DEV_TAMER_BADGE,
+  shouldShowMeterDevTamerBadge,
+} from './lib/meterPartyBarThemes'
+import { MeterIliadBarFx } from './lib/MeterIliadBarFx'
 import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
 import { isGarbageStreamLabel } from './lib/eventStreamParty'
@@ -643,6 +654,16 @@ export default function MeterApp() {
     }
   }, [supabase])
 
+  useEffect(() => {
+    if (!supabase || !sbUser?.id) return
+    return startMeterEquippedThemeSync(
+      supabase,
+      sbUser.id,
+      () => streamRef.current,
+      () => bumpStream(),
+    )
+  }, [supabase, sbUser?.id, bumpStream])
+
   const partyListRows = useMemo(() => {
     return meterPartyRows(streamRef.current, Date.now()).map((row) => ({
       rowKey: row.key,
@@ -653,6 +674,8 @@ export default function MeterApp() {
       dps: row.dps,
       time: row.durationSec,
       isSelf: row.isSelf,
+      meterBarThemeId: row.meterBarThemeId,
+      partyBarFillPct: row.partyBarFillPct,
     }))
   }, [streamRev, tick])
 
@@ -1206,25 +1229,42 @@ export default function MeterApp() {
                   ) : (
                     partyListRows.map((row) => {
                       const accentKey = row.isSelf && sbUser ? `self:${sbUser.id}` : row.rowKey
+                      const barTheme = resolveMeterPartyBarTheme(row.tamerName, row.meterBarThemeId, {
+                        isSelf: row.isSelf,
+                      })
+                      const themeStyle = barTheme ? meterPartyBarThemeStyle(barTheme) : undefined
                       const sharePct =
-                        partyListDamageSum > 0
-                          ? (100 * Math.max(0, row.total)) / partyListDamageSum
-                          : 0
+                        row.partyBarFillPct != null
+                          ? row.partyBarFillPct
+                          : partyListDamageSum > 0
+                            ? (100 * Math.max(0, row.total)) / partyListDamageSum
+                            : 0
                       return (
                         <button
                           key={row.rowKey}
                           type="button"
-                          className="meter-party-member"
+                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}`}
+                          style={themeStyle}
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
                           <div
-                            className="meter-party-member-bar"
+                            className={
+                              barTheme
+                                ? meterPartyBarThemeBarClassName(barTheme)
+                                : 'meter-party-member-bar'
+                            }
                             style={{
                               width: `${Math.min(100, sharePct)}%`,
-                              background: partyMemberBarBackground(accentKey),
+                              ...(barTheme?.id === 'iliad-core'
+                                ? themeStyle
+                                : barTheme
+                                  ? undefined
+                                  : { background: partyMemberBarBackground(accentKey) }),
                             }}
                             aria-hidden
-                          />
+                          >
+                            {barTheme?.id === 'iliad-core' ? <MeterIliadBarFx /> : null}
+                          </div>
                           <div className="meter-party-member-grid meter-party-member-grid--with-icon">
                             <span
                               className="meter-party-name"
@@ -1246,7 +1286,27 @@ export default function MeterApp() {
                                 <span className="meter-party-portrait meter-party-portrait--empty" aria-hidden />
                               )}
                               <span className="meter-party-name-stack">
-                                <span className="meter-party-name-text">{row.tamerName}</span>
+                                <span className="meter-party-name-text">
+                                  {row.tamerName}
+                                  {shouldShowMeterDevTamerBadge(row.tamerName) ? (
+                                    <span
+                                      className="meter-party-dev-badge"
+                                      title="Companion developer"
+                                      aria-label="Developer"
+                                    >
+                                      {METER_DEV_TAMER_BADGE}
+                                    </span>
+                                  ) : null}
+                                  {barTheme ? (
+                                    <span
+                                      className="meter-party-theme-badge"
+                                      title={barTheme.domain}
+                                      aria-label={barTheme.label}
+                                    >
+                                      {barTheme.badge}
+                                    </span>
+                                  ) : null}
+                                </span>
                                 {row.digimonName ? (
                                   <span className="meter-party-digimon">{row.digimonName}</span>
                                 ) : null}
@@ -1289,6 +1349,21 @@ export default function MeterApp() {
                   Meter overlay options and hotkeys are in Companion settings — use the gear icon, or open the{' '}
                   <strong>DPS meter</strong> section there.
                 </p>
+
+                <section className="field-group">
+                  <h3>Bar themes</h3>
+                  {!supabase || !sbUser ? (
+                    <p className="hint muted" style={{ marginTop: 0 }}>
+                      Sign in below to equip bar themes purchased on the Odyssey Calc site.
+                    </p>
+                  ) : (
+                    <MeterCompanionBarThemes
+                      supabase={supabase}
+                      profileDisplayName={displayNameFromUserMetadata(sbUser)}
+                      onThemeChange={() => bumpStream()}
+                    />
+                  )}
+                </section>
 
                 <section className="field-group">
                   <h3>Cloud parse uploads</h3>

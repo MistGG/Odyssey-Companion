@@ -38,6 +38,7 @@ export type MeterDungeonPartyMemberParse = {
   totalDamage: number
   durationSec: number
   isSelf: boolean
+  meterBarThemeId?: string
   digimons: DigimonSkillBreakdownForParse[]
 }
 

@@ -38,6 +38,19 @@ import {
   meterDebugLog,
   meterDebugLogEvent,
 } from './meterDebugLog'
+import {
+  DEV_METER_TAMER_NAME,
+  METER_DEV_BASELINE_PREVIEW_ROWS,
+  METER_PARTY_BAR_THEMES,
+  isMeterDevBaselinePartyKey,
+  isMistTamer,
+  mistDevPartyMemberKey,
+  meterBarThemeIdFromMemberKey,
+  meterDevPreviewBarFillPct,
+  meterDevThemePreviewBarFillPct,
+  effectiveEquippedThemeIdForSelf,
+  type MeterPartyBarThemeId,
+} from './meterPartyBarThemes'
 
 export type MeterSkillBreakdownRow = MeterSkillRow
 
@@ -52,6 +65,10 @@ export type MeterPartyMemberRow = {
   firstHitMs: number | null
   isSelf: boolean
   skills: Map<string, MeterSkillBreakdownRow>
+  /** Custom party bar (Mist + earnable Olympos XII themes). */
+  meterBarThemeId?: MeterPartyBarThemeId
+  /** Dev theme gallery: visual bar width 30–70% (not damage share). */
+  partyBarFillPct?: number
 }
 
 export type MeterStreamSession = {
@@ -85,6 +102,8 @@ export type MeterStreamSession = {
   members: Map<string, MeterPartyMemberRow>
   /** digimon display name or tamer → roster entry for resolving tamer on hits */
   rosterByAlias: Map<string, { tamerName: string; digimonName: string; iconId: string }>
+  /** `seedMeterDevTestParty` — skip re-seeding in dev meter test mode. */
+  devTestPartySeeded?: boolean
 }
 
 export function createMeterStreamSession(): MeterStreamSession {
@@ -289,6 +308,9 @@ function dedupePartyMemberRows(session: MeterStreamSession) {
   const selfNick = session.selfDigimonNickname?.trim()
 
   for (const row of [...session.members.values()]) {
+    if ((row.meterBarThemeId || isMeterDevBaselinePartyKey(row.key)) && row.key !== selfKey) {
+      continue
+    }
     if (!selfKey || row.key === selfKey) continue
     const alias = session.rosterByAlias.get(normKey(row.tamerName))
     const aliasTamer = alias?.tamerName.trim()
@@ -327,6 +349,8 @@ function dedupePartyMemberRows(session: MeterStreamSession) {
       if (alias?.tamerName.trim()) {
         row.tamerName = alias.tamerName.trim()
         if (row.key !== memberMapKey(row.tamerName)) {
+          /* Mist previews use unique keys (themes + baselines). */
+          if (row.meterBarThemeId || isMeterDevBaselinePartyKey(row.key)) continue
           const targetKey = memberMapKey(row.tamerName)
           const existing = session.members.get(targetKey)
           if (existing) mergeMemberIntoCanonical(session, row.key, targetKey)
@@ -455,10 +479,13 @@ function upsertMember(
     digimonId?: string
     iconId?: string
     isSelf?: boolean
+    memberKey?: string
+    meterBarThemeId?: MeterPartyBarThemeId
+    partyBarFillPct?: number
   },
 ): MeterPartyMemberRow {
   const tamer = opts.tamerName.trim()
-  const key = normKey(tamer)
+  const key = (opts.memberKey ?? normKey(tamer)).trim().toLowerCase()
   let row = session.members.get(key)
   if (!row) {
     const digimon = (opts.digimonName ?? '').trim()
@@ -475,10 +502,14 @@ function upsertMember(
       firstHitMs: null,
       isSelf: Boolean(opts.isSelf),
       skills: new Map(),
+      meterBarThemeId: opts.meterBarThemeId,
+      partyBarFillPct: opts.partyBarFillPct,
     }
     session.members.set(key, row)
   } else {
     if (opts.isSelf) row.isSelf = true
+    if (opts.meterBarThemeId) row.meterBarThemeId = opts.meterBarThemeId
+    if (opts.partyBarFillPct != null) row.partyBarFillPct = opts.partyBarFillPct
     if (opts.digimonName?.trim()) row.digimonName = opts.digimonName.trim()
     const nextId = opts.digimonId?.trim() ?? ''
     const idChanged = Boolean(nextId && normKey(row.digimonId) !== normKey(nextId))
@@ -499,6 +530,7 @@ function finalizeMemberAfterDigimonChange(session: MeterStreamSession, member: M
 }
 
 function pruneDepartedPartyMembers(session: MeterStreamSession, snaps: PartyMemberSnapshot[]) {
+  if (session.devTestPartySeeded) return
   const keepTamerKeys = new Set(snaps.map((s) => normKey(s.tamerName)))
   const selfKey = session.selfTamerName ? normKey(session.selfTamerName) : null
 
@@ -530,6 +562,7 @@ function pruneDepartedPartyMembers(session: MeterStreamSession, snaps: PartyMemb
 }
 
 function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
+  if (session.devTestPartySeeded) return
   const partyId = extractPartyId(ev)
   if (partyId) session.partyId = partyId
 
@@ -590,12 +623,18 @@ function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
 
 function syncRosterMemberRows(session: MeterStreamSession) {
   for (const snap of session.rosterMembers.values()) {
+    const memberKey = snap.memberKey?.trim() || memberMapKey(snap.tamerName)
+    const existing = session.members.get(memberKey)
     const memberRow = upsertMember(session, {
       tamerName: snap.tamerName,
       digimonName: snap.digimonName || snap.digimonNickname,
       digimonId: snap.digimonId,
       iconId: snap.iconId,
       isSelf: snap.isSelf,
+      memberKey,
+      meterBarThemeId:
+        existing?.meterBarThemeId ?? meterBarThemeIdFromMemberKey(memberKey),
+      partyBarFillPct: existing?.partyBarFillPct,
     })
     finalizeMemberAfterDigimonChange(session, memberRow)
   }
@@ -907,6 +946,7 @@ export function meterNeedsPartyIdentity(session: MeterStreamSession): boolean {
 function clearDungeonCombat(session: MeterStreamSession) {
   session.sessionStartMs = null
   session.sessionEndMs = null
+  if (session.devTestPartySeeded) return
   session.members.clear()
   syncRosterMemberRows(session)
   if (session.selfTamerName && !session.members.has(normKey(session.selfTamerName))) {
@@ -1228,6 +1268,10 @@ export function ingestMeterEventStream(
       }
       const creditRow = session.members.get(canonKey) ?? row
       if (creditRow.firstHitMs == null) creditRow.firstHitMs = now
+      if (creditRow.isSelf && !creditRow.meterBarThemeId) {
+        const themeId = effectiveEquippedThemeIdForSelf(creditTamer)
+        if (themeId) creditRow.meterBarThemeId = themeId
+      }
       creditRow.totalDamage += dmg
       const cache = wikiCacheForDigimon(session, who.digimonId)
       recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId)
@@ -1256,23 +1300,46 @@ export function meterSessionDurationSec(session: MeterStreamSession, nowMs = Dat
   return Math.max(0, (end - start) / 1000)
 }
 
+function refreshMeterDevTestPartyBarFills(session: MeterStreamSession): void {
+  if (!session.devTestPartySeeded) return
+  METER_PARTY_BAR_THEMES.forEach((theme, index) => {
+    const row = session.members.get(mistDevPartyMemberKey(theme.id))
+    if (!row) return
+    const fill = meterDevThemePreviewBarFillPct(index)
+    row.partyBarFillPct = fill
+    if (!row.meterBarThemeId) row.meterBarThemeId = theme.id
+  })
+  for (const baseline of METER_DEV_BASELINE_PREVIEW_ROWS) {
+    const row = session.members.get(baseline.memberKey)
+    if (!row) continue
+    row.partyBarFillPct = baseline.fillPct
+  }
+}
+
 export function meterPartyRows(session: MeterStreamSession, nowMs = Date.now()): Array<
   MeterPartyMemberRow & { dps: number; durationSec: number }
 > {
   syncRosterMemberRows(session)
   dedupePartyMemberRows(session)
+  refreshMeterDevTestPartyBarFills(session)
   ensureSelfPartyRowVisible(session)
   const elapsedSec = meterSessionDurationSec(session, nowMs)
 
   const rows = [...session.members.values()]
   if (rows.length === 0 && session.rosterMembers.size > 0) {
     for (const snap of session.rosterMembers.values()) {
+      const memberKey = snap.memberKey?.trim() || memberMapKey(snap.tamerName)
+      const existing = session.members.get(memberKey)
       upsertMember(session, {
         tamerName: snap.tamerName,
         digimonName: snap.digimonName,
         digimonId: snap.digimonId,
         iconId: snap.iconId,
         isSelf: snap.isSelf,
+        memberKey,
+        meterBarThemeId:
+          existing?.meterBarThemeId ?? meterBarThemeIdFromMemberKey(memberKey),
+        partyBarFillPct: existing?.partyBarFillPct,
       })
     }
   }
@@ -1455,4 +1522,103 @@ export function meterSelfTotals(session: MeterStreamSession, nowMs = Date.now())
   const elapsedSec = meterSessionDurationSec(session, nowMs)
   const dps = elapsedSec > 0 ? totalDamage / elapsedSec : 0
   return { totalDamage, elapsedSec, dps }
+}
+
+/** Dev-only sample party for `npm run dev:meter` (includes Mist). */
+export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.now()): void {
+  if (session.devTestPartySeeded) return
+  session.devTestPartySeeded = true
+
+  const startMs = nowMs - 92_000
+  session.selfTamerName = DEV_METER_TAMER_NAME
+  session.sessionStartMs = startMs
+  session.sessionEndMs = null
+  session.dungeonId = 'dev-test-dungeon'
+  session.dungeonName = 'Dev Test — Puppet Master'
+  session.dungeonNameLoading = false
+
+  const themePreviewDamage = [
+    428_500, 401_200, 388_400, 375_600, 362_800, 350_000, 337_200, 324_400, 311_600, 298_800, 286_000,
+    273_200, 260_400,
+  ]
+  const themePreviewBarFillPct = METER_PARTY_BAR_THEMES.map((_, index) =>
+    meterDevThemePreviewBarFillPct(index),
+  )
+
+  session.members.clear()
+  session.rosterMembers.clear()
+
+  METER_PARTY_BAR_THEMES.forEach((theme, index) => {
+    const barFill = themePreviewBarFillPct[index] ?? 50
+    const row = upsertMember(session, {
+      tamerName: DEV_METER_TAMER_NAME,
+      digimonName: theme.subtitle,
+      memberKey: mistDevPartyMemberKey(theme.id),
+      meterBarThemeId: theme.id,
+      partyBarFillPct: barFill,
+      isSelf: false,
+    })
+    row.totalDamage = themePreviewDamage[index] ?? 240_000
+    row.partyBarFillPct = barFill
+    row.firstHitMs = startMs
+    session.rosterMembers.set(row.key, {
+      memberKey: row.key,
+      tamerName: DEV_METER_TAMER_NAME,
+      digimonName: theme.subtitle,
+      digimonNickname: theme.label,
+      digimonId: '',
+      iconId: '',
+      slot: index + 1,
+      isSelf: false,
+      isLeader: false,
+    })
+  })
+
+  const selfKey = memberMapKey(DEV_METER_TAMER_NAME)
+  const selfRow = upsertMember(session, {
+    tamerName: DEV_METER_TAMER_NAME,
+    digimonName: 'Your digimon',
+    memberKey: selfKey,
+    isSelf: true,
+  })
+  selfRow.totalDamage = 312_000
+  selfRow.partyBarFillPct = 48
+  selfRow.firstHitMs = startMs
+  session.rosterMembers.set(selfRow.key, {
+    memberKey: selfRow.key,
+    tamerName: DEV_METER_TAMER_NAME,
+    digimonName: 'Your digimon',
+    digimonNickname: '',
+    digimonId: '',
+    iconId: '',
+    slot: 0,
+    isSelf: true,
+    isLeader: true,
+  })
+
+  METER_DEV_BASELINE_PREVIEW_ROWS.forEach((baseline, index) => {
+    const slot = METER_PARTY_BAR_THEMES.length + index + 1
+    const row = upsertMember(session, {
+      tamerName: DEV_METER_TAMER_NAME,
+      digimonName: baseline.subtitle,
+      memberKey: baseline.memberKey,
+      partyBarFillPct: baseline.fillPct,
+      isSelf: false,
+    })
+    row.totalDamage = baseline.totalDamage
+    row.firstHitMs = startMs
+    session.rosterMembers.set(row.key, {
+      memberKey: row.key,
+      tamerName: DEV_METER_TAMER_NAME,
+      digimonName: baseline.subtitle,
+      digimonNickname: 'Standard',
+      digimonId: '',
+      iconId: '',
+      slot,
+      isSelf: false,
+      isLeader: false,
+    })
+  })
+
+  dedupePartyMemberRows(session)
 }

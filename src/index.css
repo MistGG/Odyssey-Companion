@@ -5458,6 +5458,53 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   max-width: min(420px, 92vw);
 }
 
+.meter-companion-themes-default {
+  margin-bottom: 10px;
+}
+
+.meter-companion-themes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter-companion-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.meter-companion-theme-row.is-active {
+  border-color: rgba(62, 224, 255, 0.4);
+  background: rgba(62, 224, 255, 0.08);
+}
+
+.meter-companion-theme-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.meter-companion-theme-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(92, 240, 196, 0.95);
+}
+
+.meter-companion-themes-msg {
+  margin-top: 8px;
+  color: #f87171;
+}
+
 .meter-body {
   flex: 1;
   min-height: 0;
@@ -5926,6 +5973,292 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
 
 .meter-party-member:active {
   filter: brightness(1.08);
+}
+
+/* Themed rows use the same track background as standard party rows; theme shows on the fill bar only. */
+.meter-party-member--bar-theme {
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: none;
+}
+
+.meter-party-member-bar--bar-theme {
+  /* Inherit absolute stretch from .meter-party-member-bar (never use position: relative here). */
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mb-accent, var(--accent)) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 0 8px color-mix(in srgb, var(--mb-accent, var(--accent)) 22%, transparent);
+}
+
+/* Iliad Core (DEV) — soft full-bar fill + seamless stream (MeterIliadBarFx) */
+@keyframes meter-iliad-grid-stream {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 24px 0, 24px 0;
+  }
+}
+
+@keyframes meter-iliad-wash-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.meter-party-member-bar.meter-party-bar-theme--iliad-core {
+  background: linear-gradient(
+    90deg,
+    var(--mb-c1) 0%,
+    var(--mb-c2) 58%,
+    color-mix(in srgb, var(--mb-accent) 42%, transparent) 100%
+  );
+  overflow: hidden;
+}
+
+.meter-party-iliad-fx {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--wash {
+  z-index: 0;
+  opacity: 0.45;
+}
+
+.meter-party-iliad-wash-track {
+  display: block;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--mb-c2) 22%, transparent) 20%,
+    color-mix(in srgb, var(--mb-accent) 18%, transparent) 50%,
+    color-mix(in srgb, var(--mb-c2) 22%, transparent) 80%,
+    transparent 100%
+  );
+  animation: meter-iliad-wash-scroll 3.6s linear infinite;
+}
+
+.meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--grid {
+  z-index: 1;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 5px,
+      rgba(62, 224, 255, 0.16) 5px,
+      rgba(62, 224, 255, 0.16) 6px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 6px,
+      rgba(92, 240, 196, 0.12) 6px,
+      rgba(92, 240, 196, 0.12) 7px
+    );
+  background-size: 6px 100%, 100% 7px;
+  background-repeat: repeat;
+  animation: meter-iliad-grid-stream 3.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--grid,
+  .meter-party-iliad-wash-track {
+    animation: none !important;
+  }
+}
+
+/* Apollomon — solar flare */
+.meter-party-bar-theme--apollomon {
+  background:
+    radial-gradient(ellipse 80% 120% at 18% 50%, rgba(255, 220, 120, 0.55) 0%, transparent 55%),
+    linear-gradient(90deg, rgba(90, 36, 8, 0.7) 0%, rgba(255, 150, 50, 0.55) 45%, rgba(255, 200, 80, 0.35) 100%);
+}
+
+/* Bacchusmon — wine depth */
+.meter-party-bar-theme--bacchusmon {
+  background:
+    repeating-linear-gradient(
+      168deg,
+      transparent 0,
+      transparent 10px,
+      rgba(90, 40, 120, 0.2) 10px,
+      rgba(90, 40, 120, 0.2) 12px
+    ),
+    linear-gradient(180deg, rgba(40, 12, 55, 0.75) 0%, rgba(120, 50, 150, 0.5) 55%, rgba(80, 28, 100, 0.65) 100%);
+}
+
+/* Ceresmon — harvest / forest */
+.meter-party-bar-theme--ceresmon {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 6px,
+      rgba(100, 160, 50, 0.12) 6px,
+      rgba(100, 160, 50, 0.12) 7px
+    ),
+    linear-gradient(90deg, rgba(22, 55, 18, 0.7) 0%, rgba(90, 140, 45, 0.55) 50%, rgba(180, 150, 50, 0.4) 100%);
+}
+
+/* Dianamon — moonfrost */
+.meter-party-bar-theme--dianamon {
+  background:
+    repeating-linear-gradient(
+      -28deg,
+      transparent 0,
+      transparent 8px,
+      rgba(200, 230, 255, 0.08) 8px,
+      rgba(200, 230, 255, 0.08) 9px
+    ),
+    linear-gradient(90deg, rgba(18, 32, 68, 0.75) 0%, rgba(120, 170, 240, 0.45) 55%, rgba(200, 220, 255, 0.28) 100%);
+}
+
+/* Junomon — peacock iridescence */
+.meter-party-bar-theme--junomon {
+  background:
+    linear-gradient(
+      115deg,
+      rgba(45, 18, 72, 0.8) 0%,
+      rgba(120, 60, 160, 0.55) 28%,
+      rgba(60, 180, 170, 0.4) 52%,
+      rgba(180, 100, 200, 0.5) 78%,
+      rgba(50, 22, 80, 0.75) 100%
+    );
+}
+
+/* Jupitermon — thundercloud */
+.meter-party-bar-theme--jupitermon {
+  background:
+    repeating-linear-gradient(
+      -55deg,
+      transparent 0,
+      transparent 14px,
+      rgba(255, 230, 100, 0.14) 14px,
+      rgba(255, 230, 100, 0.14) 16px
+    ),
+    linear-gradient(90deg, rgba(32, 36, 52, 0.85) 0%, rgba(90, 80, 40, 0.55) 45%, rgba(240, 210, 80, 0.4) 100%);
+}
+
+/* Marsmon — war fire */
+.meter-party-bar-theme--marsmon {
+  background:
+    radial-gradient(ellipse 70% 140% at 25% 80%, rgba(255, 90, 30, 0.5) 0%, transparent 58%),
+    radial-gradient(ellipse 50% 100% at 70% 20%, rgba(255, 160, 60, 0.35) 0%, transparent 50%),
+    linear-gradient(90deg, rgba(55, 10, 6, 0.85) 0%, rgba(190, 55, 28, 0.65) 50%, rgba(255, 120, 50, 0.45) 100%);
+}
+
+/* Mercurymon — speed streaks */
+.meter-party-bar-theme--mercurymon {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 3px,
+      rgba(255, 255, 255, 0.14) 3px,
+      rgba(255, 255, 255, 0.14) 4px
+    ),
+    linear-gradient(90deg, rgba(40, 48, 62, 0.8) 0%, rgba(160, 185, 210, 0.5) 55%, rgba(230, 240, 255, 0.35) 100%);
+}
+
+/* Minervamon — owl / strategy chevrons */
+.meter-party-bar-theme--minervamon {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(200, 180, 90, 0.1) 0,
+      rgba(200, 180, 90, 0.1) 6px,
+      transparent 6px,
+      transparent 12px
+    ),
+    linear-gradient(90deg, rgba(36, 40, 48, 0.82) 0%, rgba(110, 118, 130, 0.55) 50%, rgba(200, 175, 80, 0.42) 100%);
+}
+
+/* Neptunemon — ocean depth */
+.meter-party-bar-theme--neptunemon {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 5px,
+      rgba(60, 200, 210, 0.1) 5px,
+      rgba(60, 200, 210, 0.1) 8px,
+      transparent 8px,
+      transparent 13px
+    ),
+    linear-gradient(180deg, rgba(8, 38, 62, 0.85) 0%, rgba(25, 120, 165, 0.6) 45%, rgba(50, 200, 195, 0.45) 100%);
+}
+
+/* Venusmon — rose glow */
+.meter-party-bar-theme--venusmon {
+  background:
+    radial-gradient(ellipse 90% 100% at 30% 50%, rgba(255, 180, 210, 0.45) 0%, transparent 60%),
+    linear-gradient(90deg, rgba(62, 22, 42, 0.75) 0%, rgba(200, 100, 140, 0.5) 55%, rgba(255, 210, 220, 0.32) 100%);
+}
+
+/* Vulcanusmon — forge embers */
+.meter-party-bar-theme--vulcanusmon {
+  background:
+    radial-gradient(circle at 20% 70%, rgba(255, 140, 40, 0.45) 0%, transparent 35%),
+    radial-gradient(circle at 55% 30%, rgba(255, 200, 80, 0.25) 0%, transparent 30%),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 11px,
+      rgba(255, 120, 40, 0.12) 11px,
+      rgba(255, 120, 40, 0.12) 12px
+    ),
+    linear-gradient(90deg, rgba(40, 18, 8, 0.88) 0%, rgba(160, 70, 22, 0.65) 50%, rgba(255, 150, 60, 0.4) 100%);
+}
+
+.meter-party-dev-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  min-width: 1.1em;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  vertical-align: middle;
+  color: #0a1218;
+  background: linear-gradient(180deg, #3ee0ff 0%, #5cf0c4 100%);
+  border: 1px solid rgba(92, 240, 196, 0.65);
+  box-shadow: 0 0 6px rgba(62, 224, 255, 0.35);
+}
+
+.meter-party-theme-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  min-width: 1.1em;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  vertical-align: middle;
+  color: #0a1218;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mb-accent, var(--accent)) 92%, white) 0%,
+    var(--mb-c2, rgba(92, 240, 196, 0.9)) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--mb-accent, var(--accent)) 55%, white);
+  text-shadow: none;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mb-accent, var(--accent)) 35%, transparent);
 }
 
 .meter-skill-colhead {

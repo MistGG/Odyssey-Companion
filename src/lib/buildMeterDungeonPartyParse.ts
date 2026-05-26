@@ -53,6 +53,7 @@ export function buildMeterDungeonPartyParse(
       totalDamage,
       durationSec: row.durationSec,
       isSelf: row.isSelf,
+      meterBarThemeId: row.meterBarThemeId,
       digimons: digimonGroups.map((g) => {
         const iconId =
           (g.digimonId ? streamIconIdForDigimon(session, g.digimonId) : '') || ''
