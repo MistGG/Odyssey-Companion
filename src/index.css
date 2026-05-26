@@ -5496,6 +5496,15 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   );
 }
 
+.meter-companion-theme-row--legendary {
+  border-color: rgba(255, 180, 80, 0.32);
+  background: linear-gradient(
+    155deg,
+    rgba(120, 72, 24, 0.22) 0%,
+    rgba(24, 18, 10, 0.38) 100%
+  );
+}
+
 .meter-companion-theme-name {
   font-size: 0.88rem;
   font-weight: 600;
@@ -5966,7 +5975,7 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
 
 .meter-party-member-grid {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 3.25rem 3.25rem 2rem;
   gap: 4px;
@@ -6230,6 +6239,2321 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
     ),
     linear-gradient(90deg, rgba(40, 18, 8, 0.88) 0%, rgba(160, 70, 22, 0.65) 50%, rgba(255, 150, 60, 0.4) 100%);
 }
+
+
+/* —— Legendary Olympos XII (synced from digimon-hub) —— */
+
+/* —— Legendary Olympos XII: light CSS motion per deity —— */
+@keyframes meter-legend-shimmer-x {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes meter-legend-rays-rtl {
+  from {
+    transform: translateX(18%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.55;
+  }
+  80% {
+    opacity: 0.55;
+  }
+  to {
+    transform: translateX(-38%);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-legend-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes meter-legend-drift-y {
+  from {
+    background-position: 0 100%;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes meter-legend-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes meter-apollo-heavenly-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+}
+
+@keyframes meter-legend-flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  93%,
+  96% {
+    opacity: 0.9;
+  }
+}
+
+.meter-party-bar-theme--legendary::before,
+.meter-party-bar-theme--legendary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.meter-party-bar-theme--legendary::before {
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+.meter-party-bar-theme--legendary::after {
+  z-index: 2;
+  mix-blend-mode: soft-light;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--apollomon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--apollomon::after {
+  content: none;
+  display: none;
+}
+
+/* Legendary Apollomon — heavenly halo that wraps the fill and breathes outward. */
+.meter-party-apollo-heavenly-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: 72% 50%;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(
+      ellipse 100% 190% at 72% 50%,
+      rgba(255, 253, 242, 0.62) 0%,
+      rgba(255, 240, 205, 0.38) 38%,
+      rgba(255, 225, 175, 0.2) 58%,
+      rgba(255, 215, 160, 0.1) 74%,
+      rgba(255, 210, 150, 0.04) 86%,
+      transparent 94%
+    ),
+    radial-gradient(
+      ellipse 55% 120% at 100% 50%,
+      rgba(255, 248, 225, 0.45) 0%,
+      transparent 72%
+    );
+  filter: blur(5px);
+  mix-blend-mode: screen;
+  animation: meter-apollo-heavenly-glow 7.5s ease-in-out infinite;
+}
+
+.meter-party-bar-fill-stack--apollomon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--apollomon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--bacchusmon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--bacchusmon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-bacchus-bubble-rise-a {
+  0% {
+    bottom: -14%;
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  28% {
+    transform: translateX(8px);
+  }
+  52% {
+    transform: translateX(-6px);
+  }
+  76% {
+    transform: translateX(5px);
+  }
+  100% {
+    bottom: 112%;
+    transform: translateX(-3px);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-bacchus-bubble-rise-b {
+  0% {
+    bottom: -14%;
+    transform: translateX(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  30% {
+    transform: translateX(-7px);
+  }
+  55% {
+    transform: translateX(9px);
+  }
+  80% {
+    transform: translateX(-4px);
+  }
+  100% {
+    bottom: 112%;
+    transform: translateX(2px);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-bacchus-bubble-rise-c {
+  0% {
+    bottom: -14%;
+    transform: translateX(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.88;
+  }
+  22% {
+    transform: translateX(5px);
+  }
+  48% {
+    transform: translateX(-9px);
+  }
+  72% {
+    transform: translateX(6px);
+  }
+  100% {
+    bottom: 112%;
+    transform: translateX(-5px);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-bacchus-bubble-rise-d {
+  0% {
+    bottom: -14%;
+    transform: translateX(0);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.92;
+  }
+  35% {
+    transform: translateX(-5px);
+  }
+  58% {
+    transform: translateX(7px);
+  }
+  82% {
+    transform: translateX(-8px);
+  }
+  100% {
+    bottom: 112%;
+    transform: translateX(4px);
+    opacity: 0;
+  }
+}
+
+/* Legendary Bacchusmon — soda-pop bubbles rising through the fill. */
+.meter-party-bacchus-bubbles {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-bacchus-bubble {
+  position: absolute;
+  bottom: -14%;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 32% 26%,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(245, 230, 255, 0.7) 28%,
+      rgba(210, 160, 255, 0.35) 58%,
+      rgba(170, 110, 220, 0.18) 100%
+    );
+  box-shadow:
+    inset 0 -1px 2px rgba(70, 30, 100, 0.35),
+    0 0 4px rgba(255, 255, 255, 0.28);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.meter-party-bacchus-bubble--1 {
+  left: 16%;
+  width: 6px;
+  height: 6px;
+  animation: meter-bacchus-bubble-rise-a 5.4s linear infinite;
+  animation-delay: 0s;
+}
+
+.meter-party-bacchus-bubble--2 {
+  left: 38%;
+  width: 8px;
+  height: 8px;
+  animation: meter-bacchus-bubble-rise-b 4.7s linear infinite;
+  animation-delay: 1.2s;
+}
+
+.meter-party-bacchus-bubble--3 {
+  left: 58%;
+  width: 5px;
+  height: 5px;
+  animation: meter-bacchus-bubble-rise-c 6.1s linear infinite;
+  animation-delay: 2.5s;
+}
+
+.meter-party-bacchus-bubble--4 {
+  left: 76%;
+  width: 7px;
+  height: 7px;
+  animation: meter-bacchus-bubble-rise-d 5s linear infinite;
+  animation-delay: 0.65s;
+}
+
+.meter-party-bar-fill-stack--bacchusmon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--bacchusmon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--ceresmon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--ceresmon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-ceresmon-spore-pop {
+  0%,
+  68% {
+    transform: translate(-50%, -50%) scale(0.12);
+    opacity: 0;
+  }
+  76% {
+    transform: translate(-50%, -50%) scale(0.72);
+    opacity: 0.75;
+  }
+  84% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.92;
+  }
+  92% {
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: 0.88;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.14);
+    opacity: 0;
+  }
+}
+
+/* Legendary Ceresmon — small spores that pop up across the fill. */
+.meter-party-ceresmon-spores {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-ceresmon-spore {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle at 38% 32%,
+      rgba(245, 255, 215, 0.95) 0%,
+      rgba(200, 240, 110, 0.65) 42%,
+      rgba(140, 190, 70, 0.28) 100%
+    );
+  box-shadow: 0 0 3px rgba(210, 255, 130, 0.35);
+  animation: meter-ceresmon-spore-pop ease-out infinite;
+}
+
+.meter-party-ceresmon-spore--1 {
+  left: 14%;
+  top: 28%;
+  animation-duration: 5.6s;
+  animation-delay: 0.2s;
+}
+
+.meter-party-ceresmon-spore--2 {
+  left: 31%;
+  top: 62%;
+  animation-duration: 6.4s;
+  animation-delay: 1.4s;
+}
+
+.meter-party-ceresmon-spore--3 {
+  left: 48%;
+  top: 38%;
+  animation-duration: 5s;
+  animation-delay: 2.7s;
+}
+
+.meter-party-ceresmon-spore--4 {
+  left: 62%;
+  top: 72%;
+  animation-duration: 7s;
+  animation-delay: 0.9s;
+}
+
+.meter-party-ceresmon-spore--5 {
+  left: 76%;
+  top: 44%;
+  animation-duration: 5.9s;
+  animation-delay: 3.2s;
+}
+
+.meter-party-ceresmon-spore--6 {
+  left: 22%;
+  top: 78%;
+  animation-duration: 6.7s;
+  animation-delay: 1.9s;
+}
+
+.meter-party-ceresmon-spore--7 {
+  left: 86%;
+  top: 22%;
+  animation-duration: 5.3s;
+  animation-delay: 2.1s;
+}
+
+.meter-party-bar-fill-stack--ceresmon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--ceresmon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--dianamon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--dianamon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-dianamon-snow-drift {
+  0% {
+    top: -14%;
+    transform: translateX(var(--dianamon-drift-x, 8px));
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.92;
+  }
+  92% {
+    top: 96%;
+    transform: translateX(calc(var(--dianamon-drift-x, 8px) - 16px));
+    opacity: 0.9;
+  }
+  100% {
+    top: 112%;
+    transform: translateX(calc(var(--dianamon-drift-x, 8px) - 20px));
+    opacity: 0;
+  }
+}
+
+@keyframes meter-dianamon-snow-field {
+  0% {
+    background-position: 0 0, 6px 10px;
+  }
+  100% {
+    background-position: -18px 28px, -12px 38px;
+  }
+}
+
+@keyframes meter-dianamon-moon-shine {
+  0%,
+  100% {
+    opacity: 0.42;
+    filter: drop-shadow(0 0 2px rgba(210, 230, 255, 0.25));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 7px rgba(245, 250, 255, 0.9));
+  }
+}
+
+/* Legendary Dianamon — diagonal snow and a glowing crescent moon. */
+.meter-party-dianamon-fx {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-dianamon-snow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.meter-party-dianamon-snow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 0.45px, transparent 0.55px),
+    radial-gradient(circle, rgba(230, 242, 255, 0.4) 0 0.35px, transparent 0.45px);
+  background-size: 14px 16px, 10px 12px;
+  opacity: 0.45;
+  animation: meter-dianamon-snow-field 7s linear infinite;
+  pointer-events: none;
+}
+
+.meter-party-dianamon-snowflake {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(230, 242, 255, 0.75) 55%,
+    rgba(200, 225, 255, 0.35) 100%
+  );
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.45);
+  animation: meter-dianamon-snow-drift linear infinite;
+}
+
+.meter-party-dianamon-snowflake--1 {
+  left: 4%;
+  --dianamon-drift-x: 10px;
+  width: 3px;
+  height: 3px;
+  animation-duration: 4.6s;
+  animation-delay: 0s;
+}
+
+.meter-party-dianamon-snowflake--2 {
+  left: 14%;
+  --dianamon-drift-x: 6px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 5.4s;
+  animation-delay: 0.9s;
+}
+
+.meter-party-dianamon-snowflake--3 {
+  left: 24%;
+  --dianamon-drift-x: 12px;
+  width: 3px;
+  height: 3px;
+  animation-duration: 5.9s;
+  animation-delay: 1.8s;
+}
+
+.meter-party-dianamon-snowflake--4 {
+  left: 34%;
+  --dianamon-drift-x: 4px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 4.9s;
+  animation-delay: 0.4s;
+}
+
+.meter-party-dianamon-snowflake--5 {
+  left: 44%;
+  --dianamon-drift-x: 14px;
+  width: 4px;
+  height: 4px;
+  animation-duration: 6.4s;
+  animation-delay: 2.6s;
+}
+
+.meter-party-dianamon-snowflake--6 {
+  left: 54%;
+  --dianamon-drift-x: 7px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 5.2s;
+  animation-delay: 1.1s;
+}
+
+.meter-party-dianamon-snowflake--7 {
+  left: 64%;
+  --dianamon-drift-x: 11px;
+  width: 3px;
+  height: 3px;
+  animation-duration: 6.1s;
+  animation-delay: 3.2s;
+}
+
+.meter-party-dianamon-snowflake--8 {
+  left: 74%;
+  --dianamon-drift-x: 5px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 5.7s;
+  animation-delay: 0.6s;
+}
+
+.meter-party-dianamon-snowflake--9 {
+  left: 84%;
+  --dianamon-drift-x: 9px;
+  width: 3px;
+  height: 3px;
+  animation-duration: 4.8s;
+  animation-delay: 2.1s;
+}
+
+.meter-party-dianamon-snowflake--10 {
+  left: 92%;
+  --dianamon-drift-x: 3px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 6.6s;
+  animation-delay: 1.5s;
+}
+
+.meter-party-dianamon-snowflake--11 {
+  left: 18%;
+  --dianamon-drift-x: 8px;
+  width: 2px;
+  height: 2px;
+  animation-duration: 5.5s;
+  animation-delay: 3.6s;
+}
+
+.meter-party-dianamon-snowflake--12 {
+  left: 48%;
+  --dianamon-drift-x: 13px;
+  width: 3px;
+  height: 3px;
+  animation-duration: 6.9s;
+  animation-delay: 2.9s;
+}
+
+.meter-party-dianamon-moon {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 68% 50%,
+    transparent 46%,
+    rgba(252, 254, 255, 0.98) 48%,
+    rgba(228, 240, 255, 0.92) 72%,
+    rgba(210, 228, 255, 0.55) 100%
+  );
+  animation: meter-dianamon-moon-shine 4.2s ease-in-out infinite;
+  z-index: 1;
+}
+
+.meter-party-bar-fill-stack--dianamon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--dianamon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--junomon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--junomon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-junomon-star-sparkle {
+  0%,
+  70% {
+    transform: translate(-50%, -50%) scale(0.15) rotate(0deg);
+    opacity: 0;
+  }
+  78% {
+    transform: translate(-50%, -50%) scale(0.85) rotate(12deg);
+    opacity: 0.85;
+  }
+  86% {
+    transform: translate(-50%, -50%) scale(1.1) rotate(22deg);
+    opacity: 1;
+  }
+  94% {
+    transform: translate(-50%, -50%) scale(0.95) rotate(30deg);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.4) rotate(38deg);
+    opacity: 0;
+  }
+}
+
+/* Legendary Junomon — star sparkles across the fill. */
+.meter-party-junomon-sparkles {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-junomon-sparkle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  animation: meter-junomon-star-sparkle ease-out infinite;
+}
+
+.meter-party-junomon-sparkle-ray {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 235, 1) 0%,
+    rgba(255, 220, 150, 0.95) 50%,
+    rgba(180, 255, 245, 0.9) 100%
+  );
+  box-shadow:
+    0 0 5px rgba(255, 240, 200, 0.85),
+    0 0 8px rgba(160, 240, 230, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+.meter-party-junomon-sparkle-ray:nth-child(1) {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+.meter-party-junomon-sparkle-ray:nth-child(2) {
+  transform: translate(-50%, -50%) rotate(60deg);
+}
+
+.meter-party-junomon-sparkle-ray:nth-child(3) {
+  transform: translate(-50%, -50%) rotate(120deg);
+}
+
+.meter-party-junomon-sparkle--1 {
+  left: 12%;
+  top: 32%;
+  animation-duration: 4.4s;
+  animation-delay: 0.3s;
+}
+
+.meter-party-junomon-sparkle--2 {
+  left: 30%;
+  top: 68%;
+  animation-duration: 5.2s;
+  animation-delay: 1.5s;
+}
+
+.meter-party-junomon-sparkle--3 {
+  left: 48%;
+  top: 40%;
+  animation-duration: 4.8s;
+  animation-delay: 2.6s;
+}
+
+.meter-party-junomon-sparkle--4 {
+  left: 64%;
+  top: 74%;
+  animation-duration: 5.6s;
+  animation-delay: 0.8s;
+}
+
+.meter-party-junomon-sparkle--5 {
+  left: 78%;
+  top: 26%;
+  animation-duration: 4.6s;
+  animation-delay: 3.4s;
+}
+
+.meter-party-junomon-sparkle--6 {
+  left: 22%;
+  top: 52%;
+  animation-duration: 5.9s;
+  animation-delay: 2s;
+}
+
+.meter-party-junomon-sparkle--7 {
+  left: 88%;
+  top: 58%;
+  animation-duration: 4.2s;
+  animation-delay: 1.1s;
+}
+
+.meter-party-bar-fill-stack--junomon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--junomon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--jupitermon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--jupitermon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-jupiter-thunder-flash {
+  0%,
+  90%,
+  100% {
+    opacity: 0;
+  }
+  91% {
+    opacity: 0.14;
+  }
+  92% {
+    opacity: 0.04;
+  }
+  93% {
+    opacity: 0.18;
+  }
+  94% {
+    opacity: 0;
+  }
+}
+
+@keyframes meter-jupiter-crackle {
+  0%,
+  76%,
+  100% {
+    opacity: 0;
+    filter: brightness(1);
+  }
+  80% {
+    opacity: 0.55;
+    filter: brightness(1.25);
+  }
+  82% {
+    opacity: 0.12;
+  }
+  84% {
+    opacity: 0.85;
+    filter: brightness(1.35);
+  }
+  86% {
+    opacity: 0;
+  }
+}
+
+/* Legendary Jupitermon — soft thunder flashes and lightning crackles. */
+.meter-party-jupiter-thunder {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-jupiter-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 250, 0.22) 0%,
+    rgba(255, 245, 200, 0.28) 45%,
+    rgba(210, 230, 255, 0.18) 100%
+  );
+  mix-blend-mode: screen;
+  animation: meter-jupiter-thunder-flash 5.2s linear infinite;
+}
+
+.meter-party-jupiter-crackles {
+  position: absolute;
+  inset: 0;
+}
+
+.meter-party-jupiter-crackle {
+  position: absolute;
+  width: 6px;
+  height: 13px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 244, 175, 0.95) 50%,
+    rgba(200, 225, 255, 0.92) 100%
+  );
+  clip-path: polygon(54% 0%, 100% 0%, 38% 50%, 72% 50%, 12% 100%, 48% 48%, 8% 48%);
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 4px rgba(255, 235, 150, 0.45));
+  animation: meter-jupiter-crackle linear infinite;
+}
+
+.meter-party-jupiter-crackle--1 {
+  left: 10%;
+  top: 22%;
+  transform: rotate(-14deg) scale(0.85);
+  animation-duration: 4.2s;
+  animation-delay: 0.4s;
+}
+
+.meter-party-jupiter-crackle--2 {
+  left: 28%;
+  top: 58%;
+  transform: rotate(10deg) scale(0.95);
+  animation-duration: 5.6s;
+  animation-delay: 1.8s;
+}
+
+.meter-party-jupiter-crackle--3 {
+  left: 44%;
+  top: 30%;
+  transform: rotate(-6deg) scale(0.8);
+  animation-duration: 4.8s;
+  animation-delay: 2.9s;
+}
+
+.meter-party-jupiter-crackle--4 {
+  left: 58%;
+  top: 68%;
+  transform: rotate(16deg) scale(1);
+  animation-duration: 5.1s;
+  animation-delay: 0.9s;
+}
+
+.meter-party-jupiter-crackle--5 {
+  left: 72%;
+  top: 38%;
+  transform: rotate(-11deg) scale(0.9);
+  animation-duration: 6s;
+  animation-delay: 3.5s;
+}
+
+.meter-party-jupiter-crackle--6 {
+  left: 86%;
+  top: 52%;
+  transform: rotate(8deg) scale(0.75);
+  animation-duration: 4.5s;
+  animation-delay: 2.1s;
+}
+
+.meter-party-bar-fill-stack--jupitermon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--jupitermon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--marsmon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--marsmon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-marsmon-flame-drift-a {
+  0% {
+    bottom: -16%;
+    left: 6%;
+    transform: translateX(0) rotate(-10deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  28% {
+    transform: translateX(7px) rotate(-4deg);
+  }
+  52% {
+    transform: translateX(-6px) rotate(2deg);
+  }
+  76% {
+    transform: translateX(5px) rotate(6deg);
+  }
+  100% {
+    bottom: 115%;
+    left: 28%;
+    transform: translateX(-4px) rotate(12deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-marsmon-flame-drift-b {
+  0% {
+    bottom: -16%;
+    left: 26%;
+    transform: translateX(0) rotate(-6deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  30% {
+    transform: translateX(-8px) rotate(0deg);
+  }
+  55% {
+    transform: translateX(9px) rotate(5deg);
+  }
+  80% {
+    transform: translateX(-5px) rotate(8deg);
+  }
+  100% {
+    bottom: 115%;
+    left: 48%;
+    transform: translateX(3px) rotate(14deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-marsmon-flame-drift-c {
+  0% {
+    bottom: -16%;
+    left: 48%;
+    transform: translateX(0) rotate(-8deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.75;
+  }
+  24% {
+    transform: translateX(6px) rotate(-2deg);
+  }
+  48% {
+    transform: translateX(-9px) rotate(4deg);
+  }
+  72% {
+    transform: translateX(7px) rotate(9deg);
+  }
+  100% {
+    bottom: 115%;
+    left: 68%;
+    transform: translateX(-6px) rotate(11deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-marsmon-flame-drift-d {
+  0% {
+    bottom: -16%;
+    left: 68%;
+    transform: translateX(0) rotate(-12deg);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.9;
+  }
+  34% {
+    transform: translateX(-5px) rotate(-3deg);
+  }
+  58% {
+    transform: translateX(8px) rotate(6deg);
+  }
+  82% {
+    transform: translateX(-7px) rotate(10deg);
+  }
+  100% {
+    bottom: 115%;
+    left: 86%;
+    transform: translateX(4px) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-marsmon-flame-drift-e {
+  0% {
+    bottom: -16%;
+    left: 82%;
+    transform: translateX(0) rotate(-8deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.82;
+  }
+  32% {
+    transform: translateX(-6px) rotate(-2deg);
+  }
+  56% {
+    transform: translateX(8px) rotate(5deg);
+  }
+  78% {
+    transform: translateX(-4px) rotate(9deg);
+  }
+  100% {
+    bottom: 115%;
+    left: 94%;
+    transform: translateX(2px) rotate(13deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-marsmon-flame-flicker {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* Legendary Marsmon — flame crackles drifting up toward the top-right. */
+.meter-party-marsmon-flames {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-marsmon-flame {
+  position: absolute;
+  bottom: -16%;
+  opacity: 0;
+  width: 8px;
+  height: 10px;
+  border-radius: 45% 55% 52% 48% / 68% 42% 58% 45%;
+  background:
+    radial-gradient(
+      ellipse 38% 42% at 50% 62%,
+      rgba(70, 14, 4, 0.55) 0%,
+      rgba(120, 28, 6, 0.25) 40%,
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 100% 92% at 48% 42%,
+      rgba(255, 210, 90, 0.92) 0%,
+      rgba(255, 130, 35, 0.82) 42%,
+      rgba(255, 65, 12, 0.55) 72%,
+      rgba(210, 30, 5, 0.2) 88%,
+      transparent 100%
+    );
+  box-shadow:
+    0 0 3px rgba(255, 85, 25, 0.5),
+    0 0 6px rgba(255, 35, 8, 0.32);
+  transform-origin: 50% 90%;
+  animation-fill-mode: backwards;
+}
+
+.meter-party-marsmon-flame::before,
+.meter-party-marsmon-flame::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  animation: meter-marsmon-flame-flicker ease-in-out infinite;
+}
+
+.meter-party-marsmon-flame::before {
+  width: 42%;
+  height: 38%;
+  left: 28%;
+  top: 32%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 248, 200, 0.9) 0%,
+    rgba(255, 200, 80, 0.35) 55%,
+    transparent 75%
+  );
+  animation-duration: 0.38s;
+}
+
+.meter-party-marsmon-flame::after {
+  inset: -3px;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: 0 0 5px rgba(255, 45, 10, 0.45);
+  animation-duration: 0.52s;
+  animation-direction: alternate-reverse;
+}
+
+.meter-party-marsmon-flame--1 {
+  left: 6%;
+  animation: meter-marsmon-flame-drift-a 7.8s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.meter-party-marsmon-flame--2 {
+  left: 26%;
+  width: 9px;
+  height: 11px;
+  border-radius: 52% 48% 58% 42% / 62% 48% 55% 42%;
+  animation: meter-marsmon-flame-drift-b 8.6s ease-in-out infinite;
+  animation-delay: 1.6s;
+}
+
+.meter-party-marsmon-flame--3 {
+  left: 48%;
+  width: 7px;
+  height: 9px;
+  border-radius: 48% 52% 45% 55% / 70% 38% 62% 48%;
+  animation: meter-marsmon-flame-drift-c 7.2s ease-in-out infinite;
+  animation-delay: 3.1s;
+}
+
+.meter-party-marsmon-flame--4 {
+  left: 68%;
+  width: 9px;
+  height: 10px;
+  border-radius: 55% 45% 50% 50% / 65% 45% 58% 40%;
+  animation: meter-marsmon-flame-drift-d 8.2s ease-in-out infinite;
+  animation-delay: 0.9s;
+}
+
+.meter-party-marsmon-flame--5 {
+  left: 82%;
+  width: 7px;
+  height: 9px;
+  border-radius: 50% 50% 42% 58% / 64% 42% 56% 46%;
+  animation: meter-marsmon-flame-drift-e 9s ease-in-out infinite;
+  animation-delay: 4.4s;
+}
+
+.meter-party-bar-fill-stack--marsmon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--marsmon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--mercurymon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--mercurymon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-mercury-sheen-sweep {
+  0% {
+    transform: translateX(-130%) skewX(-16deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.75;
+  }
+  82% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateX(230%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-mercury-glint-flash {
+  0%,
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(0.6) rotate(var(--mercury-glint-rot, -22deg));
+  }
+  78% {
+    opacity: 0.95;
+    transform: scale(1) rotate(var(--mercury-glint-rot, -22deg));
+  }
+  84% {
+    opacity: 0.35;
+    transform: scale(0.85) rotate(var(--mercury-glint-rot, -22deg));
+  }
+  88% {
+    opacity: 0.8;
+    transform: scale(1.05) rotate(var(--mercury-glint-rot, -22deg));
+  }
+  92% {
+    opacity: 0;
+  }
+}
+
+/* Legendary Mercurymon — liquid mirror reflections. */
+.meter-party-bar-fill-stack--mercurymon-legendary .meter-party-bar-theme--mercurymon {
+  background:
+    linear-gradient(
+      125deg,
+      rgba(42, 50, 64, 0.92) 0%,
+      rgba(118, 138, 162, 0.72) 28%,
+      rgba(210, 222, 238, 0.58) 48%,
+      rgba(145, 165, 188, 0.7) 68%,
+      rgba(58, 68, 82, 0.88) 100%
+    );
+}
+
+.meter-party-mercury-reflection {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-mercury-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mix-blend-mode: soft-light;
+}
+
+.meter-party-mercury-sheen::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 18%,
+    rgba(255, 255, 255, 0.42) 46%,
+    rgba(230, 245, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.28) 54%,
+    rgba(200, 220, 255, 0.08) 78%,
+    transparent 100%
+  );
+  animation: meter-mercury-sheen-sweep 6.2s ease-in-out infinite;
+}
+
+.meter-party-mercury-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    transparent 22%,
+    transparent 78%,
+    rgba(160, 180, 200, 0.15) 100%
+  );
+  pointer-events: none;
+}
+
+.meter-party-mercury-glint {
+  position: absolute;
+  width: 22px;
+  height: 5px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 30%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(220, 240, 255, 0.4) 70%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.55));
+  animation: meter-mercury-glint-flash ease-out infinite;
+}
+
+.meter-party-mercury-glint--1 {
+  --mercury-glint-rot: -24deg;
+  left: 18%;
+  top: 38%;
+  animation-duration: 5.4s;
+  animation-delay: 0.6s;
+}
+
+.meter-party-mercury-glint--2 {
+  --mercury-glint-rot: -18deg;
+  left: 52%;
+  top: 58%;
+  width: 18px;
+  animation-duration: 6.8s;
+  animation-delay: 2.8s;
+}
+
+.meter-party-mercury-glint--3 {
+  --mercury-glint-rot: -28deg;
+  left: 72%;
+  top: 28%;
+  width: 16px;
+  height: 4px;
+  animation-duration: 5.9s;
+  animation-delay: 4.1s;
+}
+
+.meter-party-bar-fill-stack--mercurymon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--mercurymon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+@keyframes meter-minerva-slab-top-split {
+  0%,
+  68%,
+  100% {
+    transform: translateY(0);
+  }
+  78% {
+    transform: translateY(-5px);
+  }
+  88% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes meter-minerva-slab-bottom-split {
+  0%,
+  68%,
+  100% {
+    transform: translateY(0);
+  }
+  78% {
+    transform: translateY(5px);
+  }
+  88% {
+    transform: translateY(4px);
+  }
+}
+
+@keyframes meter-minerva-rift-open {
+  0%,
+  70%,
+  100% {
+    opacity: 0;
+    height: 0;
+    box-shadow: none;
+  }
+  76% {
+    opacity: 1;
+    height: 2px;
+    box-shadow:
+      0 0 4px rgba(255, 240, 180, 0.7),
+      0 0 10px rgba(255, 200, 80, 0.45);
+  }
+  84%,
+  92% {
+    opacity: 1;
+    height: 6px;
+    box-shadow:
+      0 0 8px rgba(255, 245, 200, 0.95),
+      0 0 16px rgba(255, 210, 100, 0.55),
+      inset 0 0 6px rgba(20, 12, 4, 0.85);
+  }
+}
+
+@keyframes meter-minerva-sword-strike {
+  0%,
+  62%,
+  100% {
+    opacity: 0;
+    left: -32%;
+  }
+  68% {
+    opacity: 0.45;
+    left: 5%;
+  }
+  74% {
+    opacity: 1;
+    left: 38%;
+  }
+  80% {
+    opacity: 0.9;
+    left: 62%;
+  }
+  86% {
+    opacity: 0;
+    left: 98%;
+  }
+}
+
+/* Legendary Minervamon — greatsword strike opens a horizontal ground split. */
+.meter-party-bar-theme--legendary.meter-party-bar-theme--minervamon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--minervamon::after {
+  content: none;
+  display: none;
+}
+
+.meter-party-bar-fill-stack--minervamon-legendary .meter-party-bar-theme--minervamon {
+  background: linear-gradient(
+    90deg,
+    rgba(36, 40, 48, 0.88) 0%,
+    rgba(110, 118, 130, 0.6) 50%,
+    rgba(185, 160, 70, 0.45) 100%
+  );
+}
+
+.meter-party-minerva-groundsplit {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-minerva-slab {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.meter-party-minerva-slab--top {
+  top: 0;
+  height: 50%;
+  box-shadow: inset 0 -3px 8px rgba(8, 6, 2, 0.55);
+  animation: meter-minerva-slab-top-split 5.5s ease-in-out infinite;
+}
+
+.meter-party-minerva-slab--bottom {
+  bottom: 0;
+  height: 50%;
+  box-shadow: inset 0 3px 8px rgba(8, 6, 2, 0.55);
+  animation: meter-minerva-slab-bottom-split 5.5s ease-in-out infinite;
+}
+
+.meter-party-minerva-rift {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(12, 8, 4, 0.95) 0%,
+    rgba(255, 235, 160, 0.95) 35%,
+    rgba(255, 255, 220, 1) 50%,
+    rgba(255, 220, 120, 0.95) 65%,
+    rgba(18, 10, 4, 0.95) 100%
+  );
+  animation: meter-minerva-rift-open 5.5s ease-in-out infinite;
+  z-index: 2;
+}
+
+.meter-party-minerva-sword {
+  position: absolute;
+  top: 50%;
+  left: -32%;
+  width: 72%;
+  height: 10px;
+  transform: translateY(-50%);
+  animation: meter-minerva-sword-strike 5.5s ease-in-out infinite;
+  z-index: 3;
+}
+
+.meter-party-minerva-blade {
+  position: absolute;
+  left: 0;
+  right: 14%;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(55, 48, 36, 0.98) 0%,
+    rgba(195, 180, 140, 0.96) 38%,
+    rgba(255, 252, 235, 1) 50%,
+    rgba(190, 175, 130, 0.96) 62%,
+    rgba(55, 48, 36, 0.98) 100%
+  );
+  clip-path: polygon(0% 52%, 7% 18%, 7% 82%, 93% 32%, 93% 68%, 100% 50%);
+  filter: drop-shadow(0 0 4px rgba(255, 240, 180, 0.65));
+}
+
+.meter-party-minerva-crossguard {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(50, 44, 32, 0.98) 0%,
+    rgba(180, 165, 120, 0.95) 35%,
+    rgba(255, 248, 220, 1) 50%,
+    rgba(180, 165, 120, 0.95) 65%,
+    rgba(50, 44, 32, 0.98) 100%
+  );
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.45);
+}
+
+.meter-party-bar-fill-stack--minervamon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--minervamon-legendary .meter-party-bar-olympus-layer {
+  z-index: 4;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--neptunemon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--neptunemon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-neptune-wave-roll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Legendary Neptunemon — seamless rolling waves across the fill. */
+.meter-party-bar-fill-stack--neptunemon-legendary .meter-party-bar-theme--neptunemon {
+  background: linear-gradient(
+    180deg,
+    rgba(5, 28, 50, 0.96) 0%,
+    rgba(12, 72, 108, 0.88) 38%,
+    rgba(22, 118, 148, 0.75) 68%,
+    rgba(38, 158, 168, 0.55) 100%
+  );
+}
+
+.meter-party-neptune-waves {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-neptune-wave-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.meter-party-neptune-wave-layer--deep {
+  height: 78%;
+}
+
+.meter-party-neptune-wave-layer--shallow {
+  height: 58%;
+  bottom: 4%;
+  opacity: 0.92;
+}
+
+.meter-party-neptune-wave-track {
+  display: flex;
+  width: 200%;
+  height: 100%;
+  animation: meter-neptune-wave-roll 10s linear infinite;
+  will-change: transform;
+}
+
+.meter-party-neptune-wave-track--shallow {
+  animation-duration: 13s;
+  animation-direction: reverse;
+}
+
+.meter-party-neptune-wave-tile {
+  flex: 0 0 50%;
+  height: 100%;
+  clip-path: polygon(
+    0% 100%,
+    0% 44%,
+    12.5% 28%,
+    25% 40%,
+    37.5% 24%,
+    50% 36%,
+    62.5% 22%,
+    75% 34%,
+    87.5% 20%,
+    100% 44%,
+    100% 100%
+  );
+  background: linear-gradient(
+    180deg,
+    rgba(95, 210, 235, 0.72) 0%,
+    rgba(55, 165, 200, 0.52) 38%,
+    rgba(30, 115, 155, 0.28) 72%,
+    rgba(15, 75, 110, 0.12) 100%
+  );
+  filter: drop-shadow(0 -1px 3px rgba(80, 200, 225, 0.35));
+}
+
+.meter-party-neptune-wave-tile--shallow {
+  clip-path: polygon(
+    0% 100%,
+    0% 48%,
+    12.5% 34%,
+    25% 46%,
+    37.5% 32%,
+    50% 44%,
+    62.5% 30%,
+    75% 42%,
+    87.5% 28%,
+    100% 48%,
+    100% 100%
+  );
+  background: linear-gradient(
+    180deg,
+    rgba(120, 225, 245, 0.55) 0%,
+    rgba(70, 180, 210, 0.38) 45%,
+    rgba(35, 130, 165, 0.18) 100%
+  );
+  filter: drop-shadow(0 -1px 2px rgba(100, 215, 235, 0.3));
+}
+
+.meter-party-bar-fill-stack--neptunemon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--neptunemon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--venusmon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--venusmon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-venus-heart-pop {
+  0%,
+  68% {
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(0.15);
+    opacity: 0;
+  }
+  76% {
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(0.75);
+    opacity: 0.8;
+  }
+  84% {
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(1);
+    opacity: 0.95;
+  }
+  92% {
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(1.06);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(1.12);
+    opacity: 0;
+  }
+}
+
+/* Legendary Venusmon — diagonal hearts that pop in across the fill. */
+.meter-party-venus-hearts {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-venus-heart {
+  position: absolute;
+  width: var(--venus-heart-size, 11px);
+  height: var(--venus-heart-size, 11px);
+  animation: meter-venus-heart-pop ease-out infinite;
+}
+
+.meter-party-venus-heart-shape {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  width: 52%;
+  height: 52%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  background: linear-gradient(145deg, rgba(255, 120, 170, 0.98) 0%, rgba(255, 70, 130, 0.95) 100%);
+}
+
+.meter-party-venus-heart-shape::before,
+.meter-party-venus-heart-shape::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: inherit;
+  border-radius: 50%;
+}
+
+.meter-party-venus-heart-shape::before {
+  top: -50%;
+  left: 0;
+}
+
+.meter-party-venus-heart-shape::after {
+  top: 0;
+  left: 50%;
+}
+
+.meter-party-venus-heart--1 {
+  --venus-heart-size: 9px;
+  --venus-heart-tilt: -45deg;
+  left: 14%;
+  top: 26%;
+  animation-duration: 5.4s;
+  animation-delay: 0.3s;
+}
+
+.meter-party-venus-heart--2 {
+  --venus-heart-size: 14px;
+  --venus-heart-tilt: 45deg;
+  left: 30%;
+  top: 64%;
+  animation-duration: 6.2s;
+  animation-delay: 1.6s;
+}
+
+.meter-party-venus-heart--3 {
+  --venus-heart-size: 10px;
+  --venus-heart-tilt: -45deg;
+  left: 48%;
+  top: 36%;
+  animation-duration: 5.1s;
+  animation-delay: 2.8s;
+}
+
+.meter-party-venus-heart--4 {
+  --venus-heart-size: 15px;
+  --venus-heart-tilt: 45deg;
+  left: 64%;
+  top: 74%;
+  animation-duration: 6.8s;
+  animation-delay: 0.85s;
+}
+
+.meter-party-venus-heart--5 {
+  --venus-heart-size: 11px;
+  --venus-heart-tilt: -45deg;
+  left: 78%;
+  top: 42%;
+  animation-duration: 5.7s;
+  animation-delay: 3.5s;
+}
+
+.meter-party-venus-heart--6 {
+  --venus-heart-size: 12px;
+  --venus-heart-tilt: 45deg;
+  left: 22%;
+  top: 76%;
+  animation-duration: 6.5s;
+  animation-delay: 2.1s;
+}
+
+.meter-party-venus-heart--7 {
+  --venus-heart-size: 10px;
+  --venus-heart-tilt: -45deg;
+  left: 88%;
+  top: 24%;
+  animation-duration: 5.2s;
+  animation-delay: 1.2s;
+}
+
+.meter-party-bar-fill-stack--venusmon-legendary {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack--venusmon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--vulcanusmon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--vulcanusmon::after {
+  content: none;
+  display: none;
+}
+
+@keyframes meter-vulcan-hammer-swing {
+  0%,
+  30% {
+    transform: translateX(-6px) rotate(54deg);
+    opacity: 0;
+  }
+  36% {
+    transform: translateX(-4px) rotate(52deg);
+    opacity: 0;
+  }
+  42% {
+    transform: translateX(-4px) rotate(52deg);
+    opacity: 1;
+  }
+  48% {
+    transform: translateX(-4px) rotate(52deg);
+    opacity: 1;
+  }
+  56% {
+    transform: translateX(14px) rotate(-10deg);
+    opacity: 1;
+  }
+  60% {
+    transform: translateX(8px) rotate(-4deg);
+    opacity: 1;
+  }
+  66% {
+    transform: translateX(-4px) rotate(52deg);
+    opacity: 1;
+  }
+  74%,
+  100% {
+    transform: translateX(-6px) rotate(54deg);
+    opacity: 0;
+  }
+}
+
+@keyframes meter-vulcan-bar-flash {
+  0%,
+  52% {
+    opacity: 0;
+  }
+  56% {
+    opacity: 0.85;
+  }
+  64% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes meter-vulcan-bar-shake {
+  0%,
+  54% {
+    transform: translateX(0);
+  }
+  57% {
+    transform: translateX(-1.5px);
+  }
+  59% {
+    transform: translateX(1px);
+  }
+  61% {
+    transform: translateX(-0.5px);
+  }
+  64%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes meter-vulcan-bar-spark {
+  0%,
+  53% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.15);
+  }
+  57% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  72% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--vulcan-spark-dx, 0px)), calc(-50% + var(--vulcan-spark-dy, 0px)))
+      scale(0.25)
+      rotate(var(--vulcan-spark-spin, 0deg));
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Legendary Vulcanusmon — side hammer from the right; bar sparks on strike. */
+.meter-party-vulcan-forge {
+  position: absolute;
+  inset: -2px -6px -2px 0;
+  border-radius: inherit;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.meter-party-vulcan-bar-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 200, 80, 0.05) 0%,
+    rgba(255, 240, 180, 0.55) 72%,
+    rgba(255, 160, 50, 0.35) 88%,
+    transparent 100%
+  );
+  opacity: 0;
+  animation: meter-vulcan-bar-flash 4.6s ease-out infinite;
+  z-index: 1;
+}
+
+.meter-party-vulcan-bar-sparks {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.meter-party-vulcan-bar-spark {
+  position: absolute;
+  width: var(--vulcan-spark-size, 3px);
+  height: var(--vulcan-spark-size, 3px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 252, 220, 1) 0%, rgba(255, 150, 45, 0.95) 65%);
+  box-shadow: 0 0 5px rgba(255, 170, 50, 0.9);
+  animation: meter-vulcan-bar-spark 4.6s ease-out infinite;
+}
+
+.meter-party-vulcan-bar-spark--1 {
+  left: 12%;
+  top: 38%;
+  --vulcan-spark-dx: -14px;
+  --vulcan-spark-dy: -9px;
+  animation-delay: 0s;
+}
+
+.meter-party-vulcan-bar-spark--2 {
+  left: 28%;
+  top: 62%;
+  --vulcan-spark-dx: -18px;
+  --vulcan-spark-dy: 4px;
+  --vulcan-spark-size: 2px;
+  animation-delay: 0.03s;
+}
+
+.meter-party-vulcan-bar-spark--3 {
+  left: 44%;
+  top: 28%;
+  --vulcan-spark-dx: -12px;
+  --vulcan-spark-dy: -12px;
+  --vulcan-spark-size: 4px;
+  animation-delay: 0.01s;
+}
+
+.meter-party-vulcan-bar-spark--4 {
+  left: 58%;
+  top: 54%;
+  --vulcan-spark-dx: -16px;
+  --vulcan-spark-dy: -6px;
+  animation-delay: 0.05s;
+}
+
+.meter-party-vulcan-bar-spark--5 {
+  left: 72%;
+  top: 34%;
+  --vulcan-spark-dx: -10px;
+  --vulcan-spark-dy: -10px;
+  animation-delay: 0.02s;
+}
+
+.meter-party-vulcan-bar-spark--6 {
+  left: 86%;
+  top: 58%;
+  --vulcan-spark-dx: -8px;
+  --vulcan-spark-dy: 5px;
+  --vulcan-spark-size: 2px;
+  animation-delay: 0.04s;
+}
+
+.meter-party-vulcan-bar-spark--7 {
+  left: 22%;
+  top: 22%;
+  width: 7px;
+  height: 2px;
+  border-radius: 1px;
+  --vulcan-spark-dx: -20px;
+  --vulcan-spark-dy: -4px;
+  --vulcan-spark-spin: -35deg;
+  animation-delay: 0.06s;
+}
+
+.meter-party-vulcan-bar-spark--8 {
+  left: 64%;
+  top: 72%;
+  width: 6px;
+  height: 2px;
+  border-radius: 1px;
+  --vulcan-spark-dx: -14px;
+  --vulcan-spark-dy: 6px;
+  --vulcan-spark-spin: 28deg;
+  animation-delay: 0.07s;
+}
+
+.meter-party-vulcan-hammer {
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 38px;
+  height: 20px;
+  margin-top: -10px;
+  transform-origin: 90% 58%;
+  opacity: 0;
+  animation: meter-vulcan-hammer-swing 4.6s ease-in-out infinite;
+  z-index: 3;
+  filter: drop-shadow(-2px 1px 3px rgba(0, 0, 0, 0.45));
+}
+
+.meter-party-vulcan-hammer-head {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 12px;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 2px 1px 1px 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(175, 178, 186, 0.98) 0%,
+    rgba(98, 98, 106, 0.98) 42%,
+    rgba(42, 40, 38, 1) 100%
+  );
+  box-shadow:
+    inset 2px 0 0 rgba(255, 255, 255, 0.22),
+    -1px 0 2px rgba(0, 0, 0, 0.35);
+}
+
+.meter-party-vulcan-hammer-handle {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 26px;
+  height: 5px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(168, 108, 52, 0.98) 0%,
+    rgba(108, 64, 28, 0.98) 55%,
+    rgba(72, 42, 18, 1) 100%
+  );
+  box-shadow: 0 1px 0 rgba(255, 200, 120, 0.15);
+}
+
+.meter-party-vulcan-hammer-handle::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(92, 56, 26, 1) 0%, rgba(56, 32, 14, 1) 100%);
+}
+
+.meter-party-bar-fill-stack--vulcanusmon-legendary {
+  min-height: 36px;
+  overflow: visible;
+}
+
+.meter-party-bar-fill-stack--vulcanusmon-legendary .meter-party-bar-olympus-layer {
+  z-index: 2;
+}
+
+.meter-party-bar-fill-stack--vulcanusmon-legendary .meter-party-bar-theme--vulcanusmon {
+  background: linear-gradient(
+    90deg,
+    rgba(28, 12, 6, 0.94) 0%,
+    rgba(90, 40, 14, 0.82) 40%,
+    rgba(140, 62, 20, 0.78) 72%,
+    rgba(200, 100, 36, 0.55) 100%
+  );
+  animation: meter-vulcan-bar-shake 4.6s ease-out infinite;
+}
+
+.meter-party-bar-fill-stack--legendary {
+  min-height: 32px;
+}
+
+.meter-party-member--legendary-olympus .meter-party-theme-badge {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--mb-accent, #ffd700) 45%, transparent);
+}
+
+/* Themed row text outline */
+
+/* Readable text over animated bar fills — dark outline only (no scrim). */
+.meter-party-member--bar-theme .meter-party-name-text,
+.meter-party-member--bar-theme .meter-party-digimon,
+.meter-party-member--bar-theme .meter-party-num {
+  text-shadow:
+    -1px 0 0 rgba(0, 0, 0, 0.95),
+    1px 0 0 rgba(0, 0, 0, 0.95),
+    0 -1px 0 rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    -1px -1px 0 rgba(0, 0, 0, 0.9),
+    1px -1px 0 rgba(0, 0, 0, 0.9),
+    -1px 1px 0 rgba(0, 0, 0, 0.9),
+    1px 1px 0 rgba(0, 0, 0, 0.9),
+    0 0 3px rgba(0, 0, 0, 0.75);
+}
+
+.meter-party-member--bar-theme .meter-party-name-stack {
+  min-width: 0;
+  padding: 0 3px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.meter-party-member--bar-theme .meter-party-name-text,
+.meter-party-member--bar-theme .meter-party-digimon {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.meter-party-member--bar-theme .meter-party-digimon {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meter-party-member--bar-theme .meter-party-num {
+  padding: 0 2px;
+  overflow: visible;
+}
+
+/* Legendary FX — reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-party-bar-theme--legendary::before,
+  .meter-party-bar-theme--legendary::after,
+  .meter-party-apollo-heavenly-glow {
+    animation: none !important;
+    opacity: 0.75;
+    transform: scale(1);
+  }
+
+  .meter-party-bacchus-bubble {
+    animation: none !important;
+    bottom: 50%;
+    opacity: 0.5;
+  }
+
+  .meter-party-ceresmon-spore {
+    animation: none !important;
+    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .meter-party-dianamon-snow::before {
+    animation: none !important;
+    opacity: 0.3;
+  }
+
+  .meter-party-dianamon-snowflake {
+    animation: none !important;
+    top: 52%;
+    opacity: 0.35;
+    transform: translateX(-6px);
+  }
+
+  .meter-party-dianamon-moon {
+    animation: none !important;
+    opacity: 0.7;
+  }
+
+  .meter-party-junomon-sparkle {
+    animation: none !important;
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(1) rotate(20deg);
+  }
+
+  .meter-party-jupiter-flash,
+  .meter-party-jupiter-crackle {
+    animation: none !important;
+    opacity: 0;
+  }
+
+  .meter-party-marsmon-flame {
+    animation: none !important;
+    bottom: 50%;
+    opacity: 0.45;
+  }
+
+  .meter-party-marsmon-flame::before,
+  .meter-party-marsmon-flame::after {
+    animation: none !important;
+  }
+
+  .meter-party-mercury-sheen::before,
+  .meter-party-mercury-glint {
+    animation: none !important;
+    opacity: 0.35;
+  }
+
+  .meter-party-minerva-slab,
+  .meter-party-minerva-rift,
+  .meter-party-minerva-sword {
+    animation: none !important;
+  }
+
+  .meter-party-minerva-rift {
+    opacity: 0.5;
+    height: 3px;
+  }
+
+  .meter-party-neptune-wave-track {
+    animation: none !important;
+    transform: translateX(-25%);
+  }
+
+  .meter-party-venus-heart {
+    animation: none !important;
+    opacity: 0.5;
+    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(1);
+  }
+
+  .meter-party-vulcan-hammer,
+  .meter-party-vulcan-bar-flash,
+  .meter-party-vulcan-bar-spark,
+  .meter-parses-meter-chrome
+    .meter-party-bar-fill-stack--vulcanusmon-legendary
+    .meter-party-bar-theme--vulcanusmon {
+    animation: none !important;
+  }
+
+  .meter-party-vulcan-hammer {
+    transform: translateX(8px) rotate(-4deg);
+    opacity: 0.55;
+  }
+
+  .meter-party-vulcan-bar-flash {
+    opacity: 0.25;
+  }
+
+  .meter-party-vulcan-bar-spark {
+    opacity: 0.35;
+  }
+}
+
 
 .meter-party-member--rare-olympus .meter-party-theme-badge {
   display: none;

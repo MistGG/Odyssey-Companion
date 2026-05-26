@@ -101,7 +101,7 @@ export function MeterCompanionBarThemes({
           return (
             <li
               key={theme.id}
-              className={`meter-companion-theme-row${active ? ' is-active' : ''}${theme.variant === 'rare' ? ' meter-companion-theme-row--rare' : ''}`}
+              className={`meter-companion-theme-row${active ? ' is-active' : ''}${theme.variant === 'rare' ? ' meter-companion-theme-row--rare' : ''}${theme.variant === 'legendary' ? ' meter-companion-theme-row--legendary' : ''}`}
             >
               <span className="meter-companion-theme-name">{companionThemeLabel(theme)}</span>
               {active ? (

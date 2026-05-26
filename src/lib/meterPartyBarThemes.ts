@@ -43,8 +43,9 @@ export type MeterPartyBarThemeId =
   | 'iliad-core'
   | OlymposXiiBaseThemeId
   | `${OlymposXiiBaseThemeId}-rare`
+  | `${OlymposXiiBaseThemeId}-legendary`
 
-export type MeterPartyBarThemeVariant = 'common' | 'rare'
+export type MeterPartyBarThemeVariant = 'common' | 'rare' | 'legendary'
 
 export type MeterPartyBarTheme = {
   id: MeterPartyBarThemeId
@@ -292,10 +293,25 @@ function olympusRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
 export const OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
   OLYMPOS_XII_COMMON_THEMES.map(olympusRareVariant)
 
+function olympusLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
+  const legendaryId = `${base.barStyleId}-legendary` as MeterPartyBarThemeId
+  return {
+    ...base,
+    id: legendaryId,
+    variant: 'legendary',
+    label: `${base.label} (Legendary)`,
+    subtitle: `${base.subtitle} · Legendary`,
+  }
+}
+
+export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  OLYMPOS_XII_COMMON_THEMES.map(olympusLegendaryVariant)
+
 export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ILIAD_CORE_THEME,
   ...OLYMPOS_XII_COMMON_THEMES,
   ...OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
+  ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
 ]
 
 const THEME_BY_ID = new Map(METER_PARTY_BAR_THEMES.map((t) => [t.id, t]))
@@ -397,7 +413,13 @@ export function meterPartyBarThemeBarStyleId(theme: MeterPartyBarTheme): string 
 
 export function meterPartyBarThemeBarClassName(theme: MeterPartyBarTheme): string {
   const styleId = meterPartyBarThemeBarStyleId(theme)
-  return `meter-party-member-bar meter-party-member-bar--bar-theme meter-party-bar-theme--${styleId}${theme.variant === 'rare' ? ' meter-party-bar-theme--rare' : ''}`
+  const variantClass =
+    theme.variant === 'rare'
+      ? ' meter-party-bar-theme--rare'
+      : theme.variant === 'legendary'
+        ? ' meter-party-bar-theme--legendary'
+        : ''
+  return `meter-party-member-bar meter-party-member-bar--bar-theme meter-party-bar-theme--${styleId}${variantClass}`
 }
 
 export function mistDevPartyMemberKey(themeId: MeterPartyBarThemeId): string {

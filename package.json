@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.48",
+  "version": "0.1.49",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added rare bar themes"
+      "releaseNotes": "- Added support for legendary themes"
     }
   }
 }

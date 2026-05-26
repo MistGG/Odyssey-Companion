@@ -44,7 +44,7 @@ const OLYMPUS_OVERLAY_FOCUS_Y: Record<OlymposXiiBaseThemeId, number> = {
 }
 
 export function olympusOverlayPortraitUrl(theme: MeterPartyBarTheme): string | undefined {
-  if (theme.variant !== 'rare') return undefined
+  if (theme.variant !== 'rare' && theme.variant !== 'legendary') return undefined
   return bundledOlympusOverlayUrl(theme.barStyleId as OlymposXiiBaseThemeId)
 }
 
