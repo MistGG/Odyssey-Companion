@@ -207,8 +207,8 @@ function combatLabelMatchesSelfDigimon(session: MeterStreamSession, label: strin
   )
 }
 
-/** Keep roster aliases in sync after hello / digimon_change (event often omits `tamer`). */
-function refreshSelfRosterPresentation(session: MeterStreamSession) {
+/** Register digimon nicknames / species labels so combat `hitter` strings resolve to self. */
+function syncSelfCombatAliases(session: MeterStreamSession) {
   const tamer = session.selfTamerName?.trim()
   if (!tamer || isGarbageStreamLabel(tamer)) return
 
@@ -220,10 +220,19 @@ function refreshSelfRosterPresentation(session: MeterStreamSession) {
     : ''
   const displaySpecies = session.selfDigimonName?.trim() || wikiName || nickname
 
-  const aliasList = [nickname, displaySpecies]
-  if (wikiName && normKey(wikiName) !== normKey(nickname)) aliasList.push(wikiName)
+  const aliasList = new Set<string>()
+  if (nickname) aliasList.add(nickname)
+  if (displaySpecies) aliasList.add(displaySpecies)
+  if (wikiName) aliasList.add(wikiName)
+  for (const row of session.members.values()) {
+    if (!rowLooksLikeSelf(session, row)) continue
+    if (row.digimonName.trim()) aliasList.add(row.digimonName.trim())
+    if (row.tamerName.trim() && normKey(row.tamerName) !== normKey(tamer)) {
+      aliasList.add(row.tamerName.trim())
+    }
+  }
 
-  putRosterAliases(session, tamer, displaySpecies, iconId, aliasList)
+  putRosterAliases(session, tamer, displaySpecies, iconId, [...aliasList])
   if (digimonId) {
     session.rosterByAlias.set(normKey(digimonId), {
       tamerName: tamer,
@@ -231,6 +240,14 @@ function refreshSelfRosterPresentation(session: MeterStreamSession) {
       iconId,
     })
   }
+}
+
+/** Keep roster aliases in sync after hello / digimon_change (event often omits `tamer`). */
+function refreshSelfRosterPresentation(session: MeterStreamSession) {
+  const tamer = session.selfTamerName?.trim()
+  if (!tamer || isGarbageStreamLabel(tamer)) return
+
+  syncSelfCombatAliases(session)
 
   const selfKey = memberMapKey(tamer)
   let snap = session.rosterMembers.get(selfKey)
@@ -274,6 +291,53 @@ function refreshSelfRosterPresentation(session: MeterStreamSession) {
 
 function memberMapKey(tamerName: string): string {
   return normKey(tamerName)
+}
+
+function selfCanonicalMemberKey(session: MeterStreamSession): string | null {
+  const tamer = session.selfTamerName?.trim()
+  if (!tamer || isGarbageStreamLabel(tamer)) return null
+  return memberMapKey(tamer)
+}
+
+/** Stray party row that belongs to the local player (nickname / digimon label / alias keys). */
+function rowLooksLikeSelf(session: MeterStreamSession, row: MeterPartyMemberRow): boolean {
+  if (row.isSelf) return true
+  const selfKey = selfCanonicalMemberKey(session)
+  if (!selfKey) return false
+  if (row.key === selfKey) return true
+  if (memberMapKey(row.tamerName) === selfKey) return true
+  const nick = session.selfDigimonNickname?.trim()
+  if (nick && normKey(row.tamerName) === normKey(nick)) return true
+  if (combatLabelMatchesSelfDigimon(session, row.tamerName)) return true
+  const alias = session.rosterByAlias.get(normKey(row.tamerName))
+  if (alias?.tamerName.trim() && memberMapKey(alias.tamerName) === selfKey) return true
+  return false
+}
+
+/** Merge every self duplicate into the canonical tamer row (live meter + upload). */
+function mergeAllSelfMemberRows(session: MeterStreamSession): void {
+  const selfTamer = session.selfTamerName?.trim()
+  const selfKey = selfCanonicalMemberKey(session)
+  if (!selfTamer || !selfKey) return
+  for (const row of [...session.members.values()]) {
+    if (row.key === selfKey) continue
+    if (!rowLooksLikeSelf(session, row)) continue
+    const canon = session.members.get(selfKey)
+    if (canon) mergeMemberIntoCanonical(session, row.key, selfKey)
+    else {
+      session.members.delete(row.key)
+      row.key = selfKey
+      row.tamerName = selfTamer
+      row.isSelf = true
+      session.members.set(selfKey, row)
+    }
+  }
+  const selfRow = session.members.get(selfKey)
+  if (selfRow) {
+    selfRow.isSelf = true
+    selfRow.tamerName = selfTamer
+    selfRow.key = selfKey
+  }
 }
 
 function mergeMemberIntoCanonical(
@@ -364,6 +428,7 @@ function dedupePartyMemberRows(session: MeterStreamSession) {
     }
   }
   fixMemberTamerLabels(session)
+  mergeAllSelfMemberRows(session)
 }
 
 /** Never keep digimon nickname in `tamerName` when roster/query has the real tamer. */
@@ -484,8 +549,22 @@ function upsertMember(
     partyBarFillPct?: number
   },
 ): MeterPartyMemberRow {
-  const tamer = opts.tamerName.trim()
-  const key = (opts.memberKey ?? normKey(tamer)).trim().toLowerCase()
+  const selfKey = selfCanonicalMemberKey(session)
+  const selfTamer = session.selfTamerName?.trim()
+  let tamer = opts.tamerName.trim()
+  let forceSelf =
+    Boolean(opts.isSelf) ||
+    Boolean(selfKey && tamer && combatLabelMatchesSelfDigimon(session, tamer))
+  if (forceSelf && selfTamer) {
+    tamer = selfTamer
+  }
+  const key = (
+    forceSelf && selfKey
+      ? selfKey
+      : (opts.memberKey ?? memberMapKey(tamer))
+  )
+    .trim()
+    .toLowerCase()
   let row = session.members.get(key)
   if (!row) {
     const digimon = (opts.digimonName ?? '').trim()
@@ -500,14 +579,15 @@ function upsertMember(
       portraitUrl: portraitUrlForIcon(icon),
       totalDamage: 0,
       firstHitMs: null,
-      isSelf: Boolean(opts.isSelf),
+      isSelf: Boolean(opts.isSelf) || forceSelf,
       skills: new Map(),
       meterBarThemeId: opts.meterBarThemeId,
       partyBarFillPct: opts.partyBarFillPct,
     }
     session.members.set(key, row)
   } else {
-    if (opts.isSelf) row.isSelf = true
+    if (opts.isSelf || forceSelf) row.isSelf = true
+    if (forceSelf && selfTamer) row.tamerName = selfTamer
     if (opts.meterBarThemeId) row.meterBarThemeId = opts.meterBarThemeId
     if (opts.partyBarFillPct != null) row.partyBarFillPct = opts.partyBarFillPct
     if (opts.digimonName?.trim()) row.digimonName = opts.digimonName.trim()
@@ -532,7 +612,20 @@ function finalizeMemberAfterDigimonChange(session: MeterStreamSession, member: M
 function pruneDepartedPartyMembers(session: MeterStreamSession, snaps: PartyMemberSnapshot[]) {
   if (session.devTestPartySeeded) return
   const keepTamerKeys = new Set(snaps.map((s) => normKey(s.tamerName)))
-  const selfKey = session.selfTamerName ? normKey(session.selfTamerName) : null
+  const selfKey = selfCanonicalMemberKey(session)
+  const protectMemberKey = (key: string) => {
+    if (selfKey && key === selfKey) return true
+    const row = session.members.get(key)
+    return row ? rowLooksLikeSelf(session, row) : false
+  }
+  if (selfKey) {
+    keepTamerKeys.add(selfKey)
+    const nick = session.selfDigimonNickname?.trim()
+    if (nick) keepTamerKeys.add(normKey(nick))
+    for (const [alias, entry] of session.rosterByAlias) {
+      if (memberMapKey(entry.tamerName) === selfKey) keepTamerKeys.add(alias)
+    }
+  }
 
   if (snaps.length === 0) {
     if (!session.selfTamerName) return
@@ -543,10 +636,19 @@ function pruneDepartedPartyMembers(session: MeterStreamSession, snaps: PartyMemb
     }
   } else {
     for (const key of [...session.rosterMembers.keys()]) {
+      if (protectMemberKey(key)) continue
       if (!keepTamerKeys.has(key)) {
         session.rosterMembers.delete(key)
         session.members.delete(key)
       }
+    }
+    for (const key of [...session.members.keys()]) {
+      if (protectMemberKey(key)) continue
+      if (session.rosterMembers.has(key)) continue
+      const row = session.members.get(key)
+      if (!row) continue
+      if (keepTamerKeys.has(key) || keepTamerKeys.has(normKey(row.tamerName))) continue
+      session.members.delete(key)
     }
   }
 
@@ -609,6 +711,7 @@ function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
       digimonId: snap.digimonId,
       iconId: snap.iconId,
       isSelf: snap.isSelf,
+      memberKey: snap.memberKey,
     })
     syncMemberLatestDigimonPresentation(
       memberRow,
@@ -658,6 +761,31 @@ function ingestHelloLike(session: MeterStreamSession, ev: EventStreamRecord) {
     (typeof ev.digimon === 'string' ? ev.digimon.trim() : String(ev.name ?? '').trim())
   const digimonId = String(ev.digimon_id ?? '').trim()
   const iconId = String(ev.icon_id ?? '').trim()
+
+  if (isDigimonSwap) {
+    const selfTamer = (tamer || session.selfTamerName)?.trim()
+    if (selfTamer && !isGarbageStreamLabel(selfTamer)) {
+      const priorLabels: string[] = []
+      const prevNick = session.selfDigimonNickname?.trim()
+      const prevOfficial = session.selfDigimonName?.trim()
+      const prevWiki = session.selfDigimonId
+        ? session.wikiByDigimonId.get(session.selfDigimonId.trim())?.digimonName?.trim()
+        : ''
+      if (prevNick) priorLabels.push(prevNick)
+      if (prevOfficial) priorLabels.push(prevOfficial)
+      if (prevWiki) priorLabels.push(prevWiki)
+      if (priorLabels.length) {
+        putRosterAliases(
+          session,
+          selfTamer,
+          prevOfficial || prevNick || '',
+          session.selfIconId ?? '',
+          priorLabels,
+        )
+      }
+    }
+  }
+
   if (tamer) session.selfTamerName = tamer
   if (nickname) session.selfDigimonNickname = nickname
   if (digimonId) session.selfDigimonId = digimonId
@@ -935,6 +1063,15 @@ export function resetMeterStreamSession(session: MeterStreamSession): MeterStrea
   return createMeterStreamSession()
 }
 
+/**
+ * Before upload: merge stray self damage rows (nickname / duplicate keys) into the canonical tamer row.
+ */
+export function consolidateSelfDamageForUpload(session: MeterStreamSession): void {
+  dedupePartyMemberRows(session)
+  ensureSelfPartyRowVisible(session)
+  mergeAllSelfMemberRows(session)
+}
+
 /** True when we still need a `party` / `all` query (or hello) before showing roster or crediting hits reliably. */
 export function meterNeedsPartyIdentity(session: MeterStreamSession): boolean {
   const tamer = session.selfTamerName?.trim() ?? ''
@@ -1195,9 +1332,6 @@ export function ingestMeterEventStream(
     }
   }
 
-  const clearFromEvent = maybeMarkDungeonRunClear(session, ev)
-  if (clearFromEvent) runOutcome = clearFromEvent
-
   const dmg = combatDamageEvent(ev)
   if (dmg != null) {
     const partyHit = partyDealtCombatHit(session, ev)
@@ -1246,26 +1380,23 @@ export function ingestMeterEventStream(
       meterDebugLogEvent(ev, `SKIP combat: empty tamerName | ${meterDebugIngestState(session)}`)
     }
     if (who.tamerName) {
-      const creditTamer =
-        who.isSelf && session.selfTamerName ? session.selfTamerName : who.tamerName
-      const canonKey = memberMapKey(creditTamer)
+      const fromSelf =
+        Boolean(ev.from_self) ||
+        who.isSelf ||
+        combatHitFromSelfDigimon(session, ev) ||
+        combatLabelMatchesSelfDigimon(session, who.tamerName)
+      const selfTamer = session.selfTamerName?.trim()
+      const creditTamer = fromSelf && selfTamer ? selfTamer : who.tamerName
+      const canonKey =
+        fromSelf && selfTamer ? memberMapKey(selfTamer) : memberMapKey(creditTamer)
       const row = upsertMember(session, {
         tamerName: creditTamer,
         digimonName: who.digimonName,
         digimonId: who.digimonId,
         iconId: who.iconId,
-        isSelf: who.isSelf,
+        isSelf: fromSelf || who.isSelf,
+        memberKey: canonKey,
       })
-      if (row.key !== canonKey) {
-        const existing = session.members.get(canonKey)
-        if (existing) mergeMemberIntoCanonical(session, row.key, canonKey)
-        else {
-          session.members.delete(row.key)
-          row.key = canonKey
-          row.tamerName = creditTamer
-          session.members.set(canonKey, row)
-        }
-      }
       const creditRow = session.members.get(canonKey) ?? row
       if (creditRow.firstHitMs == null) creditRow.firstHitMs = now
       if (creditRow.isSelf && !creditRow.meterBarThemeId) {
@@ -1275,9 +1406,14 @@ export function ingestMeterEventStream(
       creditRow.totalDamage += dmg
       const cache = wikiCacheForDigimon(session, who.digimonId)
       recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId)
+      if (fromSelf) syncSelfCombatAliases(session)
       dedupePartyMemberRows(session)
     }
   }
+
+  // Credit killing-blow damage before freezing the meter (death / target HP 0 on boss).
+  const clearFromEvent = maybeMarkDungeonRunClear(session, ev)
+  if (clearFromEvent) runOutcome = clearFromEvent
 
   return {
     session,

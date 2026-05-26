@@ -7,18 +7,13 @@ import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
-import {
-  displayNameFromUserMetadata,
-  getSupabaseClient,
-  insertMeterParse,
-  signInEmail,
-  signOut,
-  signUpWithProfile,
-} from './lib/supabaseMeter'
-import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
-import { applyMeterSelfBarPreviewIfDev } from './lib/meterDevPartyTest'
+import { getSupabaseClient, insertMeterParse } from './lib/supabaseMeter'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
-import { startMeterEquippedThemeSync } from './lib/meterEquippedThemeSync'
+import {
+  fetchEquippedMeterPartyBarThemeIdFromAccount,
+  startMeterEquippedThemeSync,
+  syncEquippedThemeToMeterSession,
+} from './lib/meterEquippedThemeSync'
 import {
   partyTamerThemeResolveSignature,
   resolveAndApplyPartyTamerThemes,
@@ -28,8 +23,9 @@ import {
   meterPartyBarThemeStyle,
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
+  shouldShowMeterThemeBadge,
 } from './lib/meterPartyBarThemes'
-import { MeterPartyThemedBar, meterPartyMemberRareClass } from './components/MeterPartyThemedBar'
+import { MeterPartyThemedBar, meterPartyMemberThemeClass } from './components/MeterPartyThemedBar'
 import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
 import { isGarbageStreamLabel } from './lib/eventStreamParty'
@@ -58,7 +54,6 @@ import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDi
 import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
 import {
   EVENT_STREAM_CONNECT_HINT,
-  userFacingAuthError,
   userFacingEventStreamConnectHint,
   userFacingUploadError,
 } from './lib/userFacingMessages'
@@ -86,6 +81,7 @@ function formatInt(n: number) {
 
 /** After a successful cloud parse upload, block another upload to reduce duplicates / spam. */
 const METER_UPLOAD_COOLDOWN_MS = 30_000
+type BuiltDungeonPartyParse = ReturnType<typeof buildMeterDungeonPartyParse>
 
 function requestPartyRosterSync() {
   void window.odysseyCompanion?.sendEventStreamQuery?.('party')
@@ -112,8 +108,6 @@ function clearStreamCombat(session: MeterStreamSession) {
 export default function MeterApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
-  const [cloudOpen, setCloudOpen] = useState(false)
-
   const titleDragRef = useRef<HTMLDivElement>(null)
   const lockBtnRef = useRef<HTMLButtonElement>(null)
   const gearBtnRef = useRef<HTMLButtonElement>(null)
@@ -132,36 +126,13 @@ export default function MeterApp() {
   })
   const uploadParseRef = useRef<() => Promise<void>>(async () => {})
   const uploadInFlightRef = useRef(false)
-  const autoUploadAfterClearRef = useRef(settings.meterAutoUploadAfterClear)
-  autoUploadAfterClearRef.current = settings.meterAutoUploadAfterClear
+  const autoUploadForEndMsRef = useRef<number | null>(null)
+  const pendingAutoUploadBuiltRef = useRef<BuiltDungeonPartyParse | null>(null)
+  const scheduleAutoUploadRef = useRef<() => void>(() => {})
   const [streamRev, setStreamRev] = useState(0)
   const clearBarPreviewRef = useRef<(() => void) | null>(null)
-  const [barPreviewActive, setBarPreviewActive] = useState(false)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
 
-  const toggleBarPreviewFill = useCallback(() => {
-    if (barPreviewActive && clearBarPreviewRef.current) {
-      clearBarPreviewRef.current()
-      clearBarPreviewRef.current = null
-      setBarPreviewActive(false)
-      bumpStream()
-      return
-    }
-    clearBarPreviewRef.current = applyMeterSelfBarPreviewIfDev(streamRef.current)
-    setBarPreviewActive(Boolean(clearBarPreviewRef.current))
-    bumpStream()
-  }, [barPreviewActive, bumpStream])
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return
-    clearBarPreviewRef.current = applyMeterSelfBarPreviewIfDev(streamRef.current)
-    setBarPreviewActive(Boolean(clearBarPreviewRef.current))
-    bumpStream()
-    return () => {
-      clearBarPreviewRef.current?.()
-      clearBarPreviewRef.current = null
-    }
-  }, [bumpStream])
   const [tick, setTick] = useState(0)
   const loadedWikiDigimonRef = useRef<string | null>(null)
 
@@ -235,16 +206,11 @@ export default function MeterApp() {
   }, [])
 
   const [sbUser, setSbUser] = useState<User | null>(null)
-  const [sbMsg, setSbMsg] = useState<string | null>(null)
-  const [sbBusy, setSbBusy] = useState(false)
   const [uploadCooldownUntilMs, setUploadCooldownUntilMs] = useState<number | null>(null)
   const [uploadCooldownTick, setUploadCooldownTick] = useState(0)
   const [uploadToast, setUploadToast] = useState<{ text: string; kind: 'success' | 'warn' } | null>(
     null,
   )
-  const [authEmail, setAuthEmail] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [authDisplayName, setAuthDisplayName] = useState('')
   const [partyDetailKey, setPartyDetailKey] = useState<string | null>(null)
 
   const streamSession = streamRef.current
@@ -362,7 +328,7 @@ export default function MeterApp() {
       api?.setMeterIgnoreMouseEvents?.(ignore)
     }
 
-    if (!positionLocked || cloudOpen) {
+    if (!positionLocked) {
       if (ignoreMouseRaf.current != null) {
         cancelAnimationFrame(ignoreMouseRaf.current)
         ignoreMouseRaf.current = null
@@ -431,7 +397,7 @@ export default function MeterApp() {
       lastIgnoreSent.current = null
       setIgnore(false)
     }
-  }, [positionLocked, cloudOpen])
+  }, [positionLocked])
 
   const dungeonFetchReqRef = useRef(0)
 
@@ -520,13 +486,11 @@ export default function MeterApp() {
       fillMyBar: (fillPct?: number) => {
         clearBarPreviewRef.current?.()
         clearBarPreviewRef.current = boostMeterSelfBarForThemePreview(streamRef.current, fillPct)
-        setBarPreviewActive(Boolean(clearBarPreviewRef.current))
         bumpStream()
       },
       clearBarPreview: () => {
         clearBarPreviewRef.current?.()
         clearBarPreviewRef.current = null
-        setBarPreviewActive(false)
         bumpStream()
       },
     }
@@ -591,6 +555,8 @@ export default function MeterApp() {
         setPartyDetailKey(null)
         streamRef.current.lastRunOutcome = null
         streamRef.current.sessionEndMs = null
+        autoUploadForEndMsRef.current = null
+        pendingAutoUploadBuiltRef.current = null
         requestEventStreamQueries()
         bumpStream()
       }
@@ -628,8 +594,8 @@ export default function MeterApp() {
 
       bumpStream()
 
-      if (runOutcome === 'clear' && autoUploadAfterClearRef.current) {
-        void uploadParseRef.current()
+      if (runOutcome === 'clear') {
+        scheduleAutoUploadRef.current()
       }
     })
 
@@ -640,6 +606,10 @@ export default function MeterApp() {
       setEventStreamConnected(connected)
       if (connected) {
         setReaderHint(null)
+        if (clearBarPreviewRef.current) {
+          clearBarPreviewRef.current()
+          clearBarPreviewRef.current = null
+        }
         requestEventStreamQueries()
         for (const delayMs of [2000, 5000, 10000, 20000]) {
           const timer = window.setTimeout(() => {
@@ -794,59 +764,41 @@ export default function MeterApp() {
     [streamSession.dungeonId, streamSession.dungeonDifficultyTier, streamRev],
   )
 
-  const uploadDisabledReason = useMemo(() => {
-    if (!uploadAllowed) {
-      if (!streamSession.dungeonId?.trim()) {
-        return 'Enter a Normal or Hard dungeon to upload.'
-      }
-      return 'Uploads are only for Normal or Hard dungeons.'
-    }
-    if (!sbUser) return 'Sign in under Online settings to upload.'
-    if (uploadOnCooldown) return `Cannot upload for ${uploadCooldownSecondsLeft}s.`
-    if (partyListDamageSum <= 0) return 'Deal damage in this run before uploading.'
-    return null
-  }, [
-    uploadAllowed,
-    sbUser,
-    uploadOnCooldown,
-    uploadCooldownSecondsLeft,
-    streamSession.dungeonId,
-    partyListDamageSum,
-  ])
-
-  const uploadButtonDisabled =
-    !uploadAllowed || sbBusy || uploadOnCooldown || partyListDamageSum <= 0
+  const refreshEquippedPartyTheme = useCallback(async () => {
+    if (!supabase || !sbUser?.id) return
+    const equippedId = await fetchEquippedMeterPartyBarThemeIdFromAccount(supabase, sbUser.id)
+    if (syncEquippedThemeToMeterSession(streamRef.current, equippedId)) bumpStream()
+  }, [supabase, sbUser?.id, bumpStream])
 
   const uploadParse = useCallback(async () => {
     if (uploadInFlightRef.current) return
-    setSbMsg(null)
     if (uploadCooldownUntilMs != null && Date.now() < uploadCooldownUntilMs) {
       const sec = Math.max(1, Math.ceil((uploadCooldownUntilMs - Date.now()) / 1000))
       setUploadToast({ text: `Cannot upload for ${sec}s`, kind: 'warn' })
       return
     }
     if (!supabase || !sbUser) {
-      setSbMsg('Sign in first.')
+      setUploadToast({ text: 'Sign in under Settings → DPS meter', kind: 'warn' })
       return
     }
+    const snapshotBuilt = pendingAutoUploadBuiltRef.current
+    pendingAutoUploadBuiltRef.current = null
     const session = streamRef.current
-    if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) {
-      setSbMsg('Uploads require a Normal or Hard dungeon run.')
+    const built = snapshotBuilt ?? buildMeterDungeonPartyParse(session)
+    const { durationSec, dungeon, members } = built
+    if (!isDungeonParseUploadAllowed(dungeon.dungeonId, dungeon.difficultyId)) {
+      setUploadToast({ text: 'Normal or Hard dungeon only', kind: 'warn' })
       return
     }
-    const uploadRows = meterPartyRows(session, Date.now())
-    const uploadDamageSum = uploadRows.reduce((s, r) => s + Math.max(0, r.totalDamage), 0)
-    if (uploadRows.length === 0 || uploadDamageSum <= 0) {
-      setSbMsg('No damage in the current session to upload.')
+    const uploadDamageSum = members.reduce((s, m) => s + Math.max(0, m.totalDamage), 0)
+    if (members.length === 0 || uploadDamageSum <= 0) {
+      setUploadToast({ text: 'No damage to upload', kind: 'warn' })
       return
     }
     uploadInFlightRef.current = true
-    setSbBusy(true)
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
       const appVersion = info?.version ?? 'unknown'
-      const built = buildMeterDungeonPartyParse(session)
-      const { durationSec, dungeon, members } = built
       const { error } = await insertMeterParse(supabase, sbUser.id, {
         mode: 'dungeon_party',
         appVersion,
@@ -854,15 +806,10 @@ export default function MeterApp() {
         dungeon,
         members,
       })
-      if (error) setSbMsg(userFacingUploadError(error))
-      else {
-        const diff = dungeon.difficulty || 'dungeon'
+      if (error) {
+        setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })
+      } else {
         const ranked = dungeon.leaderboardEligible
-        setSbMsg(
-          ranked
-            ? `${diff} clear uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). Counted on leaderboards — view on Odyssey Calc → Meter parses.`
-            : `${diff} parse uploaded (${dungeon.dungeonName ?? dungeon.dungeonId}). Saved to your parses only (not ranked — defeat the boss for leaderboards).`,
-        )
         setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
         setUploadToast({
           text: ranked ? 'Clear uploaded — ranked' : 'Uploaded — not ranked',
@@ -871,18 +818,43 @@ export default function MeterApp() {
       }
     } finally {
       uploadInFlightRef.current = false
-      setSbBusy(false)
     }
   }, [supabase, sbUser, uploadCooldownUntilMs])
 
   uploadParseRef.current = uploadParse
 
+  const scheduleAutoUploadAfterClear = useCallback(() => {
+    if (!supabase || !sbUser) return
+    const session = streamRef.current
+    if (session.lastRunOutcome !== 'clear') return
+    const endMs = session.sessionEndMs
+    if (endMs == null) return
+    if (autoUploadForEndMsRef.current === endMs) return
+    if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) return
+
+    const built = buildMeterDungeonPartyParse(session)
+    const uploadDamageSum = built.members.reduce((s, m) => s + Math.max(0, m.totalDamage), 0)
+    if (built.members.length === 0 || uploadDamageSum <= 0) return
+
+    autoUploadForEndMsRef.current = endMs
+    pendingAutoUploadBuiltRef.current = built
+    void uploadParseRef.current()
+  }, [supabase, sbUser])
+
+  scheduleAutoUploadRef.current = scheduleAutoUploadAfterClear
+
   useEffect(() => {
-    const unsub = window.odysseyCompanion?.onMeterTriggerUploadParse?.(() => {
-      void uploadParseRef.current()
+    const unsubUpload = window.odysseyCompanion?.onMeterTriggerUploadParse?.(() => {
+      void window.odysseyCompanion?.openSettings?.('meter')
     })
-    return unsub ?? (() => {})
-  }, [])
+    const unsubThemes = window.odysseyCompanion?.onMeterPartyThemesChanged?.(() => {
+      void refreshEquippedPartyTheme()
+    })
+    return () => {
+      unsubUpload?.()
+      unsubThemes?.()
+    }
+  }, [refreshEquippedPartyTheme])
 
   const runContext = useMemo(
     () => meterRunContextDisplay(streamSession),
@@ -986,16 +958,9 @@ export default function MeterApp() {
                 ref={uploadBtnRef}
                 type="button"
                 className="btn meter-icon-tile"
-                title={uploadDisabledReason ?? 'Upload dungeon parse to cloud'}
-                aria-label={!sbUser ? 'Open Online settings to sign in' : 'Upload dungeon parse to cloud'}
-                disabled={uploadButtonDisabled}
-                onClick={() => {
-                  if (!sbUser) {
-                    void window.odysseyCompanion?.openSettings?.('online')
-                    return
-                  }
-                  void uploadParse()
-                }}
+                title="Odyssey Calc — account, bar themes, uploads"
+                aria-label="Open DPS meter settings"
+                onClick={() => void window.odysseyCompanion?.openSettings?.('meter')}
               >
                 <svg className="meter-inline-svg" viewBox="0 0 24 24" aria-hidden>
                   <path
@@ -1306,7 +1271,7 @@ export default function MeterApp() {
                         <button
                           key={row.rowKey}
                           type="button"
-                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}${meterPartyMemberRareClass(barTheme)}`}
+                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}${meterPartyMemberThemeClass(barTheme)}`}
                           style={themeStyle}
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
@@ -1354,7 +1319,7 @@ export default function MeterApp() {
                                       {METER_DEV_TAMER_BADGE}
                                     </span>
                                   ) : null}
-                                  {barTheme && barTheme.variant !== 'legendary' ? (
+                                  {shouldShowMeterThemeBadge(barTheme) ? (
                                     <span
                                       className="meter-party-theme-badge"
                                       title={barTheme.domain}
@@ -1382,183 +1347,6 @@ export default function MeterApp() {
             </section>
           )}
         </main>
-
-        {cloudOpen ? (
-          <>
-            <div
-              className="modal-backdrop modal-backdrop--solid"
-              role="presentation"
-              onClick={() => setCloudOpen(false)}
-            >
-              <aside
-                className="settings-panel settings-panel--solid meter-settings-panel"
-                role="dialog"
-                aria-label="Online"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="settings-head">
-                  <h2>Online</h2>
-                  <button type="button" className="btn icon" onClick={() => setCloudOpen(false)}>
-                    ✕
-                  </button>
-                </div>
-                <p className="hint muted" style={{ marginTop: 0 }}>
-                  Meter overlay options and hotkeys are in Companion settings — use the gear icon, or open the{' '}
-                  <strong>DPS meter</strong> section there.
-                </p>
-
-                <section className="field-group">
-                  <h3>Bar themes</h3>
-                  {import.meta.env.DEV ? (
-                    <p className="hint" style={{ marginTop: 0 }}>
-                      <button type="button" className="btn ghost" onClick={toggleBarPreviewFill}>
-                        {barPreviewActive ? 'Clear preview bar fill' : 'Fill my bar (theme preview)'}
-                      </button>
-                    </p>
-                  ) : null}
-                  {!supabase || !sbUser ? (
-                    <p className="hint muted" style={{ marginTop: 0 }}>
-                      Sign in below to equip bar themes purchased on the Odyssey Calc site.
-                    </p>
-                  ) : (
-                    <MeterCompanionBarThemes
-                      supabase={supabase}
-                      profileDisplayName={displayNameFromUserMetadata(sbUser)}
-                      onThemeChange={() => bumpStream()}
-                    />
-                  )}
-                </section>
-
-                <section className="field-group">
-                  <h3>Cloud parse uploads</h3>
-                  {!supabase ? (
-                    <p className="hint muted" style={{ marginTop: 0 }}>
-                      Cloud uploads are not available in this build.
-                    </p>
-                  ) : sbUser ? (
-                    <>
-                      <p className="hint" style={{ marginTop: 0 }}>
-                        Signed in as <strong>{sbUser.email ?? sbUser.id}</strong>
-                      </p>
-                      <p className="hint muted" style={{ marginTop: 6 }}>
-                        Visit the Meter page on Odyssey Calc to see your history
-                      </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="btn primary"
-                          disabled={uploadButtonDisabled}
-                          title={uploadDisabledReason ?? undefined}
-                          onClick={() => void uploadParse()}
-                        >
-                          {sbBusy
-                            ? 'Working…'
-                            : uploadOnCooldown
-                              ? `Wait ${uploadCooldownSecondsLeft}s`
-                              : 'Upload current session'}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          disabled={sbBusy}
-                          onClick={() => {
-                            setSbBusy(true)
-                            setSbMsg(null)
-                            void signOut(supabase).finally(() => setSbBusy(false))
-                          }}
-                        >
-                          Sign out
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <label className="field">
-                        <span>Email</span>
-                        <input
-                          type="email"
-                          autoComplete="username"
-                          value={authEmail}
-                          onChange={(e) => setAuthEmail(e.target.value)}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Password</span>
-                        <input
-                          type="password"
-                          autoComplete="new-password"
-                          value={authPassword}
-                          onChange={(e) => setAuthPassword(e.target.value)}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Display name (sign up only)</span>
-                        <input
-                          type="text"
-                          maxLength={64}
-                          value={authDisplayName}
-                          onChange={(e) => setAuthDisplayName(e.target.value)}
-                          placeholder="Shown on leaderboards later"
-                        />
-                      </label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="btn primary"
-                          disabled={sbBusy}
-                          onClick={() => {
-                            if (!supabase) return
-                            setSbBusy(true)
-                            setSbMsg(null)
-                            void signInEmail(supabase, authEmail, authPassword).then(({ error }) => {
-                              setSbBusy(false)
-                              if (error) setSbMsg(userFacingAuthError(error))
-                              else setSbMsg('Signed in.')
-                            })
-                          }}
-                        >
-                          Sign in
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          disabled={sbBusy}
-                          onClick={() => {
-                            if (!supabase) return
-                            setSbBusy(true)
-                            setSbMsg(null)
-                            void signUpWithProfile(
-                              supabase,
-                              authEmail,
-                              authPassword,
-                              authDisplayName,
-                            ).then(({ error }) => {
-                              setSbBusy(false)
-                              if (error) setSbMsg(userFacingAuthError(error))
-                              else {
-                                setSbMsg(
-                                  'Account created. Confirm email, then sign in.',
-                                )
-                              }
-                            })
-                          }}
-                        >
-                          Sign up
-                        </button>
-                      </div>
-                    </>
-                  )}
-                  {sbMsg ? (
-                    <p className={`hint ${sbMsg.includes('fail') || sbMsg.includes('Invalid') ? 'error' : ''}`} style={{ marginTop: 10 }}>
-                      {sbMsg}
-                    </p>
-                  ) : null}
-                </section>
-
-              </aside>
-            </div>
-          </>
-        ) : null}
       </div>
     </div>
   )

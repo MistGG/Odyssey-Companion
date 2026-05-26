@@ -265,10 +265,7 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       typeof hotkeysFocusOnly === 'boolean'
         ? hotkeysFocusOnly
         : DEFAULT_SETTINGS.hotkeysOnlyWhenCompanionFocused,
-    meterAutoUploadAfterClear:
-      typeof meterAutoUploadAfterClear === 'boolean'
-        ? meterAutoUploadAfterClear
-        : DEFAULT_SETTINGS.meterAutoUploadAfterClear,
+    meterAutoUploadAfterClear: true,
     timersBackdropOpacity:
       typeof timersBackdrop === 'number'
         ? Math.min(1, Math.max(0, timersBackdrop))

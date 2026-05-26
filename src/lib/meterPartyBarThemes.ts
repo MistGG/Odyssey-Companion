@@ -72,15 +72,15 @@ const ILIAD_CORE_THEME: MeterPartyBarTheme = {
     id: 'iliad-core',
     barStyleId: 'iliad-core',
     label: 'Iliad Core',
-    badge: '★',
-    domain: 'Digital World — Homeros',
+    badge: '',
+    domain: 'Digital World — Iliad',
     earnable: false,
-    subtitle: 'Default · Digivice',
+    subtitle: 'Homeros · Digital World Iliad',
     style: {
       accent: '#3ee0ff',
-      c1: 'rgba(26, 106, 122, 0.55)',
-      c2: 'rgba(92, 240, 196, 0.45)',
-      grid: 'rgba(62, 224, 255, 0.08)',
+      c1: 'rgba(6, 22, 30, 0.94)',
+      c2: 'rgba(12, 52, 68, 0.88)',
+      grid: 'rgba(62, 224, 255, 0.1)',
     },
   }
 
@@ -362,6 +362,15 @@ export const METER_DEV_TAMER_BADGE = 'DEV'
 
 export function shouldShowMeterDevTamerBadge(tamerName: string | null | undefined): boolean {
   return isMistTamer(tamerName)
+}
+
+export function shouldShowMeterThemeBadge(
+  theme: MeterPartyBarTheme | null | undefined,
+): theme is MeterPartyBarTheme {
+  if (!theme) return false
+  if (theme.id === MIST_DEV_REWARD_THEME_ID) return false
+  if (theme.variant === 'legendary') return false
+  return theme.badge.trim().length > 0
 }
 
 export function writeEquippedMeterPartyBarThemeId(id: MeterPartyBarThemeId): void {

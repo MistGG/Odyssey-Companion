@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.49",
+  "version": "0.1.50",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added support for legendary themes"
+      "releaseNotes": "- Added potential fix for users losing their DPS values on upload\n- Removed manual uploading in favor of always auto uploading accurate results"
     }
   }
 }

@@ -283,10 +283,7 @@ export type OverlaySettings = {
    * When false (default): hotkeys work globally, including while the game is focused.
    */
   hotkeysOnlyWhenCompanionFocused: boolean
-  /**
-   * When true: after a Normal or Hard dungeon clear, upload the meter parse automatically
-   * (same path as the manual upload button / hotkey).
-   */
+  /** Always on: auto-upload party parse after Normal/Hard clear (kept for settings compatibility). */
   meterAutoUploadAfterClear: boolean
   /** Boss timers overlay — panel opacity (0–1). */
   timersBackdropOpacity: number
@@ -343,7 +340,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   meterPartyShowSelfDisplayName: false,
   meterDiagnosticCapture: false,
   hotkeysOnlyWhenCompanionFocused: false,
-  meterAutoUploadAfterClear: false,
+  meterAutoUploadAfterClear: true,
   timersBackdropOpacity: 0.86,
   timersAlwaysOnTop: true,
   timersPositionLocked: false,

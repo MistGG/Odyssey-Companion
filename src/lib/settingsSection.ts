@@ -2,8 +2,8 @@
 export type SettingsSectionId = 'general' | 'online' | 'timeline' | 'meter' | 'timers' | 'hud' | 'updates'
 
 export function normalizeSettingsSection(raw: unknown): SettingsSectionId {
+  if (raw === 'online') return 'meter'
   if (
-    raw === 'online' ||
     raw === 'timeline' ||
     raw === 'meter' ||
     raw === 'timers' ||

@@ -6010,13 +6010,54 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
     0 0 8px color-mix(in srgb, var(--mb-accent, var(--accent)) 22%, transparent);
 }
 
-/* Iliad Core (DEV) — soft full-bar fill + seamless stream (MeterIliadBarFx) */
-@keyframes meter-iliad-grid-stream {
+/* Iliad Core (DEV) — landscape scene overlay + digivice row chrome */
+.meter-party-member--iliad-core {
+  background: rgba(6, 20, 28, 0.58);
+  box-shadow:
+    inset 3px 0 0 var(--mb-accent, #3ee0ff),
+    inset 0 0 0 1px rgba(62, 224, 255, 0.16),
+    0 0 14px rgba(62, 224, 255, 0.08);
+}
+
+.meter-party-member-bar.meter-party-bar-theme--iliad-core {
+  background: linear-gradient(
+    90deg,
+    var(--mb-c1) 0%,
+    var(--mb-c2) 55%,
+    color-mix(in srgb, var(--mb-accent) 28%, transparent) 100%
+  );
+  overflow: hidden;
+}
+
+.meter-party-bar-fill-stack--iliad {
+  min-height: 36px;
+}
+
+.meter-party-bar-iliad-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.meter-party-iliad-fx {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes meter-iliad-scene-stream {
   from {
-    background-position: 0 0, 0 0;
+    transform: translateX(0);
   }
   to {
-    background-position: 24px 0, 24px 0;
+    transform: translateX(-50%);
   }
 }
 
@@ -6029,28 +6070,77 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   }
 }
 
-.meter-party-member-bar.meter-party-bar-theme--iliad-core {
-  background: linear-gradient(
-    90deg,
-    var(--mb-c1) 0%,
-    var(--mb-c2) 58%,
-    color-mix(in srgb, var(--mb-accent) 42%, transparent) 100%
-  );
-  overflow: hidden;
+@keyframes meter-iliad-celestial-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
 }
 
-.meter-party-iliad-fx {
+@keyframes meter-iliad-stars-twinkle {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.92;
+  }
+}
+
+@keyframes meter-iliad-divine-breathe {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 0.88;
+  }
+}
+
+.meter-party-iliad-scene-pan {
   position: absolute;
   inset: 0;
-  display: block;
+  overflow: hidden;
   border-radius: inherit;
-  pointer-events: none;
+}
+
+.meter-party-iliad-scene-stream {
+  display: flex;
+  width: 200%;
+  height: 100%;
+  animation: meter-iliad-scene-stream 32s linear infinite;
+  will-change: transform;
+}
+
+.meter-party-iliad-scene-tile {
+  position: relative;
+  flex: 0 0 50%;
+  width: 50%;
+  height: 100%;
   overflow: hidden;
 }
 
-.meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--wash {
-  z-index: 0;
-  opacity: 0.45;
+.meter-party-iliad-scene-tile .meter-party-iliad-scene-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: auto;
+  height: 250%;
+  min-width: 100%;
+  min-height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center 70%;
+  transform: translate(-50%, -50%);
+  opacity: 0.72;
+  filter: saturate(1.06) contrast(1.03);
+}
+
+.meter-party-iliad-fx--wash {
+  z-index: 2;
+  opacity: 0.5;
 }
 
 .meter-party-iliad-wash-track {
@@ -6060,39 +6150,89 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--mb-c2) 22%, transparent) 20%,
-    color-mix(in srgb, var(--mb-accent) 18%, transparent) 50%,
-    color-mix(in srgb, var(--mb-c2) 22%, transparent) 80%,
+    rgba(142, 212, 255, 0.1) 12.5%,
+    rgba(255, 248, 220, 0.16) 25%,
+    rgba(142, 212, 255, 0.1) 37.5%,
+    transparent 50%,
+    transparent 50%,
+    rgba(142, 212, 255, 0.1) 62.5%,
+    rgba(255, 248, 220, 0.16) 75%,
+    rgba(142, 212, 255, 0.1) 87.5%,
     transparent 100%
   );
-  animation: meter-iliad-wash-scroll 3.6s linear infinite;
+  animation: meter-iliad-wash-scroll 10s linear infinite;
 }
 
-.meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--grid {
-  z-index: 1;
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 5px,
-      rgba(62, 224, 255, 0.16) 5px,
-      rgba(62, 224, 255, 0.16) 6px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0,
-      transparent 6px,
-      rgba(92, 240, 196, 0.12) 6px,
-      rgba(92, 240, 196, 0.12) 7px
-    );
-  background-size: 6px 100%, 100% 7px;
+.meter-party-iliad-fx--celestial {
+  z-index: 3;
+  opacity: 0.7;
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(142, 212, 255, 0.08) 14%,
+    rgba(220, 245, 255, 0.14) 28%,
+    rgba(255, 232, 190, 0.1) 38%,
+    rgba(142, 212, 255, 0.08) 48%,
+    transparent 50%,
+    transparent 50%,
+    rgba(142, 212, 255, 0.08) 62%,
+    rgba(220, 245, 255, 0.14) 76%,
+    rgba(255, 232, 190, 0.1) 86%,
+    rgba(142, 212, 255, 0.08) 96%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
   background-repeat: repeat;
-  animation: meter-iliad-grid-stream 3.6s linear infinite;
+  mix-blend-mode: screen;
+  animation: meter-iliad-celestial-flow 14s linear infinite;
+}
+
+.meter-party-iliad-fx--stars {
+  z-index: 4;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(255, 255, 255, 0.95) 50%, transparent 52%),
+    radial-gradient(1px 1px at 28% 68%, rgba(200, 235, 255, 0.9) 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 44% 34%, rgba(255, 250, 230, 0.85) 50%, transparent 52%),
+    radial-gradient(1px 1px at 58% 18%, rgba(255, 255, 255, 0.8) 50%, transparent 52%),
+    radial-gradient(1px 1px at 71% 56%, rgba(180, 230, 255, 0.9) 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 84% 38%, rgba(255, 248, 220, 0.88) 50%, transparent 52%),
+    radial-gradient(1px 1px at 92% 72%, rgba(255, 255, 255, 0.75) 50%, transparent 52%);
+  animation: meter-iliad-stars-twinkle 6s ease-in-out infinite;
+}
+
+.meter-party-iliad-fx--divine {
+  z-index: 5;
+  background: radial-gradient(ellipse 95% 140% at 68% 36%, rgba(255, 244, 210, 0.22) 0%, transparent 62%);
+  mix-blend-mode: soft-light;
+  animation: meter-iliad-divine-breathe 9s ease-in-out infinite;
+}
+
+.meter-party-bar-iliad-layer {
+  -webkit-mask-image: radial-gradient(ellipse 94% 100% at 50% 48%, #000 36%, transparent 97%);
+  mask-image: radial-gradient(ellipse 94% 100% at 50% 48%, #000 36%, transparent 97%);
+}
+
+.meter-party-bar-fill-stack--iliad::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(6, 20, 28, 0.28) 0%,
+    transparent 38%,
+    rgba(6, 20, 28, 0.12) 100%
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .meter-party-member-bar.meter-party-bar-theme--iliad-core .meter-party-iliad-fx--grid,
-  .meter-party-iliad-wash-track {
+  .meter-party-iliad-scene-stream,
+  .meter-party-iliad-wash-track,
+  .meter-party-iliad-fx--celestial,
+  .meter-party-iliad-fx--stars,
+  .meter-party-iliad-fx--divine {
     animation: none !important;
   }
 }
@@ -8624,9 +8764,11 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   text-align: center;
   vertical-align: middle;
   color: #0a1218;
+  letter-spacing: 0.04em;
   background: linear-gradient(180deg, #3ee0ff 0%, #5cf0c4 100%);
-  border: 1px solid rgba(92, 240, 196, 0.65);
-  box-shadow: 0 0 6px rgba(62, 224, 255, 0.35);
+  border: none;
+  box-shadow: 0 0 8px rgba(62, 224, 255, 0.38);
+  text-shadow: none;
 }
 
 .meter-party-theme-badge {

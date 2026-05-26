@@ -1314,6 +1314,12 @@ function triggerMeterUploadFromHotkey() {
   }
 }
 
+function notifyMeterPartyThemesChanged() {
+  if (meterWin && !meterWin.isDestroyed()) {
+    meterWin.webContents.send('meter:party-themes-changed')
+  }
+}
+
 function createWindows() {
   createDungeonWindow({ show: false })
   createTimelineWindow()
@@ -1744,6 +1750,10 @@ ipcMain.handle('window:show-hud', () => {
 ipcMain.handle('window:open-settings', (_e, sectionArg: unknown) => {
   showSettingsWindow(sectionArg)
   return true
+})
+
+ipcMain.on('meter:party-themes-changed', () => {
+  notifyMeterPartyThemesChanged()
 })
 
 ipcMain.on('meter:apply-options', (_e, opts: unknown) => {

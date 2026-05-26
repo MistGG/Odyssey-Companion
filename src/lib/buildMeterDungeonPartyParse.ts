@@ -1,6 +1,8 @@
+import { readCachedDungeonDetails } from './dungeonDetailApi'
 import type { MeterStreamSession } from './meterEventStream'
 import { isMeterSessionLeaderboardEligible } from './meterLeaderboardEligibility'
 import {
+  consolidateSelfDamageForUpload,
   meterMemberSkillBreakdownByDigimon,
   meterPartyRows,
   meterSessionDurationSec,
@@ -22,11 +24,19 @@ export function buildMeterDungeonPartyParse(
   members: MeterDungeonPartyMemberParse[]
   raidTotalDamage: number
 } {
+  consolidateSelfDamageForUpload(session)
   const durationSec = meterSessionDurationSec(session, nowMs)
 
+  const dungeonId = session.dungeonId?.trim() ?? ''
+  let dungeonName = session.dungeonName?.trim() || null
+  if (!dungeonName && dungeonId) {
+    const cached = readCachedDungeonDetails([dungeonId])[dungeonId]
+    dungeonName = cached?.name?.trim() || null
+  }
+
   const dungeon: MeterParseDungeonContext = {
-    dungeonId: session.dungeonId?.trim() ?? '',
-    dungeonName: session.dungeonName?.trim() || null,
+    dungeonId,
+    dungeonName,
     difficulty: session.dungeonDifficulty?.trim() || 'Unknown',
     difficultyId: session.dungeonDifficultyTier ?? 0,
     mapName: session.mapName?.trim() || null,

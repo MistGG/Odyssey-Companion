@@ -18,7 +18,14 @@ import { bossTimerChimeRepeatsConfigurable } from './lib/bossTimerWebChime'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { userFacingAuthError } from './lib/userFacingMessages'
-import { getSupabaseClient, signInEmail, signOut, signUpWithProfile } from './lib/supabaseMeter'
+import {
+  displayNameFromUserMetadata,
+  getSupabaseClient,
+  signInEmail,
+  signOut,
+  signUpWithProfile,
+} from './lib/supabaseMeter'
+import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -32,11 +39,10 @@ const HOTKEY_TIMELINE: { label: string; slot: 'toggle' | 'reset' }[] = [
 
 const HOTKEY_METER: {
   label: string
-  slot: 'meterReconnect' | 'meterResetSession' | 'meterUploadParse'
+  slot: 'meterReconnect' | 'meterResetSession'
 }[] = [
   { label: 'Reconnect reader', slot: 'meterReconnect' },
   { label: 'Reset session', slot: 'meterResetSession' },
-  { label: 'Upload parse to cloud', slot: 'meterUploadParse' },
 ]
 
 const STARTUP_PANEL_LABELS: Record<StartupPanelKey, string> = {
@@ -49,7 +55,6 @@ const STARTUP_PANEL_LABELS: Record<StartupPanelKey, string> = {
 
 const NAV: { id: SettingsSectionId; label: string }[] = [
   { id: 'general', label: 'General' },
-  { id: 'online', label: 'Online' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'meter', label: 'DPS meter' },
   { id: 'timers', label: 'Boss timers' },
@@ -507,90 +512,6 @@ export default function SettingsApp() {
             </p>
           </section>
 
-          <section id={sectionScrollId('online')} className="settings-app-section">
-            <h2 className="settings-app-section__title">Online</h2>
-
-            <section className="field-group" style={{ marginTop: 0 }}>
-              <h3 className="settings-app-subhead">Account</h3>
-              {!supabase ? (
-                <p className="hint muted" style={{ marginTop: 0 }}>
-                  Online sign-in and uploads are not available in this build.
-                </p>
-              ) : onlineUser ? (
-                <>
-                  <p className="hint muted" style={{ marginTop: 0 }}>
-                    Signed in as <strong>{onlineUser.email ?? 'Supabase user'}</strong>.
-                  </p>
-                  <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignOut}>
-                    {onlineBusy ? 'Signing out...' : 'Sign out'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <label className="field">
-                    <span>Email</span>
-                    <input
-                      type="email"
-                      value={onlineEmail}
-                      autoComplete="email"
-                      onChange={(e) => setOnlineEmail(e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Password</span>
-                    <input
-                      type="password"
-                      value={onlinePassword}
-                      autoComplete="current-password"
-                      onChange={(e) => setOnlinePassword(e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Display name</span>
-                    <input
-                      value={onlineDisplayName}
-                      autoComplete="nickname"
-                      placeholder="Only needed when creating an account"
-                      onChange={(e) => setOnlineDisplayName(e.target.value)}
-                    />
-                  </label>
-                  <div className="field-group row" style={{ marginTop: 8 }}>
-                    <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignIn}>
-                      {onlineBusy ? 'Working...' : 'Sign in'}
-                    </button>
-                    <button type="button" className="btn ghost" disabled={onlineBusy} onClick={handleOnlineSignUp}>
-                      Create account
-                    </button>
-                  </div>
-                </>
-              )}
-              {onlineMsg ? <p className="hint" style={{ marginTop: 10 }}>{onlineMsg}</p> : null}
-            </section>
-
-            {supabase && onlineUser ? (
-              <section className="field-group" style={{ marginTop: 16 }}>
-                <h3 className="settings-app-subhead">Meter uploads</h3>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={settings.meterAutoUploadAfterClear}
-                    onChange={(e) =>
-                      setSettings((s) => ({
-                        ...s,
-                        meterAutoUploadAfterClear: e.target.checked,
-                      }))
-                    }
-                  />
-                  <span>Auto upload after clear</span>
-                </label>
-                <p className="hint muted" style={{ marginTop: 6 }}>
-                  After each Normal or Hard dungeon clear, upload the party parse to the cloud (same as the
-                  meter upload button). Requires sign-in. Story runs and failed runs are not uploaded.
-                </p>
-              </section>
-            ) : null}
-          </section>
-
           <section id={sectionScrollId('timeline')} className="settings-app-section">
             <h2 className="settings-app-section__title">Timeline window</h2>
             <label className="field">
@@ -694,6 +615,90 @@ export default function SettingsApp() {
               />
               Party meter: show your display name instead of &quot;You&quot;
             </label>
+
+            <section className="field-group" style={{ marginTop: 20 }}>
+              <h3 className="settings-app-subhead">Odyssey Calc account</h3>
+              {!supabase ? (
+                <p className="hint muted" style={{ marginTop: 0 }}>
+                  Sign-in and cloud features are not available in this build.
+                </p>
+              ) : onlineUser ? (
+                <>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    Signed in as <strong>{onlineUser.email ?? 'Supabase user'}</strong>.
+                  </p>
+                  <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignOut}>
+                    {onlineBusy ? 'Signing out…' : 'Sign out'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    Sign in with the same account as Odyssey Calc to equip bar themes and upload parses.
+                  </p>
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={onlineEmail}
+                      autoComplete="email"
+                      onChange={(e) => setOnlineEmail(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Password</span>
+                    <input
+                      type="password"
+                      value={onlinePassword}
+                      autoComplete="current-password"
+                      onChange={(e) => setOnlinePassword(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Display name</span>
+                    <input
+                      value={onlineDisplayName}
+                      autoComplete="nickname"
+                      placeholder="Only needed when creating an account"
+                      onChange={(e) => setOnlineDisplayName(e.target.value)}
+                    />
+                  </label>
+                  <div className="field-group row" style={{ marginTop: 8 }}>
+                    <button type="button" className="btn secondary" disabled={onlineBusy} onClick={handleOnlineSignIn}>
+                      {onlineBusy ? 'Working…' : 'Sign in'}
+                    </button>
+                    <button type="button" className="btn ghost" disabled={onlineBusy} onClick={handleOnlineSignUp}>
+                      Create account
+                    </button>
+                  </div>
+                </>
+              )}
+              {onlineMsg ? <p className="hint" style={{ marginTop: 10 }}>{onlineMsg}</p> : null}
+            </section>
+
+            {supabase && onlineUser ? (
+              <>
+                <section className="field-group" style={{ marginTop: 16 }}>
+                  <h3 className="settings-app-subhead">Bar themes</h3>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    Equip themes earned on the Odyssey Calc meter shop. Changes apply to your party bar on the
+                    meter overlay.
+                  </p>
+                  <MeterCompanionBarThemes
+                    supabase={supabase}
+                    profileDisplayName={displayNameFromUserMetadata(onlineUser)}
+                    onThemeChange={() => void window.odysseyCompanion?.notifyMeterPartyThemesChanged?.()}
+                  />
+                </section>
+                <section className="field-group" style={{ marginTop: 16 }}>
+                  <h3 className="settings-app-subhead">Parse uploads</h3>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    After each Normal or Hard dungeon clear, the companion uploads the party parse automatically.
+                    View history on Odyssey Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
+                  </p>
+                </section>
+              </>
+            ) : null}
 
             <section className="field-group" style={{ marginTop: 16 }}>
               <h3 className="settings-app-subhead">Troubleshooting</h3>

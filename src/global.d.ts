@@ -46,6 +46,8 @@ declare global {
       onMeterTelemetry: (handler: (msg: unknown) => void) => () => void
       onMeterClearSessionUi: (handler: () => void) => () => void
       onMeterTriggerUploadParse: (handler: () => void) => () => void
+      notifyMeterPartyThemesChanged?: () => void
+      onMeterPartyThemesChanged?: (handler: () => void) => () => void
       setMeterDiagnosticCapture?: (
         enabled: boolean,
       ) => Promise<{ ok: true } | { ok: false; error: string }>

@@ -116,6 +116,16 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     return () => ipcRenderer.removeListener('meter:trigger-upload-parse', wrapped)
   },
 
+  notifyMeterPartyThemesChanged: () => {
+    ipcRenderer.send('meter:party-themes-changed')
+  },
+
+  onMeterPartyThemesChanged: (handler: () => void) => {
+    const wrapped = () => handler()
+    ipcRenderer.on('meter:party-themes-changed', wrapped)
+    return () => ipcRenderer.removeListener('meter:party-themes-changed', wrapped)
+  },
+
   setMeterDiagnosticCapture: (enabled: boolean) =>
     ipcRenderer.invoke('meter:set-diagnostic-capture', enabled) as Promise<
       { ok: true } | { ok: false; error: string }
