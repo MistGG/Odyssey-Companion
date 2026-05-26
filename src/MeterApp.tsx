@@ -20,6 +20,10 @@ import { applyMeterSelfBarPreviewIfDev } from './lib/meterDevPartyTest'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
 import { startMeterEquippedThemeSync } from './lib/meterEquippedThemeSync'
 import {
+  partyTamerThemeResolveSignature,
+  resolveAndApplyPartyTamerThemes,
+} from './lib/meterPartyTamerThemeResolve'
+import {
   resolveMeterPartyBarTheme,
   meterPartyBarThemeStyle,
   METER_DEV_TAMER_BADGE,
@@ -704,6 +708,24 @@ export default function MeterApp() {
       () => bumpStream(),
     )
   }, [supabase, sbUser?.id, bumpStream])
+
+  const partyThemeResolveSig = useMemo(
+    () => partyTamerThemeResolveSignature(streamSession),
+    [streamRev, streamSession.dungeonId, streamSession.mapId, streamSession.mapName],
+  )
+
+  useEffect(() => {
+    if (!supabase) return
+    let cancelled = false
+    void resolveAndApplyPartyTamerThemes(supabase, streamRef.current, { bustCache: true }).then(
+      (changed) => {
+        if (!cancelled && changed) bumpStream()
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, partyThemeResolveSig, bumpStream])
 
   const partyListRows = useMemo(() => {
     return meterPartyRows(streamRef.current, Date.now()).map((row) => ({

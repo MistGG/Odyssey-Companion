@@ -373,12 +373,13 @@ export function effectiveEquippedThemeIdForSelf(
 export function resolveMeterPartyBarTheme(
   tamerName: string | null | undefined,
   memberThemeId?: string | null,
-  options?: { isSelf?: boolean },
+  options?: { isSelf?: boolean; remoteThemeId?: string | null },
 ): MeterPartyBarTheme | null {
-  const fromMember = getMeterPartyBarTheme(memberThemeId ?? undefined)
-  if (!options?.isSelf) return fromMember
+  if (!options?.isSelf) {
+    return getMeterPartyBarTheme(memberThemeId ?? options?.remoteThemeId ?? undefined)
+  }
   const equippedId = effectiveEquippedThemeIdForSelf(tamerName)
-  return equippedId ? getMeterPartyBarTheme(equippedId) : null
+  return equippedId ? getMeterPartyBarTheme(equippedId) : getMeterPartyBarTheme(memberThemeId ?? undefined)
 }
 
 export function meterPartyBarThemeStyle(theme: MeterPartyBarTheme): CSSProperties {
