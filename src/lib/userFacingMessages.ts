@@ -1,3 +1,7 @@
+/** Shown on the DPS meter while EventStream is not connected (auto-retries in the background). */
+export const EVENT_STREAM_CONNECT_HINT =
+  'Unable to connect, please press refresh or relaunch the Companion app after the game has started.'
+
 /** True when a string looks like a raw API/IPC/network error, not end-user copy. */
 export function isTechnicalUserMessage(raw: string): boolean {
   const t = raw.trim()
@@ -26,4 +30,14 @@ export function userFacingUploadError(raw: string | null | undefined): string {
 
 export function userFacingAuthError(raw: string | null | undefined): string {
   return sanitizeUserMessage(raw, 'Could not sign in. Check your email and password.')
+}
+
+/** Never surface host/port/WebSocket errors from the main process. */
+export function userFacingEventStreamConnectHint(
+  status: string,
+  detail?: string | null,
+): string | null {
+  if (status === 'connected' || status === 'idle') return null
+  if (status === 'connecting') return 'Connecting…'
+  return sanitizeUserMessage(detail, EVENT_STREAM_CONNECT_HINT)
 }

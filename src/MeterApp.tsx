@@ -40,7 +40,12 @@ import {
 import { fetchDungeonDetail } from './lib/dungeonDetailApi'
 import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDifficultyTags'
 import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
-import { userFacingAuthError, userFacingUploadError } from './lib/userFacingMessages'
+import {
+  EVENT_STREAM_CONNECT_HINT,
+  userFacingAuthError,
+  userFacingEventStreamConnectHint,
+  userFacingUploadError,
+} from './lib/userFacingMessages'
 import {
   createTimelineAutoBridge,
   processTimelineAutoStreamEvent,
@@ -240,8 +245,12 @@ export default function MeterApp() {
       return
     }
     const { host, port } = readEventStreamEndpoint()
-    setReaderHint('Waiting for game…')
-    void api.connectEventStream(host, port)
+    setReaderHint(EVENT_STREAM_CONNECT_HINT)
+    void api.connectEventStream(host, port).then((r) => {
+      if (r && typeof r === 'object' && 'ok' in r && r.ok === false) {
+        setReaderHint(userFacingEventStreamConnectHint('waiting', r.error))
+      }
+    })
   }, [])
 
   const resetSession = useCallback(() => {
@@ -489,7 +498,7 @@ export default function MeterApp() {
     const { host, port } = readEventStreamEndpoint()
     let disposed = false
 
-    setReaderHint('Waiting for game…')
+    setReaderHint(EVENT_STREAM_CONNECT_HINT)
 
     const offMsg = api.onEventStreamMessage(({ event }) => {
       const ev = event as EventStreamRecord
@@ -584,16 +593,16 @@ export default function MeterApp() {
           partySyncStaggerTimersRef.current.push(timer)
         }
         schedulePartySyncIfNeeded('connected')
-      } else if (status === 'connecting') {
-        setReaderHint('Connecting…')
-      } else if (status === 'idle') {
-        setReaderHint(null)
       } else {
-        setReaderHint('Waiting for game…')
+        setReaderHint(userFacingEventStreamConnectHint(status, payload.detail))
       }
     })
 
-    void api.connectEventStream(host, port)
+    void api.connectEventStream(host, port).then((r) => {
+      if (r && typeof r === 'object' && 'ok' in r && r.ok === false) {
+        setReaderHint(userFacingEventStreamConnectHint('waiting', r.error))
+      }
+    })
 
     return () => {
       disposed = true
@@ -1186,7 +1195,7 @@ export default function MeterApp() {
                   {partyListRows.length === 0 ? (
                     <p className="meter-breakdown-empty meter-breakdown-empty--compact muted">
                       {!eventStreamConnected
-                        ? 'Waiting for game…'
+                        ? EVENT_STREAM_CONNECT_HINT
                         : !meterNeedsPartyIdentity(streamRef.current) ||
                             streamRef.current.members.size > 0
                           ? 'Deal damage to populate DPS.'
