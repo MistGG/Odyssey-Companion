@@ -3,7 +3,7 @@ import {
   meterDevTestPartyRowCount,
 } from './meterPartyBarThemes'
 import type { MeterStreamSession } from './meterEventStream'
-import { seedMeterDevTestParty } from './meterEventStream'
+import { boostMeterSelfBarForThemePreview, seedMeterDevTestParty } from './meterEventStream'
 
 export function meterDevTestEnabled(): boolean {
   if (!import.meta.env.DEV) return false
@@ -23,6 +23,11 @@ export function restoreMeterDevTestPartyIfCollapsed(session: MeterStreamSession)
   session.devTestPartySeeded = false
   seedMeterDevTestParty(session)
   return true
+}
+
+export function applyMeterSelfBarPreviewIfDev(session: MeterStreamSession): (() => void) | null {
+  if (!import.meta.env.DEV) return null
+  return boostMeterSelfBarForThemePreview(session)
 }
 
 export { DEV_METER_TAMER_NAME }

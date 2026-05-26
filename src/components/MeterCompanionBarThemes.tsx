@@ -99,7 +99,10 @@ export function MeterCompanionBarThemes({
         {themes.map((theme) => {
           const active = equippedThemeId === theme.id
           return (
-            <li key={theme.id} className={`meter-companion-theme-row${active ? ' is-active' : ''}`}>
+            <li
+              key={theme.id}
+              className={`meter-companion-theme-row${active ? ' is-active' : ''}${theme.variant === 'rare' ? ' meter-companion-theme-row--rare' : ''}`}
+            >
               <span className="meter-companion-theme-name">{companionThemeLabel(theme)}</span>
               {active ? (
                 <span className="meter-companion-theme-pill">Active</span>

@@ -1582,7 +1582,7 @@ export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.
     isSelf: true,
   })
   selfRow.totalDamage = 312_000
-  selfRow.partyBarFillPct = 48
+  selfRow.partyBarFillPct = 88
   selfRow.firstHitMs = startMs
   session.rosterMembers.set(selfRow.key, {
     memberKey: selfRow.key,
@@ -1621,4 +1621,67 @@ export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.
   })
 
   dedupePartyMemberRows(session)
+}
+
+const METER_THEME_PREVIEW_FILLER_KEYS = ['__meter-preview-ally-a', '__meter-preview-ally-b'] as const
+
+/** Dev-only: widen your party bar so equipped themes are easy to preview. Returns restore fn. */
+export function boostMeterSelfBarForThemePreview(
+  session: MeterStreamSession,
+  fillPct = 88,
+): (() => void) | null {
+  if (!import.meta.env.DEV) return null
+
+  const tamer = session.selfTamerName?.trim() || 'You'
+  session.selfTamerName = tamer
+  if (session.sessionStartMs == null) session.sessionStartMs = Date.now() - 75_000
+
+  ensureSelfPartyRowVisible(session)
+  const selfKey = memberMapKey(tamer)
+  const selfRow = session.members.get(selfKey)
+  if (!selfRow) return null
+
+  const savedSelf = {
+    totalDamage: selfRow.totalDamage,
+    partyBarFillPct: selfRow.partyBarFillPct,
+    firstHitMs: selfRow.firstHitMs,
+  }
+
+  for (const memberKey of METER_THEME_PREVIEW_FILLER_KEYS) {
+    const filler = upsertMember(session, {
+      tamerName: memberKey === METER_THEME_PREVIEW_FILLER_KEYS[0] ? 'Ally One' : 'Ally Two',
+      digimonName: 'Partner',
+      memberKey,
+      isSelf: false,
+    })
+    filler.totalDamage = memberKey === METER_THEME_PREVIEW_FILLER_KEYS[0] ? 48_000 : 36_000
+    filler.partyBarFillPct = undefined
+    filler.firstHitMs = session.sessionStartMs
+    session.rosterMembers.set(memberKey, {
+      memberKey,
+      tamerName: filler.tamerName,
+      digimonName: filler.digimonName,
+      digimonNickname: '',
+      digimonId: '',
+      iconId: '',
+      slot: null,
+      isSelf: false,
+      isLeader: false,
+    })
+  }
+
+  selfRow.totalDamage = 520_000
+  selfRow.partyBarFillPct = fillPct
+  selfRow.firstHitMs = session.sessionStartMs
+  selfRow.isSelf = true
+
+  return () => {
+    selfRow.totalDamage = savedSelf.totalDamage
+    selfRow.partyBarFillPct = savedSelf.partyBarFillPct
+    selfRow.firstHitMs = savedSelf.firstHitMs
+    for (const memberKey of METER_THEME_PREVIEW_FILLER_KEYS) {
+      session.members.delete(memberKey)
+      session.rosterMembers.delete(memberKey)
+    }
+  }
 }

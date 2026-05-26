@@ -16,15 +16,16 @@ import {
   signUpWithProfile,
 } from './lib/supabaseMeter'
 import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
+import { applyMeterSelfBarPreviewIfDev } from './lib/meterDevPartyTest'
+import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
 import { startMeterEquippedThemeSync } from './lib/meterEquippedThemeSync'
 import {
   resolveMeterPartyBarTheme,
   meterPartyBarThemeStyle,
-  meterPartyBarThemeBarClassName,
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
 } from './lib/meterPartyBarThemes'
-import { MeterIliadBarFx } from './lib/MeterIliadBarFx'
+import { MeterPartyThemedBar, meterPartyMemberRareClass } from './components/MeterPartyThemedBar'
 import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
 import { isGarbageStreamLabel } from './lib/eventStreamParty'
@@ -130,7 +131,33 @@ export default function MeterApp() {
   const autoUploadAfterClearRef = useRef(settings.meterAutoUploadAfterClear)
   autoUploadAfterClearRef.current = settings.meterAutoUploadAfterClear
   const [streamRev, setStreamRev] = useState(0)
+  const clearBarPreviewRef = useRef<(() => void) | null>(null)
+  const [barPreviewActive, setBarPreviewActive] = useState(false)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
+
+  const toggleBarPreviewFill = useCallback(() => {
+    if (barPreviewActive && clearBarPreviewRef.current) {
+      clearBarPreviewRef.current()
+      clearBarPreviewRef.current = null
+      setBarPreviewActive(false)
+      bumpStream()
+      return
+    }
+    clearBarPreviewRef.current = applyMeterSelfBarPreviewIfDev(streamRef.current)
+    setBarPreviewActive(Boolean(clearBarPreviewRef.current))
+    bumpStream()
+  }, [barPreviewActive, bumpStream])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    clearBarPreviewRef.current = applyMeterSelfBarPreviewIfDev(streamRef.current)
+    setBarPreviewActive(Boolean(clearBarPreviewRef.current))
+    bumpStream()
+    return () => {
+      clearBarPreviewRef.current?.()
+      clearBarPreviewRef.current = null
+    }
+  }, [bumpStream])
   const [tick, setTick] = useState(0)
   const loadedWikiDigimonRef = useRef<string | null>(null)
 
@@ -485,6 +512,20 @@ export default function MeterApp() {
         enabled: () => boolean
       }
     }
+    w.__meterDev = {
+      fillMyBar: (fillPct?: number) => {
+        clearBarPreviewRef.current?.()
+        clearBarPreviewRef.current = boostMeterSelfBarForThemePreview(streamRef.current, fillPct)
+        setBarPreviewActive(Boolean(clearBarPreviewRef.current))
+        bumpStream()
+      },
+      clearBarPreview: () => {
+        clearBarPreviewRef.current?.()
+        clearBarPreviewRef.current = null
+        setBarPreviewActive(false)
+        bumpStream()
+      },
+    }
     w.__meterDebug = {
       enable: () => {
         applyMeterDiagnosticCapture(true)
@@ -500,7 +541,7 @@ export default function MeterApp() {
       clear: meterDebugClear,
       enabled: isMeterDebugEnabled,
     }
-  }, [applyMeterDiagnosticCapture, readerHint])
+  }, [applyMeterDiagnosticCapture, readerHint, bumpStream])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -1243,28 +1284,22 @@ export default function MeterApp() {
                         <button
                           key={row.rowKey}
                           type="button"
-                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}`}
+                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}${meterPartyMemberRareClass(barTheme)}`}
                           style={themeStyle}
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
-                          <div
-                            className={
-                              barTheme
-                                ? meterPartyBarThemeBarClassName(barTheme)
-                                : 'meter-party-member-bar'
-                            }
-                            style={{
-                              width: `${Math.min(100, sharePct)}%`,
-                              ...(barTheme?.id === 'iliad-core'
-                                ? themeStyle
-                                : barTheme
-                                  ? undefined
-                                  : { background: partyMemberBarBackground(accentKey) }),
-                            }}
-                            aria-hidden
-                          >
-                            {barTheme?.id === 'iliad-core' ? <MeterIliadBarFx /> : null}
-                          </div>
+                          {barTheme ? (
+                            <MeterPartyThemedBar theme={barTheme} sharePct={sharePct} />
+                          ) : (
+                            <div
+                              className="meter-party-member-bar"
+                              style={{
+                                width: `${Math.min(100, sharePct)}%`,
+                                background: partyMemberBarBackground(accentKey),
+                              }}
+                              aria-hidden
+                            />
+                          )}
                           <div className="meter-party-member-grid meter-party-member-grid--with-icon">
                             <span
                               className="meter-party-name"
@@ -1352,6 +1387,13 @@ export default function MeterApp() {
 
                 <section className="field-group">
                   <h3>Bar themes</h3>
+                  {import.meta.env.DEV ? (
+                    <p className="hint" style={{ marginTop: 0 }}>
+                      <button type="button" className="btn ghost" onClick={toggleBarPreviewFill}>
+                        {barPreviewActive ? 'Clear preview bar fill' : 'Fill my bar (theme preview)'}
+                      </button>
+                    </p>
+                  ) : null}
                   {!supabase || !sbUser ? (
                     <p className="hint muted" style={{ marginTop: 0 }}>
                       Sign in below to equip bar themes purchased on the Odyssey Calc site.

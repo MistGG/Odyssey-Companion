@@ -5487,6 +5487,15 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   background: rgba(62, 224, 255, 0.08);
 }
 
+.meter-companion-theme-row--rare {
+  border-color: rgba(96, 196, 255, 0.28);
+  background: linear-gradient(
+    155deg,
+    rgba(56, 120, 180, 0.2) 0%,
+    rgba(20, 32, 52, 0.35) 100%
+  );
+}
+
 .meter-companion-theme-name {
   font-size: 0.88rem;
   font-weight: 600;
@@ -6220,6 +6229,63 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
       rgba(255, 120, 40, 0.12) 12px
     ),
     linear-gradient(90deg, rgba(40, 18, 8, 0.88) 0%, rgba(160, 70, 22, 0.65) 50%, rgba(255, 150, 60, 0.4) 100%);
+}
+
+.meter-party-member--rare-olympus .meter-party-theme-badge {
+  display: none;
+}
+
+.meter-party-bar-fill-stack {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  margin: 1px;
+  border-radius: 5px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.meter-party-bar-fill-stack--rare {
+  min-height: 36px;
+}
+
+.meter-party-bar-fill-stack .meter-party-member-bar {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: inherit;
+}
+
+.meter-party-bar-olympus-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.meter-party-bar-olympus-layer .meter-party-olympus-digimon-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: auto;
+  height: 200%;
+  min-width: 100%;
+  min-height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  object-position: center 28%;
+  transform: translate(-50%, -50%);
+  opacity: 0.5;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+  -webkit-mask-image: radial-gradient(ellipse 92% 100% at 50% 48%, #000 40%, transparent 96%);
+  mask-image: radial-gradient(ellipse 92% 100% at 50% 48%, #000 40%, transparent 96%);
 }
 
 .meter-party-dev-badge {
