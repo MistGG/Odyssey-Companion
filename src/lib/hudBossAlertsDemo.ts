@@ -1,8 +1,8 @@
 import type { BossAlertsWidgetConfig, TimelineFightPayload } from '../types'
 import type { HudBossAlertRow } from './hudBossAlerts'
 import { listTrackedBossAlertSkills } from './hudBossAlerts'
-import { formatEffectTypeDisplay } from './effectTypeDisplay'
-import type { FlatSkillEntry } from './timelineSchedule'
+import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
+import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
 
 const DEMO_DISPLAY_SEC_MIN = 2.5
 
@@ -25,9 +25,10 @@ function buildDemoRow(
   secondsRemaining: number,
 ): HudBossAlertRow {
   const ob = fight.objectives[entry.objectiveIndex]
+  const fightSkills = fightSkillsForLabeling(fight)
   return {
     key: playKey,
-    skillLabel: formatEffectTypeDisplay(entry.skill.effect_type),
+    skillLabel: formatSkillEffectLabel(entry.skill, fightSkills),
     targetCount: entry.skill.target_count,
     bossName: ob?.monster_name?.trim() || ob?.pen_name?.trim() || null,
     secondsRemaining,

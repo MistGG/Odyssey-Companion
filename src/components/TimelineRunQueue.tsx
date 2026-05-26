@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import type { MonsterSkill, TimelineFightPayload } from '../types'
 import type { FlatSkillEntry, QueuedEvent } from '../lib/timelineSchedule'
 import { computeEventQueue, groupQueueByFireAt } from '../lib/timelineSchedule'
-import { formatEffectTypeDisplay } from '../lib/effectTypeDisplay'
+import { fightSkillsForLabeling, formatSkillEffectLabel } from '../lib/effectTypeDisplay'
+import { flattenFightSkills } from '../lib/timelineSchedule'
 import { TargetBubble } from './TargetBubble'
 
 type Props = {
@@ -19,9 +20,9 @@ function formatDamageMax(s: MonsterSkill): string {
   return String(s.effect_max)
 }
 
-function skillBrief(skill: MonsterSkill) {
+function skillBrief(skill: MonsterSkill, fightSkills: readonly MonsterSkill[]) {
   return {
-    attack: formatEffectTypeDisplay(skill.effect_type),
+    attack: formatSkillEffectLabel(skill, fightSkills),
     damage: formatDamageMax(skill),
   }
 }
@@ -78,10 +79,12 @@ function RunQueueMechanicRow({
   tagBoss,
   fireAt,
   elapsedMs,
+  fightSkills,
   density,
   ariaLabel,
 }: {
   fight: TimelineFightPayload
+  fightSkills: readonly MonsterSkill[]
   q: QueuedEvent
   tagBoss: boolean
   fireAt: number
@@ -89,7 +92,7 @@ function RunQueueMechanicRow({
   density: 'hero' | 'compact'
   ariaLabel: string
 }) {
-  const b = skillBrief(q.entry.skill)
+  const b = skillBrief(q.entry.skill, fightSkills)
   const ob = fight.objectives[q.entry.objectiveIndex]
   const n = q.entry.skill.target_count
   const label = formatCountdownLabel(fireAt, elapsedMs)
@@ -129,6 +132,7 @@ function RunQueueMechanicRow({
 }
 
 export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
+  const fightSkills = useMemo(() => fightSkillsForLabeling(fight), [fight])
   const queue = useMemo(
     () => computeEventQueue(flatSkills, elapsedMs, 24),
     [flatSkills, elapsedMs],
@@ -159,6 +163,7 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
             <RunQueueMechanicRow
               key={q.entry.key}
               fight={fight}
+              fightSkills={fightSkills}
               q={q}
               tagBoss={showBossTag(upcoming.entries)}
               fireAt={upcoming.fireAt}
@@ -180,6 +185,7 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
                     <RunQueueMechanicRow
                       key={q.entry.key}
                       fight={fight}
+                      fightSkills={fightSkills}
                       q={q}
                       tagBoss={showBossTag(g.entries)}
                       fireAt={g.fireAt}

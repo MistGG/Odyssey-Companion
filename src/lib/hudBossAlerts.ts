@@ -13,7 +13,7 @@ import {
   shouldStartNewDungeonPull,
 } from './meterDungeonRun'
 import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
-import { formatEffectTypeDisplay } from './effectTypeDisplay'
+import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
 
 export type HudBossAlertRow = {
   key: string
@@ -117,6 +117,7 @@ export function computeHudBossAlerts(
   const elapsedMs = Math.max(0, nowMs - engagedAt)
   const warnLeadMs = Math.max(1, config.warnLeadSec) * 1000
   const rows: HudBossAlertRow[] = []
+  const fightSkills = fightSkillsForLabeling(fight)
 
   for (const entry of listTrackedBossAlertSkills(fight, config)) {
     const cd = entry.skill.cool_time
@@ -135,7 +136,7 @@ export function computeHudBossAlerts(
     const ob = fight.objectives[entry.objectiveIndex]
     rows.push({
       key: `${entry.key}-${nextOrdinal}`,
-      skillLabel: formatEffectTypeDisplay(entry.skill.effect_type),
+      skillLabel: formatSkillEffectLabel(entry.skill, fightSkills),
       targetCount: entry.skill.target_count,
       bossName: ob?.monster_name?.trim() || ob?.pen_name?.trim() || null,
       secondsRemaining: sec,

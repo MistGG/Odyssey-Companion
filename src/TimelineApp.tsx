@@ -14,6 +14,7 @@ import { SkillTimelineList } from './components/SkillTimelineList'
 import { TimelineRunQueue } from './components/TimelineRunQueue'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { normalizeFightPayloadDetailed } from './lib/fightPayload'
+import { fightSkillsForLabeling } from './lib/effectTypeDisplay'
 import { flattenFightSkills } from './lib/timelineSchedule'
 
 function formatMs(ms: number) {
@@ -215,6 +216,11 @@ export default function TimelineApp() {
 
   const flatSkills = useMemo(
     () => (fight ? flattenFightSkills(fight) : []),
+    [fight],
+  )
+
+  const labelContextSkills = useMemo(
+    () => (fight ? fightSkillsForLabeling(fight) : []),
     [fight],
   )
 
@@ -494,7 +500,11 @@ export default function TimelineApp() {
                           {ob.count > 1 ? ` · ×${ob.count}` : ''}
                         </span>
                       </div>
-                      <SkillTimelineList objectiveIndex={i} skills={fight.monsterSkills[i]?.skills ?? []} />
+                      <SkillTimelineList
+                        objectiveIndex={i}
+                        skills={fight.monsterSkills[i]?.skills ?? []}
+                        labelContextSkills={labelContextSkills}
+                      />
                     </section>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated error messages"
+      "releaseNotes": "- Added custom ruleset for timelines to label certain attacks as \"Tank Buster\""
     }
   }
 }
