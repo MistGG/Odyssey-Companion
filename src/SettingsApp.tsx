@@ -11,6 +11,7 @@ import { STARTUP_PANEL_KEYS } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { maybeExpireMeterDebug } from './lib/meterDebugLog'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
 import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
@@ -129,6 +130,30 @@ export default function SettingsApp() {
     api.applyTimersWindowOptions?.({ alwaysOnTop: settings.timersAlwaysOnTop })
     api.applyHudWindowOptions?.({ alwaysOnTop: settings.hudAlwaysOnTop })
   }, [settings])
+
+  useEffect(() => {
+    if (!settings.meterDiagnosticCapture) return
+    const syncExpired = () => {
+      if (!maybeExpireMeterDebug()) return
+      setSettings((s) => ({ ...s, meterDiagnosticCapture: false }))
+      void window.odysseyCompanion?.setMeterDiagnosticCapture?.(false)
+      void window.odysseyCompanion?.copyMeterDebugReport?.().then((r) => {
+        if (r?.ok) {
+          setMeterReportHint(
+            'Recording ended — debug report copied to clipboard. Paste to Mist on Discord.',
+          )
+        } else {
+          setMeterReportHint(
+            r?.error ??
+              'Recording ended — open the DPS meter, then use Copy debug report.',
+          )
+        }
+      })
+    }
+    syncExpired()
+    const id = window.setInterval(syncExpired, 30_000)
+    return () => window.clearInterval(id)
+  }, [settings.meterDiagnosticCapture])
 
   useEffect(() => {
     if (!supabase) return
@@ -703,8 +728,8 @@ export default function SettingsApp() {
             <section className="field-group" style={{ marginTop: 16 }}>
               <h3 className="settings-app-subhead">Troubleshooting</h3>
               <p className="hint muted" style={{ margin: '0 0 10px' }}>
-                Record meter events while reproducing an issue, then export a report and send it
-                to Mist on Discord
+                Record meter events while reproducing an issue. Recording turns off after 10
+                minutes and copies a debug report to your clipboard — paste it to Mist on Discord.
               </p>
               <label className="check">
                 <input

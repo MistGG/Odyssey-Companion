@@ -64,9 +64,6 @@ import {
 import HudResizeHandles from './components/hud/HudResizeHandles'
 import type { HudResizeEdge } from './lib/hudResizeEdge'
 
-/** Pixels from the window edge that count as a native resize band (must not use click-through). */
-const HUD_RESIZE_EDGE_PX = 20
-
 /** Default Y for new widgets — below the edit-mode title strip (same coords when locked). */
 const HUD_WIDGET_DEFAULT_Y = 40
 
@@ -104,7 +101,6 @@ export default function HudApp() {
   const canvasRef = useRef<HTMLElement>(null)
   const resizeLayerRef = useRef<HTMLDivElement>(null)
   const widgetRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
-  const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
   const hudWindowResizeActiveRef = useRef(false)
 
@@ -387,42 +383,6 @@ export default function HudApp() {
       api?.setHudIgnoreMouseEvents?.(ignore)
     }
 
-    const inRect = (x: number, y: number, el: Element | null) => {
-      if (!el) return false
-      const r = el.getBoundingClientRect()
-      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
-    }
-
-    const widgetElements = () => [...widgetRefs.current.values()].filter(Boolean) as HTMLDivElement[]
-
-    const nearResizeEdge = (x: number, y: number) => {
-      const w = window.innerWidth
-      const h = window.innerHeight
-      return (
-        x <= HUD_RESIZE_EDGE_PX ||
-        y <= HUD_RESIZE_EDGE_PX ||
-        x >= w - HUD_RESIZE_EDGE_PX ||
-        y >= h - HUD_RESIZE_EDGE_PX
-      )
-    }
-
-    const overResizeZone = (x: number, y: number) => {
-      const layer = resizeLayerRef.current
-      if (!layer) return nearResizeEdge(x, y)
-      const zones = layer.querySelectorAll<HTMLElement>('.hud-resize-zone')
-      for (const el of zones) {
-        if (inRect(x, y, el)) return true
-      }
-      return nearResizeEdge(x, y)
-    }
-
-    const overHudWidget = (x: number, y: number) => {
-      for (const el of widgetElements()) {
-        if (inRect(x, y, el)) return true
-      }
-      return false
-    }
-
     /** Edit mode: receive all mouse events so resize handles and drag work reliably. */
     if (!layoutLocked) {
       lastIgnoreSent.current = null
@@ -433,39 +393,15 @@ export default function HudApp() {
       }
     }
 
-    const onPointer = (clientX: number, clientY: number) => {
-      if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
-      ignoreMouseRaf.current = requestAnimationFrame(() => {
-        ignoreMouseRaf.current = null
-        setIgnore(!overHudWidget(clientX, clientY))
-      })
-    }
-
+    /** Locked: full-window click-through (widgets are visual-only; game keeps cursor + clicks). */
     lastIgnoreSent.current = null
     setIgnore(true)
 
-    const onMove = (e: MouseEvent) => onPointer(e.clientX, e.clientY)
-    const collapsePassthrough = () => setIgnore(true)
-    const onMouseDown = (e: MouseEvent) => onPointer(e.clientX, e.clientY)
-
-    window.addEventListener('mousemove', onMove, { passive: true })
-    window.addEventListener('mousedown', onMouseDown, true)
-    window.addEventListener('blur', collapsePassthrough)
-    document.documentElement.addEventListener('mouseleave', collapsePassthrough)
-
     return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mousedown', onMouseDown, true)
-      window.removeEventListener('blur', collapsePassthrough)
-      document.documentElement.removeEventListener('mouseleave', collapsePassthrough)
-      if (ignoreMouseRaf.current != null) {
-        cancelAnimationFrame(ignoreMouseRaf.current)
-        ignoreMouseRaf.current = null
-      }
       lastIgnoreSent.current = null
       setIgnore(false)
     }
-  }, [layoutLocked, settings.hudWidgets])
+  }, [layoutLocked])
 
   const lockLayout = useCallback(() => {
     setSettings((s) => ({ ...s, hudLayoutLocked: true }))
@@ -816,7 +752,7 @@ export default function HudApp() {
                 ref={lockBtnRef}
                 type="button"
                 className="btn hud-icon-tile"
-                title="Lock layout — hide title bar and backdrop; click-through on empty areas"
+                title="Lock layout — hide title bar and backdrop; full click-through (game cursor)"
                 aria-label="Lock Digi Aura layout"
                 onClick={lockLayout}
               >

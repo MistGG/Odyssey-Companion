@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.51",
+  "version": "0.1.52",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Mark dungeon parses when digimon display names should be resolved from the wiki on Odyssey Calc\n- Improves leaderboard accuracy when in-game digimon nicknames were stored instead of species names"
+      "releaseNotes": "- Fixed an issue where widgets in Digi Aura were not click through when locked"
     }
   }
 }

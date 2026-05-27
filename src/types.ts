@@ -314,7 +314,7 @@ export type OverlaySettings = {
   /** Keep HUD above other apps. */
   hudAlwaysOnTop: boolean
   /**
-   * When true: title bar and backdrop hidden; widgets only, with click-through on empty areas.
+   * When true: title bar and backdrop hidden; widgets only, with full click-through (including over widgets).
    * Unlock only via tray or Settings (not the HUD lock button).
    */
   hudLayoutLocked: boolean
