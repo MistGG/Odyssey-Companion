@@ -31,6 +31,7 @@ import type { EventStreamRecord } from './lib/eventStreamFormat'
 import { isGarbageStreamLabel } from './lib/eventStreamParty'
 import {
   isMeterDebugEnabled,
+  maybeExpireMeterDebug,
   meterDebugClear,
   setMeterDebugEnabled,
 } from './lib/meterDebugLog'
@@ -439,9 +440,52 @@ export default function MeterApp() {
     if (enabled) meterDebugClear()
   }, [])
 
+  const copyMeterDebugReportOnCaptureEnd = useCallback(async () => {
+    const api = window.odysseyCompanion
+    const version = (await api?.getAppVersion?.())?.version ?? 'unknown'
+    const text = buildMeterDebugReport(streamRef.current, {
+      appVersion: version,
+      eventStreamConnected: eventStreamConnectedRef.current,
+      readerHint,
+    })
+    try {
+      await navigator.clipboard.writeText(text)
+      setUploadToast({
+        text: 'Diagnostics ended — debug report copied. Paste to Mist on Discord.',
+        kind: 'success',
+      })
+    } catch {
+      setUploadToast({
+        text: 'Diagnostics ended — could not copy. Use Copy debug report in Settings.',
+        kind: 'warn',
+      })
+    }
+  }, [readerHint])
+
+  const onMeterDiagnosticCaptureExpired = useCallback(() => {
+    void copyMeterDebugReportOnCaptureEnd()
+    setSettings((s) => ({ ...s, meterDiagnosticCapture: false }))
+  }, [copyMeterDebugReportOnCaptureEnd])
+
   useEffect(() => {
+    if (settings.meterDiagnosticCapture && maybeExpireMeterDebug()) {
+      onMeterDiagnosticCaptureExpired()
+      return
+    }
     applyMeterDiagnosticCapture(settings.meterDiagnosticCapture)
-  }, [settings.meterDiagnosticCapture, applyMeterDiagnosticCapture])
+  }, [
+    settings.meterDiagnosticCapture,
+    applyMeterDiagnosticCapture,
+    onMeterDiagnosticCaptureExpired,
+  ])
+
+  useEffect(() => {
+    if (!settings.meterDiagnosticCapture) return
+    const id = window.setInterval(() => {
+      if (maybeExpireMeterDebug()) onMeterDiagnosticCaptureExpired()
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [settings.meterDiagnosticCapture, onMeterDiagnosticCaptureExpired])
 
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -785,7 +829,7 @@ export default function MeterApp() {
     pendingAutoUploadBuiltRef.current = null
     const session = streamRef.current
     const built = snapshotBuilt ?? buildMeterDungeonPartyParse(session)
-    const { durationSec, dungeon, members } = built
+    const { durationSec, dungeon, members, digimonNamesRequireWikiLookup } = built
     if (!isDungeonParseUploadAllowed(dungeon.dungeonId, dungeon.difficultyId)) {
       setUploadToast({ text: 'Normal or Hard dungeon only', kind: 'warn' })
       return
@@ -805,6 +849,7 @@ export default function MeterApp() {
         durationSec,
         dungeon,
         members,
+        digimonNamesRequireWikiLookup,
       })
       if (error) {
         setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })

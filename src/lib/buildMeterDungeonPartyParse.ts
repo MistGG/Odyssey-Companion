@@ -7,6 +7,7 @@ import {
   meterPartyRows,
   meterSessionDurationSec,
   streamIconIdForDigimon,
+  type MeterStreamSession,
 } from './meterEventStream'
 import { gameSkillIconUrl } from './meterSkillIcon'
 import { digimonPortraitUrl } from './meterWikiSkills'
@@ -14,6 +15,26 @@ import type {
   MeterDungeonPartyMemberParse,
   MeterParseDungeonContext,
 } from './supabaseMeter'
+
+function normKey(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+/** True when upload should store nicknames and let the site resolve wiki species names. */
+export function dungeonParseNeedsDigimonWikiNameLookup(session: MeterStreamSession): boolean {
+  const rows = meterPartyRows(session)
+  for (const row of rows) {
+    const groups = meterMemberSkillBreakdownByDigimon(session, row.key)
+    for (const g of groups) {
+      const id = g.digimonId.trim()
+      if (!id) continue
+      const official = session.wikiByDigimonId.get(id)?.digimonName?.trim() ?? ''
+      if (!official) return true
+      if (normKey(official) !== normKey(g.digimonName)) return true
+    }
+  }
+  return false
+}
 
 export function buildMeterDungeonPartyParse(
   session: MeterStreamSession,
@@ -23,6 +44,7 @@ export function buildMeterDungeonPartyParse(
   dungeon: MeterParseDungeonContext
   members: MeterDungeonPartyMemberParse[]
   raidTotalDamage: number
+  digimonNamesRequireWikiLookup: boolean
 } {
   consolidateSelfDamageForUpload(session)
   const durationSec = meterSessionDurationSec(session, nowMs)
@@ -86,5 +108,11 @@ export function buildMeterDungeonPartyParse(
     }
   })
 
-  return { durationSec, dungeon, members, raidTotalDamage: Math.round(raidTotalDamage) }
+  return {
+    durationSec,
+    dungeon,
+    members,
+    raidTotalDamage: Math.round(raidTotalDamage),
+    digimonNamesRequireWikiLookup: dungeonParseNeedsDigimonWikiNameLookup(session),
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.50",
+  "version": "0.1.51",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added potential fix for users losing their DPS values on upload\n- Removed manual uploading in favor of always auto uploading accurate results"
+      "releaseNotes": "- Mark dungeon parses when digimon display names should be resolved from the wiki on Odyssey Calc\n- Improves leaderboard accuracy when in-game digimon nicknames were stored instead of species names"
     }
   }
 }

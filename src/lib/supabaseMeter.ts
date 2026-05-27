@@ -89,6 +89,8 @@ export type MeterParsePayloadDungeonParty = {
   raidTotalDamage: number
   dungeon: MeterParseDungeonContext
   members: MeterDungeonPartyMemberParse[]
+  /** Site resolves official wiki names when true. */
+  digimonNamesRequireWikiLookup?: boolean
 }
 
 export type InsertMeterParseInput =
@@ -111,6 +113,7 @@ export type InsertMeterParseInput =
       durationSec: number
       dungeon: MeterParseDungeonContext
       members: MeterDungeonPartyMemberParse[]
+      digimonNamesRequireWikiLookup?: boolean
     }
 
 let cachedClient: { url: string; key: string; client: SupabaseClient } | null = null
@@ -278,7 +281,7 @@ export async function insertMeterParse(
   input: InsertMeterParseInput,
 ): Promise<{ error: string | null }> {
   if (input.mode === 'dungeon_party') {
-    const { members, dungeon, durationSec, appVersion } = input
+    const { members, dungeon, durationSec, appVersion, digimonNamesRequireWikiLookup } = input
     if (!dungeon.dungeonId.trim()) {
       return { error: 'Dungeon id is required for dungeon parse upload.' }
     }
@@ -343,6 +346,7 @@ export async function insertMeterParse(
           }),
         })),
       })),
+      ...(digimonNamesRequireWikiLookup ? { digimonNamesRequireWikiLookup: true } : {}),
     }
     const { error } = await client.from('meter_parses').insert({
       user_id: userId,
