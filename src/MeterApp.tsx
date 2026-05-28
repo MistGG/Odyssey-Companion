@@ -51,6 +51,7 @@ import {
   type MeterStreamSession,
 } from './lib/meterEventStream'
 import { fetchDungeonDetail } from './lib/dungeonDetailApi'
+import { seedDungeonKillStepsFromWiki } from './lib/meterDungeonRun'
 import { difficultyTagClassName, formatDifficultyDisplay } from './lib/dungeonDifficultyTags'
 import { streamSkillRowsFromQuery } from './lib/eventStreamSkillLookup'
 import {
@@ -403,8 +404,8 @@ export default function MeterApp() {
   const dungeonFetchReqRef = useRef(0)
 
   useEffect(() => {
-    const dungeonId = streamSession.dungeonId
-    if (!dungeonId || !streamSession.dungeonNameLoading) return
+    const dungeonId = streamSession.dungeonId?.trim()
+    if (!dungeonId) return
     const req = ++dungeonFetchReqRef.current
     let cancelled = false
     void fetchDungeonDetail(dungeonId)
@@ -413,6 +414,9 @@ export default function MeterApp() {
         if (streamRef.current.dungeonId !== dungeonId) return
         streamRef.current.dungeonName = detail.name.trim() || dungeonId
         streamRef.current.dungeonNameLoading = false
+        if (!streamRef.current.dungeonExpectedKillSteps.length) {
+          seedDungeonKillStepsFromWiki(streamRef.current)
+        }
         bumpStream()
       })
       .catch(() => {
@@ -425,7 +429,12 @@ export default function MeterApp() {
     return () => {
       cancelled = true
     }
-  }, [streamSession.dungeonId, streamSession.dungeonNameLoading, bumpStream])
+  }, [
+    streamSession.dungeonId,
+    streamSession.dungeonDifficulty,
+    streamSession.dungeonDifficultyTier,
+    bumpStream,
+  ])
 
   useEffect(() => {
     const companion = window.odysseyCompanion

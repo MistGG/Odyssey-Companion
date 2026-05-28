@@ -1,7 +1,165 @@
 import type { EventStreamRecord } from './eventStreamFormat'
 import { difficultyTierFromRaw, normalizeEventStreamDifficulty } from './dungeonDifficultyTags'
+import { findDifficultyRow, readCachedDungeonDetails } from './dungeonDetailApi'
 
 export type MeterDungeonRunOutcome = 'clear' | 'fail'
+
+/** Wiki / EventStream objective progress tracked across the full dungeon pull. */
+export type DungeonObjectiveProgressFields = {
+  dungeonExpectedKillSteps: number[]
+  dungeonCompletedKillSteps: number[]
+  /** Highest-step boss label (e.g. `Togemon <Dungeon Boss>`). */
+  dungeonFinalBossTarget: string | null
+}
+
+export function wikiObjectiveDisplayTarget(ob: {
+  monster_name: string
+  pen_name?: string
+}): string {
+  const name = String(ob.monster_name ?? '').trim()
+  const pen = String(ob.pen_name ?? '').trim()
+  if (!name) return pen
+  if (!pen) return name
+  return `${name} ${pen}`
+}
+
+export function resetDungeonObjectiveProgress(session: DungeonObjectiveProgressFields): void {
+  session.dungeonExpectedKillSteps = []
+  session.dungeonCompletedKillSteps = []
+  session.dungeonFinalBossTarget = null
+}
+
+export function seedDungeonKillStepsFromWiki(
+  session: DungeonObjectiveProgressFields & {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+): void {
+  resetDungeonObjectiveProgress(session)
+  const id = session.dungeonId?.trim()
+  if (!id) return
+
+  const cached = readCachedDungeonDetails([id])[id]
+  if (!cached) return
+
+  let diffRow =
+    (session.dungeonDifficulty
+      ? findDifficultyRow(cached, session.dungeonDifficulty)
+      : undefined) ??
+    (session.dungeonDifficultyTier != null
+      ? cached.difficulties.find(
+          (d) => difficultyTierFromRaw(d.difficulty) === session.dungeonDifficultyTier,
+        )
+      : undefined) ??
+    (cached.difficulties.length === 1 ? cached.difficulties[0] : undefined)
+
+  if (!diffRow?.objectives?.length) return
+
+  const steps = new Set<number>()
+  let finalTarget: string | null = null
+  let maxStep = -1
+  for (const ob of diffRow.objectives) {
+    if (ob.step > 0) steps.add(ob.step)
+    if (ob.pen_name?.toLowerCase().includes('dungeon boss')) {
+      finalTarget = wikiObjectiveDisplayTarget(ob)
+    }
+    if (ob.step > maxStep) {
+      maxStep = ob.step
+      if (!finalTarget) finalTarget = wikiObjectiveDisplayTarget(ob)
+    }
+  }
+
+  session.dungeonExpectedKillSteps = [...steps].sort((a, b) => a - b)
+  session.dungeonFinalBossTarget = finalTarget
+}
+
+function objectiveRowStep(row: Record<string, unknown>): number {
+  const step = Number(row.step ?? row.objective_step ?? 0)
+  return Number.isFinite(step) && step > 0 ? step : 0
+}
+
+function resolveObjectiveStepFromWiki(
+  session: DungeonObjectiveProgressFields & {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+  row: Record<string, unknown>,
+): number {
+  const id = session.dungeonId?.trim()
+  if (!id) return 0
+  const cached = readCachedDungeonDetails([id])[id]
+  if (!cached) return 0
+  const diffRow =
+    (session.dungeonDifficulty
+      ? findDifficultyRow(cached, session.dungeonDifficulty)
+      : undefined) ??
+    (session.dungeonDifficultyTier != null
+      ? cached.difficulties.find(
+          (d) => difficultyTierFromRaw(d.difficulty) === session.dungeonDifficultyTier,
+        )
+      : undefined)
+  if (!diffRow) return 0
+  const monsterId = String(row.monster_id ?? row.monsterId ?? '').trim()
+  const name = normBossName(
+    String(row.monster_name ?? row.monster ?? row.target ?? row.name ?? ''),
+  )
+  for (const ob of diffRow.objectives) {
+    if (monsterId && ob.monster_id === monsterId) return ob.step
+    if (name && normBossName(wikiObjectiveDisplayTarget(ob)) === name) return ob.step
+    if (name && normBossName(ob.monster_name) === name) return ob.step
+  }
+  return 0
+}
+
+/** Merge completed kill steps from a `dungeon_progress` / query payload (partial updates OK). */
+export function mergeDungeonObjectiveProgress(
+  session: DungeonObjectiveProgressFields & {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+  source: EventStreamRecord | unknown[],
+): void {
+  for (const raw of objectiveRows(source)) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    if (!objectiveRowIsKill(row) || !objectiveRowComplete(row)) continue
+    let step = objectiveRowStep(row)
+    if (step <= 0) step = resolveObjectiveStepFromWiki(session, row)
+    if (step <= 0) continue
+    if (!session.dungeonCompletedKillSteps.includes(step)) {
+      session.dungeonCompletedKillSteps.push(step)
+    }
+  }
+}
+
+/** True when every wiki kill step for this dungeon difficulty is marked complete. */
+export function sessionAllKillObjectivesComplete(
+  session: DungeonObjectiveProgressFields,
+): boolean {
+  const expected = session.dungeonExpectedKillSteps
+  if (!expected.length) return false
+  const done = new Set(session.dungeonCompletedKillSteps)
+  return expected.every((step) => done.has(step))
+}
+
+export function markAllExpectedKillStepsComplete(session: DungeonObjectiveProgressFields): void {
+  for (const step of session.dungeonExpectedKillSteps) {
+    if (!session.dungeonCompletedKillSteps.includes(step)) {
+      session.dungeonCompletedKillSteps.push(step)
+    }
+  }
+}
+
+export function isFinalDungeonBossVictim(
+  victimName: string,
+  finalBossTarget: string | null,
+): boolean {
+  if (!finalBossTarget?.trim() || !victimName.trim()) return false
+  return bossNamesMatch(victimName, finalBossTarget)
+}
 
 export type MeterRunContextDisplay = {
   mapName: string | null
@@ -226,7 +384,7 @@ export function leaveDungeonSession(session: {
   dungeonDifficultyTier: number | null
   dungeonRunActive: boolean
   dungeonBossTargets: string[]
-}) {
+} & DungeonObjectiveProgressFields) {
   session.dungeonId = null
   session.dungeonName = null
   session.dungeonNameLoading = false
@@ -234,6 +392,7 @@ export function leaveDungeonSession(session: {
   session.dungeonDifficultyTier = null
   session.dungeonRunActive = false
   session.dungeonBossTargets = []
+  resetDungeonObjectiveProgress(session)
 }
 
 export function meterRunContextDisplay(session: {
