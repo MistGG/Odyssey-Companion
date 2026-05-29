@@ -56,6 +56,16 @@ export function buildMeterDungeonPartyParse(
     dungeonName = cached?.name?.trim() || null
   }
 
+  const bossTargets = [...session.dungeonBossTargets]
+  const finalBoss = session.dungeonFinalBossTarget?.trim()
+  if (
+    session.lastRunOutcome === 'clear' &&
+    finalBoss &&
+    !bossTargets.some((b) => b.trim().toLowerCase() === finalBoss.toLowerCase())
+  ) {
+    bossTargets.push(finalBoss)
+  }
+
   const dungeon: MeterParseDungeonContext = {
     dungeonId,
     dungeonName,
@@ -63,7 +73,7 @@ export function buildMeterDungeonPartyParse(
     difficultyId: session.dungeonDifficultyTier ?? 0,
     mapName: session.mapName?.trim() || null,
     partyId: null,
-    bossTargets: [...session.dungeonBossTargets],
+    bossTargets,
     runOutcome: session.lastRunOutcome,
     leaderboardEligible: isMeterSessionLeaderboardEligible(session),
   }
