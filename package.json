@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.54",
+  "version": "0.1.55",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed meter treating pre-final Togemon (and similar same-species objectives) as a full dungeon clear"
+      "releaseNotes": "- Further resolved an SCC specific parsing issue related to Togemon"
     }
   }
 }
