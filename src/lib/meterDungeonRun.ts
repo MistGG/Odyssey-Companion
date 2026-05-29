@@ -10,6 +10,8 @@ export type DungeonObjectiveProgressFields = {
   dungeonCompletedKillSteps: number[]
   /** Highest-step boss label (e.g. `Togemon <Dungeon Boss>`). */
   dungeonFinalBossTarget: string | null
+  /** Wiki `monster_id` for the final `<Dungeon Boss>` step (e.g. SCC Togemon step 15). */
+  dungeonFinalBossMonsterId: string | null
 }
 
 export function wikiObjectiveDisplayTarget(ob: {
@@ -27,6 +29,7 @@ export function resetDungeonObjectiveProgress(session: DungeonObjectiveProgressF
   session.dungeonExpectedKillSteps = []
   session.dungeonCompletedKillSteps = []
   session.dungeonFinalBossTarget = null
+  session.dungeonFinalBossMonsterId = null
 }
 
 export function seedDungeonKillStepsFromWiki(
@@ -58,12 +61,14 @@ export function seedDungeonKillStepsFromWiki(
 
   const steps = new Set<number>()
   let finalTarget: string | null = null
+  let finalMonsterId: string | null = null
   let maxStep = -1
   for (const ob of diffRow.objectives) {
     if (!ob.monster_id?.trim() || !ob.monster_name?.trim()) continue
     if (ob.step > 0) steps.add(ob.step)
     if (ob.pen_name?.toLowerCase().includes('dungeon boss')) {
       finalTarget = wikiObjectiveDisplayTarget(ob)
+      finalMonsterId = ob.monster_id.trim()
     }
     if (ob.step > maxStep) {
       maxStep = ob.step
@@ -73,6 +78,7 @@ export function seedDungeonKillStepsFromWiki(
 
   session.dungeonExpectedKillSteps = [...steps].sort((a, b) => a - b)
   session.dungeonFinalBossTarget = finalTarget
+  session.dungeonFinalBossMonsterId = finalMonsterId
 }
 
 function objectiveRowStep(row: Record<string, unknown>): number {
@@ -166,10 +172,11 @@ export function sessionFinalKillStepComplete(session: DungeonObjectiveProgressFi
   return session.dungeonCompletedKillSteps.includes(finalStep)
 }
 
-/**
- * Final boss kill only — species-only names (e.g. "Togemon" at step 14) must not match
- * the step-15 `<Dungeon Boss>` label via substring rules.
- */
+export function deathEntityMonsterId(ev: EventStreamRecord): string {
+  return String(ev.monster_id ?? ev.monsterId ?? '').trim()
+}
+
+/** Species-only names must not substring-match the final `<Dungeon Boss>` label. */
 export function isFinalDungeonBossVictim(
   victimName: string,
   finalBossTarget: string | null,
@@ -181,6 +188,21 @@ export function isFinalDungeonBossVictim(
     return bossNamesMatch(victim, final)
   }
   return normBossName(victim) === normBossName(final)
+}
+
+/**
+ * Final boss kill — prefer wiki `monster_id` (SCC step-14 vs step-15 Togemon share a name).
+ * Falls back to `<Dungeon Boss>` pen or exact full target label match.
+ */
+export function isFinalDungeonBossKill(
+  victimName: string,
+  victimMonsterId: string,
+  session: Pick<DungeonObjectiveProgressFields, 'dungeonFinalBossTarget' | 'dungeonFinalBossMonsterId'>,
+): boolean {
+  const finalId = session.dungeonFinalBossMonsterId?.trim()
+  const id = victimMonsterId.trim()
+  if (finalId && id && normKey(finalId) === normKey(id)) return true
+  return isFinalDungeonBossVictim(victimName, session.dungeonFinalBossTarget)
 }
 
 export type MeterRunContextDisplay = {

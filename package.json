@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.55",
+  "version": "0.1.56",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Further resolved an SCC specific parsing issue related to Togemon"
+      "releaseNotes": "- SCC final boss detection uses wiki monster_id (Togemon step 15); expanded meter diagnostics for clear/upload debugging"
     }
   }
 }

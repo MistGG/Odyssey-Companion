@@ -13,11 +13,12 @@ import { readCachedDungeonDetails } from './dungeonDetailApi'
 import {
   combatHitStartsMeterTimer,
   combatKilledDungeonBoss,
+  deathEntityMonsterId,
   deathEntityName,
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
   ingestEventStreamMap,
-  isFinalDungeonBossVictim,
+  isFinalDungeonBossKill,
   leaveDungeonSession,
   markFinalKillStepComplete,
   markDungeonRunClear,
@@ -99,6 +100,8 @@ export type MeterStreamSession = {
   dungeonCompletedKillSteps: number[]
   /** Final boss label for this difficulty (e.g. `Togemon <Dungeon Boss>`). */
   dungeonFinalBossTarget: string | null
+  /** Wiki `monster_id` for the final boss step. */
+  dungeonFinalBossMonsterId: string | null
   lastRunOutcome: MeterDungeonRunOutcome | null
   lastCombatMs: number | null
   selfTamerName: string | null
@@ -133,6 +136,7 @@ export function createMeterStreamSession(): MeterStreamSession {
     dungeonExpectedKillSteps: [],
     dungeonCompletedKillSteps: [],
     dungeonFinalBossTarget: null,
+    dungeonFinalBossMonsterId: null,
     lastRunOutcome: null,
     lastCombatMs: null,
     selfTamerName: null,
@@ -1154,9 +1158,17 @@ function applyDungeonIdentity(
   return { needsNameFetch }
 }
 
+function logDungeonObjectiveProgress(session: MeterStreamSession, label: string): void {
+  if (!isMeterDebugEnabled()) return
+  meterDebugLog(
+    `${label} | expected=[${session.dungeonExpectedKillSteps.join(',')}] done=[${session.dungeonCompletedKillSteps.join(',')}] final=${session.dungeonFinalBossTarget ?? ''} finalId=${session.dungeonFinalBossMonsterId ?? ''}`,
+  )
+}
+
 function ensureDungeonObjectiveProgressSeeded(session: MeterStreamSession): void {
   if (session.dungeonExpectedKillSteps.length) return
   seedDungeonKillStepsFromWiki(session)
+  logDungeonObjectiveProgress(session, 'objectives seeded')
 }
 
 function maybeMarkFullDungeonClear(
@@ -1164,10 +1176,21 @@ function maybeMarkFullDungeonClear(
   eventMs: number,
 ): MeterDungeonRunOutcome | null {
   if (!session.dungeonRunActive || session.sessionEndMs != null) return null
-  if (!sessionAllKillObjectivesComplete(session)) return null
-  if (!sessionFinalKillStepComplete(session)) return null
+  if (!sessionAllKillObjectivesComplete(session)) {
+    if (isMeterDebugEnabled()) {
+      logDungeonObjectiveProgress(session, 'clear blocked (objectives incomplete)')
+    }
+    return null
+  }
+  if (!sessionFinalKillStepComplete(session)) {
+    if (isMeterDebugEnabled()) {
+      logDungeonObjectiveProgress(session, 'clear blocked (final step incomplete)')
+    }
+    return null
+  }
   markDungeonRunClear(session)
   freezeMeterTimer(session, eventMs)
+  if (isMeterDebugEnabled()) meterDebugLog('dungeon run CLEAR (all objectives + final step)')
   return 'clear'
 }
 
@@ -1192,6 +1215,16 @@ export function applyDungeonProgress(
   if (diffMeta.label) session.dungeonDifficulty = diffMeta.label
   if (diffMeta.tier != null) session.dungeonDifficultyTier = diffMeta.tier
 
+  if (isMeterDebugEnabled() && Array.isArray(ev.objectives)) {
+    for (const raw of ev.objectives) {
+      if (!raw || typeof raw !== 'object') continue
+      const row = raw as Record<string, unknown>
+      meterDebugLog(
+        `objective row step=${String(row.step ?? '?')} complete=${String(row.complete ?? row.completed ?? row.done ?? '')} cur=${String(row.current ?? row.progress ?? '')} need=${String(row.count ?? row.required ?? '')} id=${String(row.monster_id ?? '')} name=${String(row.monster_name ?? row.text ?? row.target ?? '')}`,
+      )
+    }
+  }
+
   const newPull = shouldStartNewDungeonPull(session, dungeonId)
 
   if (newPull) {
@@ -1210,6 +1243,7 @@ export function applyDungeonProgress(
   applyDungeonIdentity(session, dungeonId)
   ensureDungeonObjectiveProgressSeeded(session)
   mergeDungeonObjectiveProgress(session, ev)
+  logDungeonObjectiveProgress(session, 'dungeon_progress merged')
   outcome = maybeMarkFullDungeonClear(session, eventMs)
   return { dungeonId, reset: false, needsNameFetch: false, outcome }
 }
@@ -1240,17 +1274,37 @@ function maybeMarkDungeonRunClear(
     String(ev.type ?? '') === 'death'
       ? deathEntityName(ev)
       : String(ev.target ?? '').trim()
+  const victimMonsterId =
+    String(ev.type ?? '') === 'death'
+      ? deathEntityMonsterId(ev)
+      : String(ev.monster_id ?? ev.monsterId ?? '').trim()
   const finalBossDown =
-    isFinalDungeonBossVictim(victim, session.dungeonFinalBossTarget) &&
+    isFinalDungeonBossKill(victim, victimMonsterId, session) &&
     (String(ev.type ?? '') === 'death' || combatKilledDungeonBoss(session, ev))
-  if (!finalBossDown) return null
+  if (!finalBossDown) {
+    if (
+      isMeterDebugEnabled() &&
+      String(ev.type ?? '') === 'death' &&
+      victim &&
+      session.dungeonFinalBossTarget
+    ) {
+      meterDebugLog(
+        `death not final boss | victim=${victim} id=${victimMonsterId || '?'} final=${session.dungeonFinalBossTarget} finalId=${session.dungeonFinalBossMonsterId ?? ''}`,
+      )
+    }
+    return null
+  }
 
   markFinalKillStepComplete(session)
-  if (!sessionAllKillObjectivesComplete(session)) return null
+  if (!sessionAllKillObjectivesComplete(session)) {
+    logDungeonObjectiveProgress(session, 'final boss down but objectives incomplete')
+    return null
+  }
   if (!sessionFinalKillStepComplete(session)) return null
 
   markDungeonRunClear(session)
   freezeMeterTimer(session, endMs)
+  if (isMeterDebugEnabled()) meterDebugLog(`dungeon run CLEAR (final boss kill ${victim})`)
   return 'clear'
 }
 

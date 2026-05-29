@@ -6,7 +6,10 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
-import { isMeterSessionLeaderboardEligible } from './lib/meterLeaderboardEligibility'
+import {
+  isMeterSessionLeaderboardEligible,
+  meterLeaderboardEligibilityDebugReason,
+} from './lib/meterLeaderboardEligibility'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import { getSupabaseClient, insertMeterParse } from './lib/supabaseMeter'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
@@ -34,6 +37,7 @@ import {
   isMeterDebugEnabled,
   maybeExpireMeterDebug,
   meterDebugClear,
+  meterDebugLog,
   setMeterDebugEnabled,
 } from './lib/meterDebugLog'
 import { buildMeterDebugReport } from './lib/meterDebugReport'
@@ -649,6 +653,11 @@ export default function MeterApp() {
       bumpStream()
 
       if (runOutcome === 'clear') {
+        if (isMeterDebugEnabled()) {
+          meterDebugLog(
+            `runOutcome=clear | uploadEligible=${isMeterSessionLeaderboardEligible(streamRef.current)} (${meterLeaderboardEligibilityDebugReason(streamRef.current)})`,
+          )
+        }
         scheduleAutoUploadRef.current()
       }
     })
@@ -879,18 +888,37 @@ export default function MeterApp() {
   uploadParseRef.current = uploadParse
 
   const scheduleAutoUploadAfterClear = useCallback(() => {
-    if (!supabase || !sbUser) return
+    if (!supabase || !sbUser) {
+      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (not signed in to Supabase)')
+      return
+    }
     const session = streamRef.current
     if (session.lastRunOutcome !== 'clear') return
-    if (!isMeterSessionLeaderboardEligible(session)) return
+    if (!isMeterSessionLeaderboardEligible(session)) {
+      if (isMeterDebugEnabled()) {
+        meterDebugLog(`auto-upload skipped (${meterLeaderboardEligibilityDebugReason(session)})`)
+      }
+      return
+    }
     const endMs = session.sessionEndMs
-    if (endMs == null) return
+    if (endMs == null) {
+      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (sessionEndMs null)')
+      return
+    }
     if (autoUploadForEndMsRef.current === endMs) return
-    if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) return
+    if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) {
+      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (difficulty not allowed)')
+      return
+    }
 
     const built = buildMeterDungeonPartyParse(session)
     const uploadDamageSum = built.members.reduce((s, m) => s + Math.max(0, m.totalDamage), 0)
-    if (built.members.length === 0 || uploadDamageSum <= 0) return
+    if (built.members.length === 0 || uploadDamageSum <= 0) {
+      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (no damage)')
+      return
+    }
+
+    if (isMeterDebugEnabled()) meterDebugLog('auto-upload starting')
 
     autoUploadForEndMsRef.current = endMs
     pendingAutoUploadBuiltRef.current = built
