@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.60",
+  "version": "0.1.61",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Game server status alerts: optional toast/sound when servers go offline or back online\n- Dedicated chime style, volume, and repeats for server status (disabled when using toast only)\n- Windows notifications show Odyssey Companion instead of electron.app.Electron"
+      "releaseNotes": "- Boss timers: choose how many upcoming bosses to show in the overlay (1–15)\n- Grouped spawn alerts when multiple bosses are within 60 seconds — one toast/chime instead of many"
     }
   }
 }
