@@ -47,6 +47,13 @@ import {
   setMeterDebugEnabled,
 } from './lib/meterDebugLog'
 import { buildMeterDebugReport } from './lib/meterDebugReport'
+import {
+  patchMeterRunHistoryUpload,
+  recordMeterRunHistoryEntry,
+  recordMeterRunHistoryFromSnapshot,
+  type MeterRunUploadStatus,
+} from './lib/meterRunHistory'
+import type { MeterEndedRunSnapshot } from './lib/meterEndedRunSnapshot'
 import { readEventStreamEndpoint } from './lib/eventStreamConstants'
 import { meterBarBackgroundForSkill } from './lib/meterSkillBarGradient'
 import {
@@ -140,8 +147,16 @@ export default function MeterApp() {
   const uploadParseRef = useRef<() => Promise<void>>(async () => {})
   const uploadInFlightRef = useRef(false)
   const autoUploadForEndMsRef = useRef<number | null>(null)
+  const runHistoryRecordedForEndMsRef = useRef<number | null>(null)
+  const runHistoryActiveIdRef = useRef<string | null>(null)
   const pendingAutoUploadBuiltRef = useRef<BuiltDungeonPartyParse | null>(null)
   const scheduleAutoUploadRef = useRef<() => void>(() => {})
+  const recordRunHistoryForSessionRef = useRef<
+    (session: MeterStreamSession) => Promise<string | null>
+  >(async () => null)
+  const processPendingEndedRunRef = useRef<
+    (pending: MeterEndedRunSnapshot) => Promise<void>
+  >(async () => {})
   const [streamRev, setStreamRev] = useState(0)
   const clearBarPreviewRef = useRef<(() => void) | null>(null)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
@@ -615,12 +630,28 @@ export default function MeterApp() {
         { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome },
       )
 
-      if (dungeonReset) {
+      const pendingEndedRun = streamRef.current.pendingEndedRun
+      const handledPendingRun =
+        pendingEndedRun != null &&
+        runHistoryRecordedForEndMsRef.current !== pendingEndedRun.sessionEndMs
+
+      if (handledPendingRun && pendingEndedRun) {
+        void processPendingEndedRunRef.current(pendingEndedRun)
+        streamRef.current.pendingEndedRun = null
+      }
+
+      if (dungeonReset && !handledPendingRun) {
         setPartyDetailKey(null)
         streamRef.current.lastRunOutcome = null
         streamRef.current.sessionEndMs = null
         autoUploadForEndMsRef.current = null
+        runHistoryRecordedForEndMsRef.current = null
+        runHistoryActiveIdRef.current = null
         pendingAutoUploadBuiltRef.current = null
+        requestEventStreamQueries()
+        bumpStream()
+      } else if (dungeonReset) {
+        setPartyDetailKey(null)
         requestEventStreamQueries()
         bumpStream()
       }
@@ -658,7 +689,29 @@ export default function MeterApp() {
 
       bumpStream()
 
-      if (runOutcome === 'clear') {
+      if (handledPendingRun) return
+
+      const endedSession = streamRef.current
+      const newlyEnded =
+        endedSession.sessionEndMs != null &&
+        endedSession.lastRunOutcome != null &&
+        Boolean(endedSession.dungeonId?.trim()) &&
+        runHistoryRecordedForEndMsRef.current !== endedSession.sessionEndMs
+
+      if (newlyEnded) {
+        if (isMeterDebugEnabled() && endedSession.lastRunOutcome === 'clear') {
+          meterDebugLog(
+            `runOutcome=clear | uploadEligible=${isMeterSessionLeaderboardEligible(endedSession)} (${meterLeaderboardEligibilityDebugReason(endedSession)})`,
+          )
+        }
+        void recordRunHistoryForSessionRef.current(endedSession).then(() => {
+          if (endedSession.lastRunOutcome === 'clear') {
+            scheduleAutoUploadRef.current()
+          } else {
+            setUploadToast({ text: 'Run ended — not uploaded (incomplete or failed)', kind: 'warn' })
+          }
+        })
+      } else if (runOutcome === 'clear') {
         if (isMeterDebugEnabled()) {
           meterDebugLog(
             `runOutcome=clear | uploadEligible=${isMeterSessionLeaderboardEligible(streamRef.current)} (${meterLeaderboardEligibilityDebugReason(streamRef.current)})`,
@@ -714,6 +767,73 @@ export default function MeterApp() {
     const { url, anonKey } = getMeterSupabaseCredentials()
     return getSupabaseClient(url, anonKey)
   }, [])
+
+  const patchRunHistoryUpload = useCallback((status: MeterRunUploadStatus, detail: string) => {
+    const id = runHistoryActiveIdRef.current
+    if (!id) return
+    patchMeterRunHistoryUpload(id, status, detail)
+  }, [])
+
+  const showUploadOutcomeToast = useCallback((text: string, kind: 'success' | 'warn') => {
+    setUploadToast({ text, kind })
+  }, [])
+
+  const processPendingEndedRun = useCallback(
+    async (pending: MeterEndedRunSnapshot) => {
+      const version = (await window.odysseyCompanion?.getAppVersion?.())?.version ?? 'unknown'
+      const meta = {
+        appVersion: version,
+        eventStreamConnected: eventStreamConnectedRef.current,
+        readerHint,
+      }
+      recordMeterRunHistoryFromSnapshot(pending, meta, Boolean(supabase))
+      runHistoryRecordedForEndMsRef.current = pending.sessionEndMs
+      runHistoryActiveIdRef.current = String(pending.sessionEndMs)
+
+      if (pending.lastRunOutcome !== 'clear') {
+        showUploadOutcomeToast('Run ended — not uploaded (incomplete or failed)', 'warn')
+        return
+      }
+
+      if (!pending.builtParse.dungeon.leaderboardEligible) {
+        const reason = 'Clear not eligible for upload (incomplete objectives)'
+        patchRunHistoryUpload('not_uploaded', reason)
+        showUploadOutcomeToast(`Clear not uploaded — ${reason}`, 'warn')
+        return
+      }
+
+      pendingAutoUploadBuiltRef.current = pending.builtParse
+      autoUploadForEndMsRef.current = pending.sessionEndMs
+      scheduleAutoUploadRef.current()
+    },
+    [readerHint, supabase, patchRunHistoryUpload, showUploadOutcomeToast],
+  )
+
+  const recordRunHistoryForSession = useCallback(
+    async (session: MeterStreamSession) => {
+      const endMs = session.sessionEndMs
+      if (endMs == null || !session.lastRunOutcome || !session.dungeonId?.trim()) return null
+      if (runHistoryRecordedForEndMsRef.current === endMs) return runHistoryActiveIdRef.current
+
+      const version = (await window.odysseyCompanion?.getAppVersion?.())?.version ?? 'unknown'
+      const entry = recordMeterRunHistoryEntry(
+        session,
+        {
+          appVersion: version,
+          eventStreamConnected: eventStreamConnectedRef.current,
+          readerHint,
+        },
+        Boolean(supabase),
+      )
+      runHistoryRecordedForEndMsRef.current = endMs
+      runHistoryActiveIdRef.current = entry?.id ?? null
+      return entry?.id ?? null
+    },
+    [readerHint, supabase],
+  )
+
+  recordRunHistoryForSessionRef.current = recordRunHistoryForSession
+  processPendingEndedRunRef.current = processPendingEndedRun
 
   useEffect(() => {
     if (!supabase) {
@@ -863,10 +983,12 @@ export default function MeterApp() {
     if (uploadCooldownUntilMs != null && Date.now() < uploadCooldownUntilMs) {
       const sec = Math.max(1, Math.ceil((uploadCooldownUntilMs - Date.now()) / 1000))
       setUploadToast({ text: `Cannot upload for ${sec}s`, kind: 'warn' })
+      patchRunHistoryUpload('not_uploaded', `Upload cooldown (${sec}s)`)
       return
     }
     if (!supabase) {
       setUploadToast({ text: 'Meter cloud upload is not configured', kind: 'warn' })
+      patchRunHistoryUpload('not_uploaded', 'Cloud upload not configured')
       return
     }
     const userId = sbUser?.id ?? null
@@ -877,11 +999,13 @@ export default function MeterApp() {
     const { durationSec, dungeon, members, digimonNamesRequireWikiLookup } = built
     if (!isDungeonParseUploadAllowed(dungeon.dungeonId, dungeon.difficultyId)) {
       setUploadToast({ text: 'Normal or Hard dungeon only', kind: 'warn' })
+      patchRunHistoryUpload('not_applicable', 'Story difficulty — not uploaded')
       return
     }
     const uploadDamageSum = members.reduce((s, m) => s + Math.max(0, m.totalDamage), 0)
     if (members.length === 0 || uploadDamageSum <= 0) {
       setUploadToast({ text: 'No damage to upload', kind: 'warn' })
+      patchRunHistoryUpload('not_uploaded', 'No damage to upload')
       return
     }
     uploadInFlightRef.current = true
@@ -898,6 +1022,7 @@ export default function MeterApp() {
       })
       if (error) {
         setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })
+        patchRunHistoryUpload('not_uploaded', userFacingUploadError(error))
       } else {
         const selfTamer = selfTamerNameFromDungeonMembers(members)
         if (selfTamer) rememberSelfTamerName(selfTamer)
@@ -906,6 +1031,10 @@ export default function MeterApp() {
         }
         const ranked = dungeon.leaderboardEligible
         setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
+        patchRunHistoryUpload(
+          ranked ? 'uploaded_ranked' : 'uploaded_unranked',
+          ranked ? 'Clear uploaded — ranked' : 'Uploaded — not ranked',
+        )
         setUploadToast({
           text: ranked ? 'Clear uploaded — ranked' : 'Uploaded — not ranked',
           kind: 'success',
@@ -914,31 +1043,37 @@ export default function MeterApp() {
     } finally {
       uploadInFlightRef.current = false
     }
-  }, [supabase, sbUser, uploadCooldownUntilMs])
+  }, [supabase, sbUser, uploadCooldownUntilMs, patchRunHistoryUpload])
 
   uploadParseRef.current = uploadParse
 
   const scheduleAutoUploadAfterClear = useCallback(() => {
     if (!supabase) {
       if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (Supabase not configured)')
+      patchRunHistoryUpload('not_uploaded', 'Cloud upload not configured')
       return
     }
     const session = streamRef.current
     if (session.lastRunOutcome !== 'clear') return
     if (!isMeterSessionLeaderboardEligible(session)) {
+      const reason = meterLeaderboardEligibilityDebugReason(session)
       if (isMeterDebugEnabled()) {
-        meterDebugLog(`auto-upload skipped (${meterLeaderboardEligibilityDebugReason(session)})`)
+        meterDebugLog(`auto-upload skipped (${reason})`)
       }
+      patchRunHistoryUpload('not_uploaded', reason)
+      setUploadToast({ text: `Clear not uploaded — ${reason}`, kind: 'warn' })
       return
     }
     const endMs = session.sessionEndMs
     if (endMs == null) {
       if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (sessionEndMs null)')
+      patchRunHistoryUpload('not_uploaded', 'sessionEndMs=null')
       return
     }
     if (autoUploadForEndMsRef.current === endMs) return
     if (!isDungeonParseUploadAllowed(session.dungeonId, session.dungeonDifficultyTier)) {
       if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (difficulty not allowed)')
+      patchRunHistoryUpload('not_applicable', 'Story difficulty — not uploaded')
       return
     }
 
@@ -946,6 +1081,8 @@ export default function MeterApp() {
     const uploadDamageSum = built.members.reduce((s, m) => s + Math.max(0, m.totalDamage), 0)
     if (built.members.length === 0 || uploadDamageSum <= 0) {
       if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (no damage)')
+      patchRunHistoryUpload('not_uploaded', 'No damage to upload')
+      setUploadToast({ text: 'Clear not uploaded — no damage recorded', kind: 'warn' })
       return
     }
 
@@ -954,7 +1091,7 @@ export default function MeterApp() {
     autoUploadForEndMsRef.current = endMs
     pendingAutoUploadBuiltRef.current = built
     void uploadParseRef.current()
-  }, [supabase])
+  }, [supabase, patchRunHistoryUpload])
 
   scheduleAutoUploadRef.current = scheduleAutoUploadAfterClear
 

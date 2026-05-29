@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.58",
+  "version": "0.1.59",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Auto-upload dungeon parses without signing in\n- Sign in later to attach earlier anonymous uploads to your account (matched by in-game tamer)"
+      "releaseNotes": "- Meter settings: recent Normal/Hard dungeon runs with upload status and copyable debug reports\n- Fix SCC and other dungeons not uploading when teleported out on clear\n- Show a toast when a clear does not upload (with reason)"
     }
   }
 }

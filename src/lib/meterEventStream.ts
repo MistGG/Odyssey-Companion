@@ -31,8 +31,14 @@ import {
   sessionFinalKillStepComplete,
   shouldStartNewDungeonPull,
   syncDungeonBossTargets,
+  allKillObjectivesComplete,
+  syncAllWikiKillStepsComplete,
   type MeterDungeonRunOutcome,
 } from './meterDungeonRun'
+import {
+  captureMeterEndedRunSnapshot,
+  type MeterEndedRunSnapshot,
+} from './meterEndedRunSnapshot'
 import type { DigimonWikiSkillCache, MeterSkillRow } from './meterWikiSkills'
 import {
   digimonIdFromStorage,
@@ -104,6 +110,10 @@ export type MeterStreamSession = {
   dungeonFinalBossTarget: string | null
   /** Wiki `monster_id` for the final boss step. */
   dungeonFinalBossMonsterId: string | null
+  /** Latest `dungeon_progress` payload marked every kill objective complete. */
+  clientReportedFullClear: boolean
+  /** Captured when leaving a dungeon so upload/history can run after session reset. */
+  pendingEndedRun: MeterEndedRunSnapshot | null
   lastRunOutcome: MeterDungeonRunOutcome | null
   lastCombatMs: number | null
   selfTamerName: string | null
@@ -139,6 +149,8 @@ export function createMeterStreamSession(): MeterStreamSession {
     dungeonCompletedKillSteps: [],
     dungeonFinalBossTarget: null,
     dungeonFinalBossMonsterId: null,
+    clientReportedFullClear: false,
+    pendingEndedRun: null,
     lastRunOutcome: null,
     lastCombatMs: null,
     selfTamerName: null,
@@ -1118,19 +1130,30 @@ function clearDungeonCombat(session: MeterStreamSession) {
 }
 
 /** Fresh meter window after leaving a dungeon for an overworld / map instance. */
-function refreshMeterAfterLeavingDungeon(session: MeterStreamSession): boolean {
+function refreshMeterAfterLeavingDungeon(session: MeterStreamSession, eventMs: number): boolean {
   const wasInDungeon =
     Boolean(session.dungeonId?.trim()) ||
     session.dungeonRunActive ||
     session.lastRunOutcome != null ||
     session.sessionEndMs != null
-  leaveDungeonSession(session)
+
+  if (wasInDungeon && session.sessionEndMs == null) {
+    stopMeterTimerOnDungeonLeave(session, eventMs)
+  }
+
   if (!wasInDungeon) return false
+
+  const pendingEndedRun = captureMeterEndedRunSnapshot(session)
+  leaveDungeonSession(session)
   session.lastRunOutcome = null
   clearDungeonCombat(session)
   ensureSelfPartyRowVisible(session)
+  session.pendingEndedRun = pendingEndedRun
+  session.clientReportedFullClear = false
   if (isMeterDebugEnabled()) {
-    meterDebugLog(`refresh meter after dungeon → map (${session.mapName ?? '?'})`)
+    meterDebugLog(
+      `refresh meter after dungeon → map (${session.mapName ?? '?'}) pendingEndedRun=${pendingEndedRun ? pendingEndedRun.lastRunOutcome : 'none'}`,
+    )
   }
   return true
 }
@@ -1231,6 +1254,7 @@ export function applyDungeonProgress(
 
   if (newPull) {
     session.lastRunOutcome = null
+    session.clientReportedFullClear = false
     clearDungeonCombat(session)
     reset = true
     const idMeta = applyDungeonIdentity(session, dungeonId)
@@ -1259,7 +1283,11 @@ function freezeMeterTimer(session: MeterStreamSession, endMs: number) {
 function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: number) {
   if (session.sessionStartMs == null || session.sessionEndMs != null) return
   if (session.dungeonRunActive && session.lastRunOutcome == null) {
-    markDungeonRunFail(session)
+    if (session.clientReportedFullClear) {
+      markDungeonRunClear(session)
+    } else {
+      markDungeonRunFail(session)
+    }
   }
   freezeMeterTimer(session, eventMs)
 }
@@ -1370,7 +1398,7 @@ export function ingestMeterEventStream(
   if (t === 'map_change') {
     ingestEventStreamMap(session, ev)
     requestPartySnapshot = true
-    if (refreshMeterAfterLeavingDungeon(session)) {
+    if (refreshMeterAfterLeavingDungeon(session, Number(ev.ts) || Date.now())) {
       dungeonReset = true
     }
   } else if (t === 'dungeon_progress') {

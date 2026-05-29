@@ -5245,6 +5245,67 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   color: rgba(160, 190, 230, 0.75);
 }
 
+.meter-run-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter-run-history__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 200, 255, 0.14);
+  background: rgba(6, 10, 18, 0.88);
+}
+
+.meter-run-history__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meter-run-history__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(226, 236, 255, 0.95);
+}
+
+.meter-run-history__meta {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.meter-run-history__status {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.meter-run-history__status--ok {
+  color: rgba(134, 239, 172, 0.92);
+}
+
+.meter-run-history__status--warn {
+  color: rgba(253, 224, 71, 0.92);
+}
+
+.meter-run-history__status--bad {
+  color: rgba(252, 165, 165, 0.92);
+}
+
+.meter-run-history__copy {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
 .settings-panel-toggles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));

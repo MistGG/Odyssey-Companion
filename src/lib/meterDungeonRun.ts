@@ -32,6 +32,16 @@ export function resetDungeonObjectiveProgress(session: DungeonObjectiveProgressF
   session.dungeonFinalBossMonsterId = null
 }
 
+/** Mark every wiki kill step complete (client sent all objectives done). */
+export function syncAllWikiKillStepsComplete(session: DungeonObjectiveProgressFields): void {
+  for (const step of session.dungeonExpectedKillSteps) {
+    if (!session.dungeonCompletedKillSteps.includes(step)) {
+      session.dungeonCompletedKillSteps.push(step)
+    }
+  }
+  markFinalKillStepComplete(session)
+}
+
 export function seedDungeonKillStepsFromWiki(
   session: DungeonObjectiveProgressFields & {
     dungeonId: string | null
@@ -195,9 +205,14 @@ export function mergeDungeonObjectiveProgress(
     dungeonId: string | null
     dungeonDifficulty: string | null
     dungeonDifficultyTier: number | null
+    clientReportedFullClear?: boolean
   },
   source: EventStreamRecord | unknown[],
 ): void {
+  if (allKillObjectivesComplete(source)) {
+    syncAllWikiKillStepsComplete(session)
+    session.clientReportedFullClear = true
+  }
   for (const raw of objectiveRows(source)) {
     if (!raw || typeof raw !== 'object') continue
     const row = raw as Record<string, unknown>

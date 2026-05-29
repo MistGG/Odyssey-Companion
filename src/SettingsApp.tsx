@@ -27,6 +27,7 @@ import {
   signUpWithProfile,
 } from './lib/supabaseMeter'
 import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
+import { MeterRunHistorySection } from './components/MeterRunHistorySection'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -703,15 +704,18 @@ export default function SettingsApp() {
             </section>
 
             {supabase ? (
-              <section className="field-group" style={{ marginTop: 16 }}>
-                <h3 className="settings-app-subhead">Parse uploads</h3>
-                <p className="hint muted" style={{ marginTop: 0 }}>
-                  After each Normal or Hard dungeon clear, the companion uploads the party parse
-                  automatically — no sign-in required. Sign in later to attach earlier anonymous
-                  uploads to your account (matched by your in-game tamer). View history on Odyssey
-                  Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
-                </p>
-              </section>
+              <>
+                <section className="field-group" style={{ marginTop: 16 }}>
+                  <h3 className="settings-app-subhead">Parse uploads</h3>
+                  <p className="hint muted" style={{ marginTop: 0 }}>
+                    After each Normal or Hard dungeon clear, the companion uploads the party parse
+                    automatically — no sign-in required. Sign in later to attach earlier anonymous
+                    uploads to your account (matched by your in-game tamer). View history on Odyssey
+                    Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
+                  </p>
+                </section>
+                <MeterRunHistorySection />
+              </>
             ) : null}
 
             {supabase && onlineUser ? (
