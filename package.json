@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed an issue where parses were uploading when a dungeon objective was completed, but not ALL objectives"
+      "releaseNotes": "- Fixed meter treating pre-final Togemon (and similar same-species objectives) as a full dungeon clear"
     }
   }
 }

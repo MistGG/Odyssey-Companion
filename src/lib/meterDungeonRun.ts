@@ -60,6 +60,7 @@ export function seedDungeonKillStepsFromWiki(
   let finalTarget: string | null = null
   let maxStep = -1
   for (const ob of diffRow.objectives) {
+    if (!ob.monster_id?.trim() || !ob.monster_name?.trim()) continue
     if (ob.step > 0) steps.add(ob.step)
     if (ob.pen_name?.toLowerCase().includes('dungeon boss')) {
       finalTarget = wikiObjectiveDisplayTarget(ob)
@@ -145,20 +146,41 @@ export function sessionAllKillObjectivesComplete(
   return expected.every((step) => done.has(step))
 }
 
-export function markAllExpectedKillStepsComplete(session: DungeonObjectiveProgressFields): void {
-  for (const step of session.dungeonExpectedKillSteps) {
-    if (!session.dungeonCompletedKillSteps.includes(step)) {
-      session.dungeonCompletedKillSteps.push(step)
-    }
+export function markFinalKillStepComplete(session: DungeonObjectiveProgressFields): void {
+  const finalStep = finalWikiKillStep(session)
+  if (finalStep == null) return
+  if (!session.dungeonCompletedKillSteps.includes(finalStep)) {
+    session.dungeonCompletedKillSteps.push(finalStep)
   }
 }
 
+export function finalWikiKillStep(session: DungeonObjectiveProgressFields): number | null {
+  const steps = session.dungeonExpectedKillSteps
+  if (!steps.length) return null
+  return Math.max(...steps)
+}
+
+export function sessionFinalKillStepComplete(session: DungeonObjectiveProgressFields): boolean {
+  const finalStep = finalWikiKillStep(session)
+  if (finalStep == null) return false
+  return session.dungeonCompletedKillSteps.includes(finalStep)
+}
+
+/**
+ * Final boss kill only — species-only names (e.g. "Togemon" at step 14) must not match
+ * the step-15 `<Dungeon Boss>` label via substring rules.
+ */
 export function isFinalDungeonBossVictim(
   victimName: string,
   finalBossTarget: string | null,
 ): boolean {
   if (!finalBossTarget?.trim() || !victimName.trim()) return false
-  return bossNamesMatch(victimName, finalBossTarget)
+  const victim = victimName.trim()
+  const final = finalBossTarget.trim()
+  if (/<\s*dungeon\s+boss\s*>/i.test(victim)) {
+    return bossNamesMatch(victim, final)
+  }
+  return normBossName(victim) === normBossName(final)
 }
 
 export type MeterRunContextDisplay = {
@@ -255,9 +277,11 @@ function objectiveRows(source: EventStreamRecord | unknown[]): unknown[] {
 
 /** Display name for a kill objective row (EventStream + wiki shapes). */
 export function extractObjectiveTargetName(row: Record<string, unknown>): string {
-  return String(
+  const direct = String(
     row.target ?? row.pen_name ?? row.monster_name ?? row.name ?? row.monster ?? '',
   ).trim()
+  if (direct) return direct
+  return String(row.text ?? '').trim()
 }
 
 function objectiveRowIsKill(row: Record<string, unknown>): boolean {

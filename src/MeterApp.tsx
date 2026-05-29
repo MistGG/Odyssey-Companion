@@ -6,6 +6,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
+import { isMeterSessionLeaderboardEligible } from './lib/meterLeaderboardEligibility'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import { getSupabaseClient, insertMeterParse } from './lib/supabaseMeter'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
@@ -881,6 +882,7 @@ export default function MeterApp() {
     if (!supabase || !sbUser) return
     const session = streamRef.current
     if (session.lastRunOutcome !== 'clear') return
+    if (!isMeterSessionLeaderboardEligible(session)) return
     const endMs = session.sessionEndMs
     if (endMs == null) return
     if (autoUploadForEndMsRef.current === endMs) return

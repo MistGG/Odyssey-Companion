@@ -19,12 +19,13 @@ import {
   ingestEventStreamMap,
   isFinalDungeonBossVictim,
   leaveDungeonSession,
-  markAllExpectedKillStepsComplete,
+  markFinalKillStepComplete,
   markDungeonRunClear,
   markDungeonRunFail,
   mergeDungeonObjectiveProgress,
   seedDungeonKillStepsFromWiki,
   sessionAllKillObjectivesComplete,
+  sessionFinalKillStepComplete,
   shouldStartNewDungeonPull,
   syncDungeonBossTargets,
   type MeterDungeonRunOutcome,
@@ -1164,6 +1165,7 @@ function maybeMarkFullDungeonClear(
 ): MeterDungeonRunOutcome | null {
   if (!session.dungeonRunActive || session.sessionEndMs != null) return null
   if (!sessionAllKillObjectivesComplete(session)) return null
+  if (!sessionFinalKillStepComplete(session)) return null
   markDungeonRunClear(session)
   freezeMeterTimer(session, eventMs)
   return 'clear'
@@ -1243,8 +1245,9 @@ function maybeMarkDungeonRunClear(
     (String(ev.type ?? '') === 'death' || combatKilledDungeonBoss(session, ev))
   if (!finalBossDown) return null
 
-  markAllExpectedKillStepsComplete(session)
+  markFinalKillStepComplete(session)
   if (!sessionAllKillObjectivesComplete(session)) return null
+  if (!sessionFinalKillStepComplete(session)) return null
 
   markDungeonRunClear(session)
   freezeMeterTimer(session, endMs)
