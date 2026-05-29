@@ -12,6 +12,12 @@ import {
 } from './lib/meterLeaderboardEligibility'
 import { isDungeonParseUploadAllowed } from './lib/dungeonDifficultyTags'
 import { getSupabaseClient, insertMeterParse } from './lib/supabaseMeter'
+import {
+  claimAnonymousMeterParsesForTamer,
+  readRememberedSelfTamerName,
+  rememberSelfTamerName,
+  selfTamerNameFromDungeonMembers,
+} from './lib/meterParseTamerClaim'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
 import {
   fetchEquippedMeterPartyBarThemeIdFromAccount,
@@ -742,6 +748,25 @@ export default function MeterApp() {
     )
   }, [supabase, sbUser?.id, bumpStream])
 
+  const claimParsesForSelfTamer = useCallback(
+    async (tamerName: string | null | undefined) => {
+      if (!supabase || !sbUser?.id) return
+      const name = tamerName?.trim()
+      if (!name) return
+      await claimAnonymousMeterParsesForTamer(supabase, name)
+    },
+    [supabase, sbUser?.id],
+  )
+
+  useEffect(() => {
+    if (!supabase || !sbUser?.id) return
+    const tamer =
+      streamRef.current.selfTamerName?.trim() ||
+      readRememberedSelfTamerName()
+    if (!tamer) return
+    void claimParsesForSelfTamer(tamer)
+  }, [supabase, sbUser?.id, claimParsesForSelfTamer])
+
   const partyThemeResolveSig = useMemo(
     () => partyTamerThemeResolveSignature(streamSession),
     [streamRev, streamSession.dungeonId, streamSession.mapId, streamSession.mapName],
@@ -840,10 +865,11 @@ export default function MeterApp() {
       setUploadToast({ text: `Cannot upload for ${sec}s`, kind: 'warn' })
       return
     }
-    if (!supabase || !sbUser) {
-      setUploadToast({ text: 'Sign in under Settings → DPS meter', kind: 'warn' })
+    if (!supabase) {
+      setUploadToast({ text: 'Meter cloud upload is not configured', kind: 'warn' })
       return
     }
+    const userId = sbUser?.id ?? null
     const snapshotBuilt = pendingAutoUploadBuiltRef.current
     pendingAutoUploadBuiltRef.current = null
     const session = streamRef.current
@@ -862,7 +888,7 @@ export default function MeterApp() {
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
       const appVersion = info?.version ?? 'unknown'
-      const { error } = await insertMeterParse(supabase, sbUser.id, {
+      const { error } = await insertMeterParse(supabase, userId, {
         mode: 'dungeon_party',
         appVersion,
         durationSec,
@@ -873,6 +899,11 @@ export default function MeterApp() {
       if (error) {
         setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })
       } else {
+        const selfTamer = selfTamerNameFromDungeonMembers(members)
+        if (selfTamer) rememberSelfTamerName(selfTamer)
+        if (userId && selfTamer) {
+          void claimAnonymousMeterParsesForTamer(supabase, selfTamer)
+        }
         const ranked = dungeon.leaderboardEligible
         setUploadCooldownUntilMs(Date.now() + METER_UPLOAD_COOLDOWN_MS)
         setUploadToast({
@@ -888,8 +919,8 @@ export default function MeterApp() {
   uploadParseRef.current = uploadParse
 
   const scheduleAutoUploadAfterClear = useCallback(() => {
-    if (!supabase || !sbUser) {
-      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (not signed in to Supabase)')
+    if (!supabase) {
+      if (isMeterDebugEnabled()) meterDebugLog('auto-upload skipped (Supabase not configured)')
       return
     }
     const session = streamRef.current
@@ -923,7 +954,7 @@ export default function MeterApp() {
     autoUploadForEndMsRef.current = endMs
     pendingAutoUploadBuiltRef.current = built
     void uploadParseRef.current()
-  }, [supabase, sbUser])
+  }, [supabase])
 
   scheduleAutoUploadRef.current = scheduleAutoUploadAfterClear
 

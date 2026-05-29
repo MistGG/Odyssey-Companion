@@ -277,7 +277,7 @@ function clampSkill(s: SkillBreakdownForParse): SkillBreakdownForParse {
 
 export async function insertMeterParse(
   client: SupabaseClient,
-  userId: string,
+  userId: string | null,
   input: InsertMeterParseInput,
 ): Promise<{ error: string | null }> {
   if (input.mode === 'dungeon_party') {

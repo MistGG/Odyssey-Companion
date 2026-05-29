@@ -659,7 +659,8 @@ export default function SettingsApp() {
               ) : (
                 <>
                   <p className="hint muted" style={{ marginTop: 0 }}>
-                    Sign in with the same account as Odyssey Calc to equip bar themes and upload parses.
+                    Sign in with the same Odyssey Calc account for bar themes, My Parses history, and
+                    meter rewards. Parses still upload without an account.
                   </p>
                   <label className="field">
                     <span>Email</span>
@@ -701,6 +702,18 @@ export default function SettingsApp() {
               {onlineMsg ? <p className="hint" style={{ marginTop: 10 }}>{onlineMsg}</p> : null}
             </section>
 
+            {supabase ? (
+              <section className="field-group" style={{ marginTop: 16 }}>
+                <h3 className="settings-app-subhead">Parse uploads</h3>
+                <p className="hint muted" style={{ marginTop: 0 }}>
+                  After each Normal or Hard dungeon clear, the companion uploads the party parse
+                  automatically — no sign-in required. Sign in later to attach earlier anonymous
+                  uploads to your account (matched by your in-game tamer). View history on Odyssey
+                  Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
+                </p>
+              </section>
+            ) : null}
+
             {supabase && onlineUser ? (
               <>
                 <section className="field-group" style={{ marginTop: 16 }}>
@@ -714,13 +727,6 @@ export default function SettingsApp() {
                     profileDisplayName={displayNameFromUserMetadata(onlineUser)}
                     onThemeChange={() => void window.odysseyCompanion?.notifyMeterPartyThemesChanged?.()}
                   />
-                </section>
-                <section className="field-group" style={{ marginTop: 16 }}>
-                  <h3 className="settings-app-subhead">Parse uploads</h3>
-                  <p className="hint muted" style={{ marginTop: 0 }}>
-                    After each Normal or Hard dungeon clear, the companion uploads the party parse automatically.
-                    View history on Odyssey Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
-                  </p>
                 </section>
               </>
             ) : null}
