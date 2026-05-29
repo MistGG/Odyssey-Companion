@@ -23,7 +23,9 @@ import {
   markFinalKillStepComplete,
   markDungeonRunClear,
   markDungeonRunFail,
+  mergeDeathIntoObjectiveProgress,
   mergeDungeonObjectiveProgress,
+  parsedObjectiveProgress,
   seedDungeonKillStepsFromWiki,
   sessionAllKillObjectivesComplete,
   sessionFinalKillStepComplete,
@@ -1220,7 +1222,7 @@ export function applyDungeonProgress(
       if (!raw || typeof raw !== 'object') continue
       const row = raw as Record<string, unknown>
       meterDebugLog(
-        `objective row step=${String(row.step ?? '?')} complete=${String(row.complete ?? row.completed ?? row.done ?? '')} cur=${String(row.current ?? row.progress ?? '')} need=${String(row.count ?? row.required ?? '')} id=${String(row.monster_id ?? '')} name=${String(row.monster_name ?? row.text ?? row.target ?? '')}`,
+        `objective row step=${String(row.step ?? '?')} complete=${String(row.complete ?? row.completed ?? row.done ?? '')} parsed=${JSON.stringify(parsedObjectiveProgress(row))} cur=${String(row.current ?? row.progress ?? '')} need=${String(row.count ?? row.required ?? '')} id=${String(row.monster_id ?? '')} name=${String(row.monster_name ?? row.text ?? row.target ?? '')}`,
       )
     }
   }
@@ -1395,6 +1397,10 @@ export function ingestMeterEventStream(
   } else if (isPartyRosterEventType(t)) {
     applyPartyRoster(session, ev)
   } else if (t === 'death') {
+    const markedStep = mergeDeathIntoObjectiveProgress(session, ev)
+    if (isMeterDebugEnabled() && markedStep != null) {
+      logDungeonObjectiveProgress(session, `death credited step ${markedStep}`)
+    }
     const clearFromDeath = maybeMarkDungeonRunClear(session, ev)
     if (clearFromDeath) runOutcome = clearFromDeath
   } else if (t === 'query_result') {

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.56",
+  "version": "0.1.57",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- SCC final boss detection uses wiki monster_id (Togemon step 15); expanded meter diagnostics for clear/upload debugging"
+      "releaseNotes": "- Track dungeon objective progress from boss death events and Defeat X N/M objective text (fixes SCC full clears not uploading)"
     }
   }
 }

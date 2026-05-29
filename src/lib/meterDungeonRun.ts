@@ -81,24 +81,18 @@ export function seedDungeonKillStepsFromWiki(
   session.dungeonFinalBossMonsterId = finalMonsterId
 }
 
-function objectiveRowStep(row: Record<string, unknown>): number {
-  const step = Number(row.step ?? row.objective_step ?? 0)
-  return Number.isFinite(step) && step > 0 ? step : 0
-}
-
-function resolveObjectiveStepFromWiki(
-  session: DungeonObjectiveProgressFields & {
+function wikiDiffRowForSession(
+  session: {
     dungeonId: string | null
     dungeonDifficulty: string | null
     dungeonDifficultyTier: number | null
   },
-  row: Record<string, unknown>,
-): number {
+) {
   const id = session.dungeonId?.trim()
-  if (!id) return 0
+  if (!id) return undefined
   const cached = readCachedDungeonDetails([id])[id]
-  if (!cached) return 0
-  const diffRow =
+  if (!cached) return undefined
+  return (
     (session.dungeonDifficulty
       ? findDifficultyRow(cached, session.dungeonDifficulty)
       : undefined) ??
@@ -106,18 +100,93 @@ function resolveObjectiveStepFromWiki(
       ? cached.difficulties.find(
           (d) => difficultyTierFromRaw(d.difficulty) === session.dungeonDifficultyTier,
         )
-      : undefined)
-  if (!diffRow) return 0
-  const monsterId = String(row.monster_id ?? row.monsterId ?? '').trim()
-  const name = normBossName(
-    String(row.monster_name ?? row.monster ?? row.target ?? row.name ?? ''),
+      : undefined) ??
+    (cached.difficulties.length === 1 ? cached.difficulties[0] : undefined)
   )
+}
+
+/** EventStream shape: `Defeat Gazimon <Mini Boss> 1/1` */
+export function parseEventStreamObjectiveText(
+  text: string,
+): { label: string; cur: number; need: number } | null {
+  const m = text.trim().match(/^Defeat\s+(.+?)\s+(\d+)\s*\/\s*(\d+)\s*$/i)
+  if (!m) return null
+  const cur = Number(m[2])
+  const need = Number(m[3])
+  if (!Number.isFinite(cur) || !Number.isFinite(need) || need <= 0) return null
+  return { label: m[1].trim(), cur, need }
+}
+
+export function parsedObjectiveProgress(
+  row: Record<string, unknown>,
+): { label: string; cur: number; need: number } | null {
+  return parseEventStreamObjectiveText(String(row.text ?? ''))
+}
+
+function listWikiStepsMatchingLabel(
+  session: {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+  label: string,
+  monsterId = '',
+): number[] {
+  const diffRow = wikiDiffRowForSession(session)
+  if (!diffRow) return []
+  const want = label.trim()
+  if (!want && !monsterId) return []
+  const steps: number[] = []
   for (const ob of diffRow.objectives) {
-    if (monsterId && ob.monster_id === monsterId) return ob.step
-    if (name && normBossName(wikiObjectiveDisplayTarget(ob)) === name) return ob.step
-    if (name && normBossName(ob.monster_name) === name) return ob.step
+    if (monsterId && ob.monster_id === monsterId) {
+      if (ob.step > 0) steps.push(ob.step)
+      continue
+    }
+    if (!want) continue
+    if (bossNamesMatch(want, wikiObjectiveDisplayTarget(ob))) steps.push(ob.step)
+    else if (bossNamesMatch(want, ob.monster_name)) steps.push(ob.step)
   }
-  return 0
+  return [...new Set(steps.filter((s) => s > 0))].sort((a, b) => a - b)
+}
+
+/** Mark the next incomplete wiki step that matches this boss label (handles duplicate species). */
+export function markNextWikiStepForVictim(
+  session: DungeonObjectiveProgressFields & {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+  victimLabel: string,
+  victimMonsterId = '',
+): number | null {
+  const steps = listWikiStepsMatchingLabel(session, victimLabel, victimMonsterId)
+  for (const step of steps) {
+    if (!session.dungeonCompletedKillSteps.includes(step)) {
+      session.dungeonCompletedKillSteps.push(step)
+      return step
+    }
+  }
+  return null
+}
+
+/** Credit boss kills from `death` events (EventStream omits step ids on objectives). */
+export function mergeDeathIntoObjectiveProgress(
+  session: DungeonObjectiveProgressFields & {
+    dungeonId: string | null
+    dungeonDifficulty: string | null
+    dungeonDifficultyTier: number | null
+  },
+  ev: EventStreamRecord,
+): number | null {
+  if (!session.dungeonId?.trim() || !session.dungeonExpectedKillSteps.length) return null
+  const victim = deathEntityName(ev)
+  if (!victim) return null
+  const victimId = deathEntityMonsterId(ev)
+  if (isFinalDungeonBossKill(victim, victimId, session)) {
+    markFinalKillStepComplete(session)
+    return finalWikiKillStep(session)
+  }
+  return markNextWikiStepForVictim(session, victim, victimId)
 }
 
 /** Merge completed kill steps from a `dungeon_progress` / query payload (partial updates OK). */
@@ -133,11 +202,11 @@ export function mergeDungeonObjectiveProgress(
     if (!raw || typeof raw !== 'object') continue
     const row = raw as Record<string, unknown>
     if (!objectiveRowIsKill(row) || !objectiveRowComplete(row)) continue
-    let step = objectiveRowStep(row)
-    if (step <= 0) step = resolveObjectiveStepFromWiki(session, row)
-    if (step <= 0) continue
-    if (!session.dungeonCompletedKillSteps.includes(step)) {
-      session.dungeonCompletedKillSteps.push(step)
+    const parsed = parsedObjectiveProgress(row)
+    const label = parsed?.label ?? extractObjectiveTargetName(row)
+    const monsterId = String(row.monster_id ?? row.monsterId ?? '').trim()
+    if (label || monsterId) {
+      markNextWikiStepForVictim(session, label, monsterId)
     }
   }
 }
@@ -299,6 +368,8 @@ function objectiveRows(source: EventStreamRecord | unknown[]): unknown[] {
 
 /** Display name for a kill objective row (EventStream + wiki shapes). */
 export function extractObjectiveTargetName(row: Record<string, unknown>): string {
+  const parsed = parsedObjectiveProgress(row)
+  if (parsed?.label) return parsed.label
   const direct = String(
     row.target ?? row.pen_name ?? row.monster_name ?? row.name ?? row.monster ?? '',
   ).trim()
@@ -309,12 +380,15 @@ export function extractObjectiveTargetName(row: Record<string, unknown>): string
 function objectiveRowIsKill(row: Record<string, unknown>): boolean {
   const type = String(row.type ?? '').trim().toLowerCase()
   if (type && type !== 'kill') return false
+  if (parsedObjectiveProgress(row)) return true
   return Boolean(extractObjectiveTargetName(row))
 }
 
 /** True when the client marks this kill objective finished (dungeon_progress updates). */
 export function objectiveRowComplete(row: Record<string, unknown>): boolean {
   if (row.complete === true || row.completed === true || row.done === true) return true
+  const parsed = parsedObjectiveProgress(row)
+  if (parsed && parsed.cur >= parsed.need) return true
   const cur = Number(row.current ?? row.progress ?? row.killed ?? row.kill_count)
   const need = Number(row.count ?? row.required ?? row.total ?? 1)
   if (Number.isFinite(cur) && Number.isFinite(need) && need > 0 && cur >= need) return true
