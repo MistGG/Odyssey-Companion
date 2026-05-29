@@ -3,7 +3,6 @@ import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import BossTimersView from './components/BossTimersView'
-import { playBossTimerWebChime } from './lib/bossTimerWebChime'
 
 export default function TimersApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
@@ -53,18 +52,6 @@ export default function TimersApp() {
       })
     })
     return () => off()
-  }, [])
-
-  useEffect(() => {
-    const api = window.odysseyCompanion
-    if (!api?.onBossTimerChime) return
-    return api.onBossTimerChime((payload) => {
-      void playBossTimerWebChime({
-        voice: payload.style,
-        volume: payload.volume,
-        repeats: payload.repeats,
-      })
-    })
   }, [])
 
   useEffect(() => {

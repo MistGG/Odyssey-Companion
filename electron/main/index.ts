@@ -33,6 +33,11 @@ import {
 } from './bossTimerAlerts'
 import { registerMeterDebugReportIpc } from './meterDebugReportIpc'
 import {
+  syncServerStatusMonitor,
+  tryShowServerStatusTestNotification,
+} from './serverStatusMonitor'
+import { markWikiApiRequest } from './wikiRequestActivity'
+import {
   clearFightEngageEpoch,
   getFightEngageEpoch,
   setFightEngageEpoch,
@@ -49,11 +54,30 @@ import {
   supabaseAuthStorageSet,
 } from './supabaseAuthStorage'
 
+/** Must match `build.appId` in package.json — Windows toast header uses this identity. */
+const APP_USER_MODEL_ID = 'gg.mist.odyssey.companion'
+const APP_DISPLAY_NAME = 'Odyssey Companion'
+
+app.setName(APP_DISPLAY_NAME)
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID)
+}
+
 /** Set `ODYSSEY_START_PANEL=meter`, `=timers`, `=hud`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
 const TIMERS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'timers'
 const HUD_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'hud'
 const SETTINGS_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'settings'
+
+function companionChimeWindows(): BrowserWindow[] {
+  return [timersWin, dungeonWin, settingsWin, meterWin, hudWin].filter(
+    (w): w is BrowserWindow => !!(w && !w.isDestroyed()),
+  )
+}
+
+function refreshServerStatusMonitor() {
+  syncServerStatusMonitor(lastOverlaySettings, companionChimeWindows)
+}
 
 function browserWindowForIpc(sender: WebContents): BrowserWindow | undefined {
   const direct = BrowserWindow.fromWebContents(sender)
@@ -1338,6 +1362,7 @@ function launchCompanionWindows(settings: OverlaySettings) {
   lastOverlaySettings = settings
   createWindows()
   openStartupPanels(settings)
+  refreshServerStatusMonitor()
 }
 
 function releaseNotesPlain(info: {
@@ -1440,6 +1465,7 @@ app.whenReady().then(() => {
   }
   createTray()
   setupAutoUpdater()
+  refreshServerStatusMonitor()
 
   setInterval(() => {
     bossTimerAlertTick(lastOverlaySettings, timersWin)
@@ -1552,6 +1578,7 @@ ipcMain.handle('supabase-auth-storage:remove', async (_evt, key: unknown) => {
 })
 
 ipcMain.handle('wiki:fetch-dungeons', async () => {
+  markWikiApiRequest()
   wikiLog('GET', DUNGEONS_URL)
   const res = await fetch(DUNGEONS_URL, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1564,6 +1591,7 @@ ipcMain.handle('wiki:fetch-dungeon', async (_evt, id: string) => {
   const safe = typeof id === 'string' ? id.trim() : ''
   if (!safe) throw new Error('Missing dungeon id')
   const url = dungeonDetailUrl(safe)
+  markWikiApiRequest()
   wikiLog('GET', url)
   const res = await fetch(url, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1576,6 +1604,7 @@ ipcMain.handle('wiki:fetch-monster', async (_evt, id: string) => {
   const safe = typeof id === 'string' ? id.trim() : ''
   if (!safe) throw new Error('Missing monster id')
   const url = monsterDetailUrl(safe)
+  markWikiApiRequest()
   wikiLog('GET', url)
   const res = await fetch(url, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1588,6 +1617,7 @@ ipcMain.handle('wiki:fetch-digimon', async (_evt, id: string) => {
   const safe = typeof id === 'string' ? id.trim() : ''
   if (!safe) throw new Error('Missing digimon id')
   const url = digimonDetailUrl(safe)
+  markWikiApiRequest()
   wikiLog('GET', url)
   const res = await fetch(url, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1600,6 +1630,7 @@ ipcMain.handle('wiki:fetch-npc', async (_evt, id: string) => {
   const safe = typeof id === 'string' ? id.trim() : ''
   if (!safe) throw new Error('Missing npc id')
   const url = npcDetailUrl(safe)
+  markWikiApiRequest()
   wikiLog('GET', url)
   const res = await fetch(url, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1612,6 +1643,7 @@ ipcMain.handle('wiki:fetch-item', async (_evt, id: string) => {
   const safe = typeof id === 'string' ? id.trim() : ''
   if (!safe) throw new Error('Missing item id')
   const url = wikiItemDetailUrl(safe)
+  markWikiApiRequest()
   wikiLog('GET', url)
   const res = await fetch(url, { headers: FETCH_HEADERS })
   if (!res.ok) {
@@ -1641,6 +1673,10 @@ ipcMain.handle('market:fetch-listings', async (_evt, item: string, side: string,
 
 ipcMain.handle('boss-timer:test-toast', () => {
   return tryShowBossTimerTestNotification()
+})
+
+ipcMain.handle('server-status:test-notification', () => {
+  return tryShowServerStatusTestNotification(lastOverlaySettings, companionChimeWindows)
 })
 
 ipcMain.on('boss-timer:push-schedule', (_event, payload: unknown) => {
@@ -1935,6 +1971,7 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   if (isOverlaySettings(payload)) {
     lastOverlaySettings = payload
     writeOverlaySettingsToDisk(payload)
+    refreshServerStatusMonitor()
   }
   if (payload && typeof payload === 'object' && 'timelineAlwaysOnTop' in payload) {
     const v = (payload as { timelineAlwaysOnTop: unknown }).timelineAlwaysOnTop

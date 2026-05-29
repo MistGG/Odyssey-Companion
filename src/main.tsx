@@ -9,9 +9,13 @@ import TimersApp from './TimersApp'
 import HudApp from './HudApp'
 import SettingsApp from './SettingsApp'
 import UpdateApp from './UpdateApp'
+import { installCompanionChimeListener } from './lib/companionChimeListener'
 import './index.css'
 
 const panel = getPanel()
+if (panel !== 'update') {
+  installCompanionChimeListener()
+}
 if (panel === 'timeline') {
   document.body.classList.add('body--timeline')
 }

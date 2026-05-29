@@ -48,3 +48,12 @@ export async function runBossTimerTestSound(): Promise<{ ok: boolean; error?: st
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+export async function runServerStatusTestNotification(): Promise<{ ok: boolean; error?: string }> {
+  const api = window.odysseyCompanion
+  if (api?.serverStatusTestNotification) {
+    const r = await api.serverStatusTestNotification()
+    return r.ok ? { ok: true } : { ok: false, error: r.error }
+  }
+  return { ok: false, error: 'Server status alerts require the Odyssey Companion app.' }
+}

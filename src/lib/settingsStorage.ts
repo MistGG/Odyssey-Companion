@@ -10,7 +10,7 @@ import {
 import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG, normalizeAttackSpeedWidgetConfig } from './hudAttackSpeedWidget'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, normalizeBuffTrackerWidgetConfig } from './hudBuffTrackerWidget'
 import { DEFAULT_BOSS_ALERTS_WIDGET_CONFIG, normalizeBossAlertsWidgetConfig } from './hudBossAlertsWidget'
-import { normalizeBossTimerChimeStyle } from './bossTimerWebChime'
+import { normalizeBossTimerChimeStyle, normalizeServerStatusChimeStyle } from './bossTimerWebChime'
 
 const KEY = 'dmo-overlay-settings-v1'
 
@@ -219,6 +219,42 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossChimeRepeats = Math.min(5, Math.max(1, Math.round(raw.bossTimerChimeRepeats)))
   }
 
+  let serverStatusMonitor =
+    typeof raw.serverStatusMonitorEnabled === 'boolean'
+      ? raw.serverStatusMonitorEnabled
+      : undefined
+  const serverStatusMethodRaw = raw.serverStatusNotifyMethod
+  let serverStatusMethod: OverlaySettings['serverStatusNotifyMethod'] | undefined
+  if (
+    serverStatusMethodRaw === 'toast' ||
+    serverStatusMethodRaw === 'sound' ||
+    serverStatusMethodRaw === 'both'
+  ) {
+    serverStatusMethod = serverStatusMethodRaw
+  }
+
+  const serverStatusChimeRaw = raw.serverStatusChimeStyle
+  const serverStatusChime =
+    serverStatusChimeRaw !== undefined && serverStatusChimeRaw !== null
+      ? normalizeServerStatusChimeStyle(serverStatusChimeRaw)
+      : undefined
+
+  let serverStatusChimeVol: number | undefined
+  if (
+    typeof raw.serverStatusChimeVolume === 'number' &&
+    Number.isFinite(raw.serverStatusChimeVolume)
+  ) {
+    serverStatusChimeVol = Math.min(1, Math.max(0, raw.serverStatusChimeVolume))
+  }
+
+  let serverStatusChimeRepeats: number | undefined
+  if (
+    typeof raw.serverStatusChimeRepeats === 'number' &&
+    Number.isFinite(raw.serverStatusChimeRepeats)
+  ) {
+    serverStatusChimeRepeats = Math.min(5, Math.max(1, Math.round(raw.serverStatusChimeRepeats)))
+  }
+
   let hudBackdrop =
     typeof raw.hudBackdropOpacity === 'number' ? raw.hudBackdropOpacity : undefined
   let hudTop = typeof raw.hudAlwaysOnTop === 'boolean' ? raw.hudAlwaysOnTop : undefined
@@ -291,6 +327,18 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossTimerChimeStyle: bossChime ?? DEFAULT_SETTINGS.bossTimerChimeStyle,
     bossTimerChimeVolume: bossChimeVol ?? DEFAULT_SETTINGS.bossTimerChimeVolume,
     bossTimerChimeRepeats: bossChimeRepeats ?? DEFAULT_SETTINGS.bossTimerChimeRepeats,
+    serverStatusMonitorEnabled:
+      typeof serverStatusMonitor === 'boolean'
+        ? serverStatusMonitor
+        : DEFAULT_SETTINGS.serverStatusMonitorEnabled,
+    serverStatusNotifyMethod:
+      serverStatusMethod ?? DEFAULT_SETTINGS.serverStatusNotifyMethod,
+    serverStatusChimeStyle:
+      serverStatusChime ?? DEFAULT_SETTINGS.serverStatusChimeStyle,
+    serverStatusChimeVolume:
+      serverStatusChimeVol ?? DEFAULT_SETTINGS.serverStatusChimeVolume,
+    serverStatusChimeRepeats:
+      serverStatusChimeRepeats ?? DEFAULT_SETTINGS.serverStatusChimeRepeats,
     hudBackdropOpacity:
       typeof hudBackdrop === 'number'
         ? Math.min(1, Math.max(0, hudBackdrop))

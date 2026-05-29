@@ -309,6 +309,16 @@ export type OverlaySettings = {
   bossTimerChimeVolume: number
   /** How many times to play the chime in a row (1–5). */
   bossTimerChimeRepeats: number
+  /** Poll The Digital Odyssey server-status API and alert on offline/online changes. */
+  serverStatusMonitorEnabled: boolean
+  /** How to alert when game server status changes. */
+  serverStatusNotifyMethod: 'toast' | 'sound' | 'both'
+  /** Chime voice for server status sound alerts. */
+  serverStatusChimeStyle: 'braveHeart' | 'digivice' | 'digibeep'
+  /** Chime loudness 0–1 for server status sound alerts. */
+  serverStatusChimeVolume: number
+  /** How many times to play the server status chime in a row (1–5). */
+  serverStatusChimeRepeats: number
   /** Digi Aura overlay — panel opacity in edit mode (0–1). */
   hudBackdropOpacity: number
   /** Keep HUD above other apps. */
@@ -350,6 +360,11 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   bossTimerChimeStyle: 'braveHeart',
   bossTimerChimeVolume: 0.45,
   bossTimerChimeRepeats: 1,
+  serverStatusMonitorEnabled: false,
+  serverStatusNotifyMethod: 'toast',
+  serverStatusChimeStyle: 'digivice',
+  serverStatusChimeVolume: 0.45,
+  serverStatusChimeRepeats: 1,
   hudBackdropOpacity: 0.78,
   hudAlwaysOnTop: true,
   hudLayoutLocked: false,

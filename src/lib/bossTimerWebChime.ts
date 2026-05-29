@@ -84,6 +84,13 @@ export function normalizeBossTimerChimeStyle(raw: unknown): BossTimerChimeStyle 
   return 'braveHeart'
 }
 
+export function normalizeServerStatusChimeStyle(raw: unknown): OverlaySettings['serverStatusChimeStyle'] {
+  if (raw === 'braveHeart' || raw === 'digivice' || raw === 'digibeep') {
+    return raw
+  }
+  return 'digivice'
+}
+
 export function bossTimerChimeStyleLabel(style: BossTimerChimeStyle): string {
   if (style === 'off') return 'Off'
   return CHIME_LABEL[style]

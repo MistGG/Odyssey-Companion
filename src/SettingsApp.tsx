@@ -14,7 +14,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { maybeExpireMeterDebug } from './lib/meterDebugLog'
 import { keyboardEventToAccelerator } from './lib/hotkeyAccelerator'
 import { stripHtmlToPlainText } from './lib/releaseNotesText'
-import { runBossTimerTestToast, runBossTimerTestSound } from './lib/bossTimerClientTest'
+import { runBossTimerTestToast, runBossTimerTestSound, runServerStatusTestNotification } from './lib/bossTimerClientTest'
 import { bossTimerChimeRepeatsConfigurable } from './lib/bossTimerWebChime'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
@@ -102,6 +102,8 @@ export default function SettingsApp() {
   const [releaseNotesContent, setReleaseNotesContent] = useState<LatestReleaseResult | undefined>(undefined)
 
   const [timerTestBusy, setTimerTestBusy] = useState<'toast' | 'sound' | null>(null)
+  const [serverStatusTestBusy, setServerStatusTestBusy] = useState(false)
+  const [serverStatusTestHint, setServerStatusTestHint] = useState<string | null>(null)
   const [meterReportBusy, setMeterReportBusy] = useState(false)
   const [meterReportHint, setMeterReportHint] = useState<string | null>(null)
   const [timerTestHint, setTimerTestHint] = useState<string | null>(null)
@@ -111,6 +113,15 @@ export default function SettingsApp() {
     const { url, anonKey } = getMeterSupabaseCredentials()
     return getSupabaseClient(url, anonKey)
   }, [])
+  const serverStatusChimeControlsDisabled = useMemo(
+    () =>
+      !settings.serverStatusMonitorEnabled || settings.serverStatusNotifyMethod === 'toast',
+    [settings.serverStatusMonitorEnabled, settings.serverStatusNotifyMethod],
+  )
+  const bossTimerChimeControlsDisabled = useMemo(
+    () => settings.bossTimerNotifyMethod === 'toast',
+    [settings.bossTimerNotifyMethod],
+  )
   const [onlineUser, setOnlineUser] = useState<User | null>(null)
   const [onlineBusy, setOnlineBusy] = useState(false)
   const [onlineMsg, setOnlineMsg] = useState<string | null>(null)
@@ -453,6 +464,129 @@ export default function SettingsApp() {
                 )
               })}
             </div>
+
+            <h3 className="settings-app-subhead">Game server status</h3>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.serverStatusMonitorEnabled}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    serverStatusMonitorEnabled: e.target.checked,
+                  }))
+                }
+              />
+              Notify when game server status changes
+            </label>
+            <label className="field" style={{ marginTop: 10 }}>
+              <span>Notify with</span>
+              <select
+                value={settings.serverStatusNotifyMethod}
+                disabled={!settings.serverStatusMonitorEnabled}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    serverStatusNotifyMethod: e.target.value as OverlaySettings['serverStatusNotifyMethod'],
+                  }))
+                }
+              >
+                <option value="toast">Toast only</option>
+                <option value="sound">Sound only</option>
+                <option value="both">Toast and sound</option>
+              </select>
+            </label>
+            <label className="field" style={{ marginTop: 10 }}>
+              <span>Chime style</span>
+              <select
+                value={settings.serverStatusChimeStyle}
+                disabled={serverStatusChimeControlsDisabled}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    serverStatusChimeStyle: e.target.value as OverlaySettings['serverStatusChimeStyle'],
+                  }))
+                }
+              >
+                <option value="braveHeart">Brave Heart</option>
+                <option value="digivice">Digivice</option>
+                <option value="digibeep">Digi Beep</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Chime volume</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={serverStatusChimeControlsDisabled}
+                value={settings.serverStatusChimeVolume}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    serverStatusChimeVolume: Number(e.target.value),
+                  }))
+                }
+              />
+              <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                {Math.round(settings.serverStatusChimeVolume * 100)}%
+              </span>
+            </label>
+            <label className="field">
+              <span>Chime repeats</span>
+              <input
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                disabled={
+                  serverStatusChimeControlsDisabled ||
+                  !bossTimerChimeRepeatsConfigurable(settings.serverStatusChimeStyle)
+                }
+                value={settings.serverStatusChimeRepeats}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    serverStatusChimeRepeats: Math.min(
+                      5,
+                      Math.max(1, Math.round(Number(e.target.value))),
+                    ),
+                  }))
+                }
+              />
+              <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                {settings.serverStatusChimeStyle === 'braveHeart'
+                  ? 'Brave Heart always plays once.'
+                  : `${settings.serverStatusChimeRepeats}× fades out, then ${2}s pause between plays.`}
+              </span>
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={serverStatusTestBusy || !settings.serverStatusMonitorEnabled}
+                onClick={() => {
+                  setServerStatusTestHint(null)
+                  setServerStatusTestBusy(true)
+                  void runServerStatusTestNotification().then((r) => {
+                    setServerStatusTestBusy(false)
+                    if (r.ok) {
+                      setServerStatusTestHint('Test notification sent.')
+                    } else {
+                      setServerStatusTestHint(r.error ?? 'Could not send test notification.')
+                    }
+                  })
+                }}
+              >
+                {serverStatusTestBusy ? 'Working…' : 'Test notification'}
+              </button>
+            </div>
+            {serverStatusTestHint ? (
+              <p className="hint" style={{ marginTop: 10 }} role="status">
+                {serverStatusTestHint}
+              </p>
+            ) : null}
 
             <h3 className="settings-app-subhead">Hotkeys</h3>
             <p className="hint muted" style={{ marginTop: 0 }}>
@@ -895,6 +1029,7 @@ export default function SettingsApp() {
                 <span>Chime style</span>
                 <select
                   value={settings.bossTimerChimeStyle}
+                  disabled={bossTimerChimeControlsDisabled}
                   onChange={(e) =>
                     setSettings((s) => ({
                       ...s,
@@ -915,6 +1050,7 @@ export default function SettingsApp() {
                   min={0}
                   max={1}
                   step={0.01}
+                  disabled={bossTimerChimeControlsDisabled}
                   value={settings.bossTimerChimeVolume}
                   onChange={(e) =>
                     setSettings((s) => ({
@@ -935,7 +1071,10 @@ export default function SettingsApp() {
                   min={1}
                   max={5}
                   step={1}
-                  disabled={!bossTimerChimeRepeatsConfigurable(settings.bossTimerChimeStyle)}
+                  disabled={
+                    bossTimerChimeControlsDisabled ||
+                    !bossTimerChimeRepeatsConfigurable(settings.bossTimerChimeStyle)
+                  }
                   value={settings.bossTimerChimeRepeats}
                   onChange={(e) =>
                     setSettings((s) => ({

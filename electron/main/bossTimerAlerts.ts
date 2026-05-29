@@ -32,6 +32,20 @@ function dispatchTimersWebChime(
   }
 }
 
+/** Play chime in the first open companion window that listens for boss-timer:chime. */
+export function dispatchCompanionWebChime(
+  wins: BrowserWindow[],
+  style: Exclude<ParsedChimeStyle, 'off'>,
+  volume: number,
+  repeats: number,
+): void {
+  for (const win of wins) {
+    if (!win || win.isDestroyed()) continue
+    dispatchTimersWebChime(win, style, volume, repeats)
+    return
+  }
+}
+
 function relaxedBossCopy(boss: RaidBossAlertSnapshot, minsApprox: number): { title: string; body: string } {
   const place = boss.mapName?.trim() || 'world boss location'
   return {

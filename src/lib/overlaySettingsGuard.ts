@@ -115,6 +115,22 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     !Number.isInteger(o.bossTimerChimeRepeats) ||
     o.bossTimerChimeRepeats < 1 ||
     o.bossTimerChimeRepeats > 5 ||
+    typeof o.serverStatusMonitorEnabled !== 'boolean' ||
+    (o.serverStatusNotifyMethod !== 'toast' &&
+      o.serverStatusNotifyMethod !== 'sound' &&
+      o.serverStatusNotifyMethod !== 'both') ||
+    (o.serverStatusChimeStyle !== 'braveHeart' &&
+      o.serverStatusChimeStyle !== 'digivice' &&
+      o.serverStatusChimeStyle !== 'digibeep') ||
+    typeof o.serverStatusChimeVolume !== 'number' ||
+    !Number.isFinite(o.serverStatusChimeVolume) ||
+    o.serverStatusChimeVolume < 0 ||
+    o.serverStatusChimeVolume > 1 ||
+    typeof o.serverStatusChimeRepeats !== 'number' ||
+    !Number.isFinite(o.serverStatusChimeRepeats) ||
+    !Number.isInteger(o.serverStatusChimeRepeats) ||
+    o.serverStatusChimeRepeats < 1 ||
+    o.serverStatusChimeRepeats > 5 ||
     typeof o.hudBackdropOpacity !== 'number' ||
     !Number.isFinite(o.hudBackdropOpacity) ||
     o.hudBackdropOpacity < 0 ||

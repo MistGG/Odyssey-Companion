@@ -297,6 +297,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   bossTimerTestToast: () =>
     ipcRenderer.invoke('boss-timer:test-toast') as Promise<{ ok: true } | { ok: false; error: string }>,
 
+  serverStatusTestNotification: () =>
+    ipcRenderer.invoke('server-status:test-notification') as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
   /** Main sends this when a real pre-spawn sound cue should play (timers window only). */
   connectEventStream: (host: string, port: number) =>
     ipcRenderer.invoke('event-stream:connect', { host, port }) as Promise<
