@@ -229,7 +229,11 @@ export default function TimersApp() {
           ref={timersBodyRef}
           className={`timers-body timers-body--compact${timersLootExpanded ? ' timers-body--loot-expanded' : ''}`}
         >
-          <BossTimersView variant="overlay" onLootRatesExpandedChange={onLootRatesExpandedChange} />
+          <BossTimersView
+            variant="overlay"
+            visibleCount={settings.bossTimerVisibleCount}
+            onLootRatesExpandedChange={onLootRatesExpandedChange}
+          />
         </main>
       </div>
     </div>

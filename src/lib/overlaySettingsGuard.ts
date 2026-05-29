@@ -115,6 +115,11 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     !Number.isInteger(o.bossTimerChimeRepeats) ||
     o.bossTimerChimeRepeats < 1 ||
     o.bossTimerChimeRepeats > 5 ||
+    typeof o.bossTimerVisibleCount !== 'number' ||
+    !Number.isFinite(o.bossTimerVisibleCount) ||
+    !Number.isInteger(o.bossTimerVisibleCount) ||
+    o.bossTimerVisibleCount < 1 ||
+    o.bossTimerVisibleCount > 15 ||
     typeof o.serverStatusMonitorEnabled !== 'boolean' ||
     (o.serverStatusNotifyMethod !== 'toast' &&
       o.serverStatusNotifyMethod !== 'sound' &&

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { MonsterDetail } from '../types'
+import { DEFAULT_SETTINGS } from '../types'
 import { fetchMonsterDetail } from '../lib/monsterDetailApi'
 import { wikiItemIconUrl } from '../lib/wikiItemDetailApi'
 import { wikiNpcModelImageUrl } from '../lib/wikiNpcDetailApi'
@@ -12,6 +13,7 @@ import {
   isBossAlive,
   isBossReady,
   nextSpawnUtcMs,
+  pickVisibleBosses,
   toAlertSnapshots,
   type RaidBossEntry,
   type RaidTimerResponse,
@@ -157,6 +159,7 @@ function LootIconStrip({ rewards }: { rewards: BossTimerReward[] }) {
 
 type BossTimersViewProps = {
   variant?: 'overlay' | 'page'
+  visibleCount?: number
   onLootRatesExpandedChange?: (expanded: boolean) => void
 }
 
@@ -320,7 +323,11 @@ function BossTimerCard({
   )
 }
 
-export default function BossTimersView({ variant = 'page', onLootRatesExpandedChange }: BossTimersViewProps) {
+export default function BossTimersView({
+  variant = 'page',
+  visibleCount = DEFAULT_SETTINGS.bossTimerVisibleCount,
+  onLootRatesExpandedChange,
+}: BossTimersViewProps) {
   const overlayStripRef = useRef<HTMLDivElement>(null)
   const [tick, setTick] = useState(0)
   const [testBusy, setTestBusy] = useState<'toast' | null>(null)
@@ -392,7 +399,7 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
       cancelAnimationFrame(id2)
       ro?.disconnect()
     }
-  }, [variant, lootRatesOpen, raid?.bosses.length])
+  }, [variant, lootRatesOpen, raid?.bosses.length, visibleCount])
 
   useEffect(() => {
     return () => {
@@ -401,7 +408,11 @@ export default function BossTimersView({ variant = 'page', onLootRatesExpandedCh
   }, [])
 
   const serverOffsetMs = raid?.serverOffsetMs ?? 0
-  const bosses = raid?.bosses ?? []
+  const allBosses = raid?.bosses ?? []
+  const bosses = useMemo(
+    () => pickVisibleBosses(allBosses, visibleCount),
+    [allBosses, visibleCount],
+  )
 
   if (variant === 'overlay') {
     return (

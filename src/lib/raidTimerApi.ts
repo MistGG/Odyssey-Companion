@@ -133,7 +133,7 @@ export type RaidBossAlertSnapshot = {
 
 export function toAlertSnapshots(
   bosses: RaidBossEntry[],
-  serverOffsetMs: number,
+  _serverOffsetMs: number,
 ): RaidBossAlertSnapshot[] {
   return bosses.map((boss) => ({
     monsterName: boss.monster_name,
@@ -141,4 +141,14 @@ export function toAlertSnapshots(
     status: boss.status,
     nextSpawnUtcMs: nextSpawnUtcMs(boss),
   }))
+}
+
+export function sortBossesByNextSpawn(bosses: RaidBossEntry[]): RaidBossEntry[] {
+  return [...bosses].sort((a, b) => nextSpawnUtcMs(a) - nextSpawnUtcMs(b))
+}
+
+/** Soonest spawns first; clamps count to 1–15. */
+export function pickVisibleBosses(bosses: RaidBossEntry[], count: number): RaidBossEntry[] {
+  const n = Math.min(15, Math.max(1, Math.round(count)))
+  return sortBossesByNextSpawn(bosses).slice(0, n)
 }

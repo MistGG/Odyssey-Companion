@@ -219,6 +219,9 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossChimeRepeats = Math.min(5, Math.max(1, Math.round(raw.bossTimerChimeRepeats)))
   }
 
+  let bossVisibleCount =
+    typeof raw.bossTimerVisibleCount === 'number' ? raw.bossTimerVisibleCount : undefined
+
   let serverStatusMonitor =
     typeof raw.serverStatusMonitorEnabled === 'boolean'
       ? raw.serverStatusMonitorEnabled
@@ -327,6 +330,13 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     bossTimerChimeStyle: bossChime ?? DEFAULT_SETTINGS.bossTimerChimeStyle,
     bossTimerChimeVolume: bossChimeVol ?? DEFAULT_SETTINGS.bossTimerChimeVolume,
     bossTimerChimeRepeats: bossChimeRepeats ?? DEFAULT_SETTINGS.bossTimerChimeRepeats,
+    bossTimerVisibleCount:
+      typeof bossVisibleCount === 'number' &&
+      Number.isFinite(bossVisibleCount) &&
+      bossVisibleCount >= 1 &&
+      bossVisibleCount <= 15
+        ? Math.round(bossVisibleCount)
+        : DEFAULT_SETTINGS.bossTimerVisibleCount,
     serverStatusMonitorEnabled:
       typeof serverStatusMonitor === 'boolean'
         ? serverStatusMonitor

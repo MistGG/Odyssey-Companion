@@ -6,6 +6,9 @@ let activeBossAlerts: RaidBossAlertSnapshot[] = []
 
 export type ParsedChimeStyle = 'off' | 'braveHeart' | 'digivice' | 'digibeep'
 
+/** Boss spawns within this window are batched into one toast/chime. */
+export const BOSS_SPAWN_GROUP_WINDOW_MS = 60_000
+
 export function parseBossTimerChimeStyle(raw: unknown): ParsedChimeStyle {
   if (raw === 'off' || raw === 'braveHeart' || raw === 'digivice' || raw === 'digibeep') {
     return raw
@@ -51,6 +54,28 @@ function relaxedBossCopy(boss: RaidBossAlertSnapshot, minsApprox: number): { tit
   return {
     title: boss.monsterName,
     body: `About ${minsApprox} min until the next window. ${place}.`,
+  }
+}
+
+function relaxedGroupedBossCopy(
+  bosses: RaidBossAlertSnapshot[],
+  minsApprox: number,
+): { title: string; body: string } {
+  if (bosses.length === 1) return relaxedBossCopy(bosses[0]!, minsApprox)
+
+  const timeFmt = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  const lines = bosses.map((boss) => {
+    const place = boss.mapName?.trim() || 'world boss location'
+    const time = timeFmt.format(new Date(boss.nextSpawnUtcMs))
+    return `• ${boss.monsterName} — ${place} (${time})`
+  })
+
+  return {
+    title: `${bosses.length} bosses spawning soon`,
+    body: `About ${minsApprox} min until the next window.\n${lines.join('\n')}`,
   }
 }
 
@@ -107,6 +132,30 @@ function timersWindowIsUsableVisible(win: BrowserWindow | null): boolean {
 
 const notifiedSpawnByKey = new Map<string, number>()
 
+/** Group bosses whose spawn times are within `windowMs` of the previous boss in sorted order. */
+export function groupBossAlertsBySpawnWindow(
+  bosses: RaidBossAlertSnapshot[],
+  windowMs = BOSS_SPAWN_GROUP_WINDOW_MS,
+): RaidBossAlertSnapshot[][] {
+  if (bosses.length === 0) return []
+  const sorted = [...bosses].sort((a, b) => a.nextSpawnUtcMs - b.nextSpawnUtcMs)
+  const groups: RaidBossAlertSnapshot[][] = []
+  let current: RaidBossAlertSnapshot[] = [sorted[0]!]
+
+  for (let i = 1; i < sorted.length; i++) {
+    const boss = sorted[i]!
+    const prev = current[current.length - 1]!
+    if (boss.nextSpawnUtcMs - prev.nextSpawnUtcMs <= windowMs) {
+      current.push(boss)
+    } else {
+      groups.push(current)
+      current = [boss]
+    }
+  }
+  groups.push(current)
+  return groups
+}
+
 /**
  * Pre-spawn alerts for bosses in `respawning` state (raid timer API).
  */
@@ -125,6 +174,8 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const wantToast = method === 'toast' || method === 'both'
   const wantSound = (method === 'sound' || method === 'both') && chime !== 'off'
 
+  const pending: RaidBossAlertSnapshot[] = []
+
   for (const boss of activeBossAlerts) {
     if (boss.status !== 'respawning') continue
     const remaining = boss.nextSpawnUtcMs - now
@@ -133,10 +184,22 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
       continue
     }
     if (notifiedSpawnByKey.get(boss.monsterName) === boss.nextSpawnUtcMs) continue
-    notifiedSpawnByKey.set(boss.monsterName, boss.nextSpawnUtcMs)
+    pending.push(boss)
+  }
 
-    const mins = Math.max(1, Math.ceil(remaining / 60_000))
-    const { title, body } = relaxedBossCopy(boss, mins)
+  if (pending.length === 0) return
+
+  const groups = groupBossAlertsBySpawnWindow(pending)
+
+  for (const group of groups) {
+    for (const boss of group) {
+      notifiedSpawnByKey.set(boss.monsterName, boss.nextSpawnUtcMs)
+    }
+
+    const soonestRemaining = Math.min(...group.map((boss) => boss.nextSpawnUtcMs - now))
+    const mins = Math.max(1, Math.ceil(soonestRemaining / 60_000))
+    const { title, body } =
+      group.length === 1 ? relaxedBossCopy(group[0]!, mins) : relaxedGroupedBossCopy(group, mins)
 
     if (wantToast && Notification.isSupported()) {
       void new Notification({ title, body }).show()

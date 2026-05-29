@@ -970,6 +970,28 @@ export default function SettingsApp() {
                 />
                 Keep timers above other apps
               </label>
+              <label className="field">
+                <span>Bosses to show</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={15}
+                  step={1}
+                  value={settings.bossTimerVisibleCount}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      bossTimerVisibleCount: Math.min(
+                        15,
+                        Math.max(1, Math.round(Number(e.target.value) || 5)),
+                      ),
+                    }))
+                  }
+                />
+                <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                  Upcoming spawns in the timers overlay, soonest first.
+                </span>
+              </label>
             </section>
 
             <section className="field-group">
