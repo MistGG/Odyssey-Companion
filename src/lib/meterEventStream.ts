@@ -29,6 +29,7 @@ import {
   seedDungeonKillStepsFromWiki,
   sessionAllKillObjectivesComplete,
   sessionFinalKillStepComplete,
+  sessionObjectiveProgressIndicatesClear,
   shouldStartNewDungeonPull,
   syncDungeonBossTargets,
   allKillObjectivesComplete,
@@ -1200,7 +1201,9 @@ function maybeMarkFullDungeonClear(
   session: MeterStreamSession,
   eventMs: number,
 ): MeterDungeonRunOutcome | null {
-  if (!session.dungeonRunActive || session.sessionEndMs != null) return null
+  if (!session.dungeonId?.trim() || session.sessionEndMs != null || session.lastRunOutcome != null) {
+    return null
+  }
   if (!sessionAllKillObjectivesComplete(session)) {
     if (isMeterDebugEnabled()) {
       logDungeonObjectiveProgress(session, 'clear blocked (objectives incomplete)')
@@ -1231,7 +1234,7 @@ export function applyDungeonProgress(
   const eventMs = Number(ev.ts) || nowMs
 
   if (!dungeonId) {
-    const reset = refreshMeterAfterLeavingDungeon(session)
+    const reset = refreshMeterAfterLeavingDungeon(session, eventMs)
     return { dungeonId: null, reset, needsNameFetch: false, outcome: null }
   }
 
@@ -1282,10 +1285,17 @@ function freezeMeterTimer(session: MeterStreamSession, endMs: number) {
 /** Stop the live clock when the player leaves the dungeon (map change, etc.). */
 function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: number) {
   if (session.sessionStartMs == null || session.sessionEndMs != null) return
-  if (session.dungeonRunActive && session.lastRunOutcome == null) {
-    if (session.clientReportedFullClear) {
+  if (session.lastRunOutcome == null) {
+    if (session.clientReportedFullClear || sessionObjectiveProgressIndicatesClear(session)) {
       markDungeonRunClear(session)
-    } else {
+      if (
+        isMeterDebugEnabled() &&
+        !session.clientReportedFullClear &&
+        sessionObjectiveProgressIndicatesClear(session)
+      ) {
+        meterDebugLog('dungeon run CLEAR (inferred from objectives on leave)')
+      }
+    } else if (session.dungeonId?.trim() || session.dungeonRunActive) {
       markDungeonRunFail(session)
     }
   }
@@ -1296,7 +1306,9 @@ function maybeMarkDungeonRunClear(
   session: MeterStreamSession,
   ev: EventStreamRecord,
 ): MeterDungeonRunOutcome | null {
-  if (!session.dungeonId || !session.dungeonRunActive || session.sessionEndMs != null) return null
+  if (!session.dungeonId?.trim() || session.sessionEndMs != null || session.lastRunOutcome != null) {
+    return null
+  }
   if (!session.dungeonFinalBossTarget?.trim()) return null
 
   const endMs = Number(ev.ts) || Date.now()
@@ -1338,9 +1350,9 @@ function maybeMarkDungeonRunClear(
   return 'clear'
 }
 
-function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRecord) {
+function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRecord): boolean {
   const block = ev.dungeon
-  if (!block || typeof block !== 'object') return
+  if (!block || typeof block !== 'object') return false
   const row = block as Record<string, unknown>
   const dungeonId = String(row.dungeon_id ?? '').trim()
   if (!dungeonId) {
@@ -1351,14 +1363,17 @@ function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRec
           `query empty dungeon_id — leaving dungeon (was ${session.dungeonId ?? ''})`,
         )
       }
-      stopMeterTimerOnDungeonLeave(session, Number(ev.ts) || Date.now())
-      leaveDungeonSession(session)
-    } else if (isMeterDebugEnabled()) {
+      return refreshMeterAfterLeavingDungeon(session, Number(ev.ts) || Date.now())
+    }
+    if (isMeterDebugEnabled()) {
       meterDebugLog('query empty dungeon_id on map — ignored (no active dungeon)')
     }
-    return
+    return false
   }
   applyDungeonIdentity(session, dungeonId)
+  if (session.lastRunOutcome == null) {
+    session.dungeonRunActive = true
+  }
   const diffMeta = extractDungeonDifficultyMeta(ev)
   if (diffMeta.label) session.dungeonDifficulty = diffMeta.label
   if (diffMeta.tier != null) session.dungeonDifficultyTier = diffMeta.tier
@@ -1370,6 +1385,7 @@ function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRec
   if (Array.isArray(row.objectives) && row.objectives.length) {
     mergeDungeonObjectiveProgress(session, row.objectives)
   }
+  return false
 }
 
 export function ingestMeterEventStream(
@@ -1441,7 +1457,9 @@ export function ingestMeterEventStream(
     ) {
       requestPartySnapshot = true
     }
-    ingestQueryDungeonBlock(session, ev)
+    if (ingestQueryDungeonBlock(session, ev)) {
+      dungeonReset = true
+    }
     applySelfIdentityFromQuery(session, ev)
     applyPartyRoster(session, ev)
     ensureSelfPartyRowVisible(session)

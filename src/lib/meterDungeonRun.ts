@@ -256,6 +256,14 @@ export function sessionFinalKillStepComplete(session: DungeonObjectiveProgressFi
   return session.dungeonCompletedKillSteps.includes(finalStep)
 }
 
+/** All wiki kill steps done — infer a clear even when `dungeonRunActive` never flipped true (query-only entry). */
+export function sessionObjectiveProgressIndicatesClear(
+  session: DungeonObjectiveProgressFields & { dungeonId?: string | null },
+): boolean {
+  if (!session.dungeonId?.trim()) return false
+  return sessionAllKillObjectivesComplete(session) && sessionFinalKillStepComplete(session)
+}
+
 export function deathEntityMonsterId(ev: EventStreamRecord): string {
   return String(ev.monster_id ?? ev.monsterId ?? '').trim()
 }
