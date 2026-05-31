@@ -6,6 +6,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
+import { buildMeterLeaderboardSummary } from './lib/buildLeaderboardSummary'
 import {
   isMeterSessionLeaderboardEligible,
   meterLeaderboardEligibilityDebugReason,
@@ -1010,6 +1011,7 @@ export default function MeterApp() {
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
       const appVersion = info?.version ?? 'unknown'
+      const leaderboardSummary = buildMeterLeaderboardSummary(session, dungeon, members, durationSec)
       const { error } = await insertMeterParse(supabase, userId, {
         mode: 'dungeon_party',
         appVersion,
@@ -1017,6 +1019,7 @@ export default function MeterApp() {
         dungeon,
         members,
         digimonNamesRequireWikiLookup,
+        leaderboardSummary,
       })
       if (error) {
         setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })

@@ -59,6 +59,8 @@ export type DigimonWikiSkillCache = {
   digimonName: string
   /** Wiki `model_id` — used for digimon portrait when stream has no `icon_id`. */
   modelId: string
+  /** Wiki role string (Melee DPS, Support, …). */
+  role: string
 }
 
 const loadingDigimonIds = new Set<string>()
@@ -86,6 +88,7 @@ export function buildDigimonWikiCache(
     digimonId: detail.id.trim(),
     digimonName: detail.name.trim(),
     modelId: detail.model_id.trim(),
+    role: detail.role.trim(),
   }
 }
 

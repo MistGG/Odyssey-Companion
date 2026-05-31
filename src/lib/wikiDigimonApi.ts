@@ -12,6 +12,7 @@ export type WikiDigimonDetail = {
   id: string
   name: string
   model_id: string
+  role: string
   skills: WikiDigimonSkill[]
 }
 
@@ -40,6 +41,7 @@ export function parseDigimonDetail(raw: unknown): WikiDigimonDetail {
     id: String(o.id ?? '').trim(),
     name: String(o.name ?? '').trim(),
     model_id: String(o.model_id ?? '').trim(),
+    role: String(o.role ?? '').trim(),
     skills,
   }
 }

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createSupabaseAuthStorage } from './supabaseAuthStorage'
+import type { MeterLeaderboardSummary } from './buildLeaderboardSummary'
 
 export type MeterHitLike = {
   skill: string
@@ -114,6 +115,7 @@ export type InsertMeterParseInput =
       dungeon: MeterParseDungeonContext
       members: MeterDungeonPartyMemberParse[]
       digimonNamesRequireWikiLookup?: boolean
+      leaderboardSummary?: MeterLeaderboardSummary
     }
 
 let cachedClient: { url: string; key: string; client: SupabaseClient } | null = null
@@ -275,11 +277,31 @@ function clampSkill(s: SkillBreakdownForParse): SkillBreakdownForParse {
   }
 }
 
+async function notifyLeaderboardProcessor(
+  supabaseUrl: string,
+  anonKey: string,
+  parseId: string,
+): Promise<void> {
+  const base = supabaseUrl.replace(/\/$/, '')
+  try {
+    await fetch(`${base}/functions/v1/process-meter-leaderboard`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ parse_id: parseId }),
+    })
+  } catch {
+    /* best effort; edge function also backfills via webhook if configured */
+  }
+}
+
 export async function insertMeterParse(
   client: SupabaseClient,
   userId: string | null,
   input: InsertMeterParseInput,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; parseId?: string }> {
   if (input.mode === 'dungeon_party') {
     const { members, dungeon, durationSec, appVersion, digimonNamesRequireWikiLookup } = input
     if (!dungeon.dungeonId.trim()) {
@@ -348,7 +370,7 @@ export async function insertMeterParse(
       })),
       ...(digimonNamesRequireWikiLookup ? { digimonNamesRequireWikiLookup: true } : {}),
     }
-    const { error } = await client.from('meter_parses').insert({
+    const { data, error } = await client.from('meter_parses').insert({
       user_id: userId,
       app_version: appVersion,
       total_damage: totalDamage,
@@ -360,8 +382,14 @@ export async function insertMeterParse(
       difficulty: payload.dungeon.difficulty,
       difficulty_id: payload.dungeon.difficultyId,
       payload,
-    })
-    return { error: error?.message ?? null }
+      leaderboard_summary: input.leaderboardSummary ?? null,
+    }).select('id').single()
+    if (error) return { error: error.message }
+    const parseId = (data as { id?: string } | null)?.id
+    if (parseId && cachedClient?.url && cachedClient?.key) {
+      void notifyLeaderboardProcessor(cachedClient.url, cachedClient.key, parseId)
+    }
+    return { error: null, parseId }
   }
 
   if (input.mode === 'party') {

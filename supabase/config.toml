@@ -1,0 +1,4 @@
+# Supabase project config (deploy with: npx supabase functions deploy ... --project-ref fnbixrelavkfvzprlgzc)
+
+[functions.process-meter-leaderboard]
+verify_jwt = false
