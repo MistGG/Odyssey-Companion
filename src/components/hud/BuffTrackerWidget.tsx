@@ -10,6 +10,7 @@ import {
 } from '../../lib/hudBuffTracker'
 import {
   DEFAULT_BUFF_TRACKER_WIDGET_CONFIG,
+  buffHasDisplayIcon,
   isBuffBlacklisted,
 } from '../../lib/hudBuffTrackerWidget'
 import { gameSkillIconUrl } from '../../lib/meterSkillIcon'
@@ -24,14 +25,14 @@ type Props = {
 }
 
 function BuffIcon({ skillIcon, buffName }: { skillIcon: string | null; buffName: string }) {
-  const url = skillIcon ? gameSkillIconUrl(skillIcon) : ''
-  if (!url) {
+  if (!buffHasDisplayIcon(skillIcon)) {
     return (
       <span className="hud-buff-tracker__icon hud-buff-tracker__icon--placeholder" aria-hidden>
         {buffName.slice(0, 1).toUpperCase() || '?'}
       </span>
     )
   }
+  const url = gameSkillIconUrl(skillIcon!)
   return (
     <img
       className="hud-buff-tracker__icon"

@@ -3,8 +3,11 @@ import { createPortal } from 'react-dom'
 import type { BuffTrackerSavedBuff, BuffTrackerWidgetConfig } from '../../types'
 import {
   addBlacklistedBuff,
+  addShownIconlessBuff,
+  buffHasDisplayIcon,
   DEFAULT_BUFF_TRACKER_WIDGET_CONFIG,
   removeBlacklistedBuff,
+  removeShownIconlessBuff,
 } from '../../lib/hudBuffTrackerWidget'
 import { gameSkillIconUrl } from '../../lib/meterSkillIcon'
 import type { HudBuffHistoryEntry } from '../../lib/hudBuffTracker'
@@ -157,18 +160,27 @@ export default function BuffTrackerWidgetSettingsMenu({
           buffName: entry.buffName,
           skillIcon: entry.skillIcon,
         }),
+        shownIconlessBuffs: removeShownIconlessBuff(config.shownIconlessBuffs, entry),
       })
     },
-    [config.blacklistedBuffs, patch],
+    [config.blacklistedBuffs, config.shownIconlessBuffs, patch],
   )
 
   const showOnWidget = useCallback(
     (entry: BuffTrackerSavedBuff) => {
+      const saved = {
+        buffId: entry.buffId,
+        buffName: entry.buffName,
+        skillIcon: entry.skillIcon,
+      }
       patch({
         blacklistedBuffs: removeBlacklistedBuff(config.blacklistedBuffs, entry),
+        shownIconlessBuffs: buffHasDisplayIcon(entry.skillIcon)
+          ? config.shownIconlessBuffs
+          : addShownIconlessBuff(config.shownIconlessBuffs, saved),
       })
     },
-    [config.blacklistedBuffs, patch],
+    [config.blacklistedBuffs, config.shownIconlessBuffs, patch],
   )
 
   const menu = (

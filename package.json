@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.63",
+  "version": "0.1.64",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Server status is now visible in the main window title bar\n- Timeline redesigned for comprehension\n- Raid Timer updated to be less annoying and support boss trains\n- Fixed a few small issues (click-through, market login message, and more)"
+      "releaseNotes": "- Meter overlay: fixed lock button when click-through is enabled (title bar stays clickable)\n- Meter window title renamed from DPS to Meter\n- Buff tracker: iconless buffs auto-hide by default (Show restores them)"
     }
   }
 }

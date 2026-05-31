@@ -174,6 +174,8 @@ export type BuffTrackerSavedBuff = {
 export type BuffTrackerWidgetConfig = {
   /** Buffs hidden from the widget; persisted across sessions. */
   blacklistedBuffs: BuffTrackerSavedBuff[]
+  /** Iconless buffs the user explicitly restored to the widget (opt-out of auto-blacklist). */
+  shownIconlessBuffs: BuffTrackerSavedBuff[]
   /** Hide the widget title (“Buffs”). */
   hideBuffsLabel: boolean
   /** Hide per-buff name labels; show icon and timer only. */

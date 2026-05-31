@@ -130,6 +130,7 @@ export default function MeterApp() {
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
+  const titlebarRef = useRef<HTMLElement>(null)
   const streamRef = useRef<MeterStreamSession>(createMeterStreamSession())
   const timelineAutoRef = useRef<TimelineAutoDungeonState>({
     loadedKey: null,
@@ -337,8 +338,8 @@ export default function MeterApp() {
   }, [resetSession])
 
   /**
-   * Locked overlay: OS click-through except native resize edges.
-   * Title bar stays interactive via CSS pointer-events with forward:true.
+   * Locked overlay: OS click-through except native resize edges and the title bar
+   * (lock, settings, etc.) via explicit hit-testing with forward:true.
    */
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -370,11 +371,19 @@ export default function MeterApp() {
       )
     }
 
+    const inRect = (x: number, y: number, el: Element | null) => {
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    }
+
     const onPointer = (clientX: number, clientY: number) => {
       if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
       ignoreMouseRaf.current = requestAnimationFrame(() => {
         ignoreMouseRaf.current = null
-        setIgnore(!nearResizeEdge(clientX, clientY))
+        const interactive =
+          nearResizeEdge(clientX, clientY) || inRect(clientX, clientY, titlebarRef.current)
+        setIgnore(!interactive)
       })
     }
 
@@ -1144,10 +1153,10 @@ export default function MeterApp() {
   return (
     <div className={shellCls} style={shellStyle}>
       <div className={`meter-backdrop ${ghostChrome ? 'meter-backdrop--ghost' : ''}`}>
-        <header className="titlebar titlebar--meter titlebar--meter-compact">
+        <header ref={titlebarRef} className="titlebar titlebar--meter titlebar--meter-compact">
           <div className="titlebar-drag titlebar-drag--meter">
             <span className="logo-dot logo-dot--meter" aria-hidden />
-            <strong className="meter-title-text">DPS</strong>
+            <strong className="meter-title-text">Meter</strong>
           </div>
           <div className="titlebar-actions titlebar-actions--meter">
             <button

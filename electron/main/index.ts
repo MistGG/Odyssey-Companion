@@ -826,7 +826,7 @@ function createMeterWindow() {
   const b = normalizeMeterBounds(layout.meter)
   meterWin = new BrowserWindow({
     icon: getWindowIcon(),
-    title: 'Odyssey Companion — DPS meter',
+    title: 'Odyssey Companion — Meter',
     ...(b ?? {
       width: DEFAULT_METER_SIZE.width,
       height: DEFAULT_METER_SIZE.height,

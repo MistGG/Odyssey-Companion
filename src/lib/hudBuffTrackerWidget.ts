@@ -1,4 +1,5 @@
 import type { BuffTrackerSavedBuff, BuffTrackerWidgetConfig } from '../types'
+import { gameSkillIconUrl } from './meterSkillIcon'
 import {
   clampHudWidgetBackgroundOpacity,
   DEFAULT_HUD_WIDGET_BACKGROUND_OPACITY,
@@ -8,6 +9,7 @@ export const BLACKLISTED_BUFFS_MAX = 64
 
 export const DEFAULT_BUFF_TRACKER_WIDGET_CONFIG: BuffTrackerWidgetConfig = {
   blacklistedBuffs: [],
+  shownIconlessBuffs: [],
   hideBuffsLabel: false,
   hideBuffLabel: false,
   hideCountdown: false,
@@ -92,6 +94,65 @@ function normalizeBlacklistedBuffs(
   return out.slice(0, BLACKLISTED_BUFFS_MAX)
 }
 
+/** True when the buff has a skill icon id that resolves to a game icon URL. */
+export function buffHasDisplayIcon(skillIcon: string | null): boolean {
+  if (!skillIcon?.trim()) return false
+  return Boolean(gameSkillIconUrl(skillIcon))
+}
+
+export function isBuffShownDespiteIconless(
+  buffId: string,
+  buffName: string,
+  config: BuffTrackerWidgetConfig,
+): boolean {
+  const probe = { buffId: buffId.trim(), buffName: buffName.trim() }
+  return config.shownIconlessBuffs.some((e) => blacklistEntryMatches(e, probe))
+}
+
+export function addShownIconlessBuff(
+  list: BuffTrackerSavedBuff[],
+  entry: BuffTrackerSavedBuff,
+): BuffTrackerSavedBuff[] {
+  const next = list.filter((e) => !blacklistEntryMatches(e, entry))
+  next.push({
+    buffId: entry.buffId.trim(),
+    buffName: entry.buffName.trim() || entry.buffId.trim(),
+    skillIcon: entry.skillIcon,
+  })
+  return next.slice(-BLACKLISTED_BUFFS_MAX)
+}
+
+export function removeShownIconlessBuff(
+  list: BuffTrackerSavedBuff[],
+  entry: { buffId: string; buffName: string },
+): BuffTrackerSavedBuff[] {
+  return list.filter((e) => !blacklistEntryMatches(e, entry))
+}
+
+/** Auto-hide buffs with no icon unless the user opted them back in. */
+export function applyAutoBlacklistIconlessBuffs(
+  config: BuffTrackerWidgetConfig,
+  entries: { buffId: string; buffName: string; skillIcon: string | null }[],
+): BuffTrackerWidgetConfig {
+  let blacklistedBuffs = config.blacklistedBuffs
+  let changed = false
+
+  for (const entry of entries) {
+    if (buffHasDisplayIcon(entry.skillIcon)) continue
+    if (isBuffShownDespiteIconless(entry.buffId, entry.buffName, config)) continue
+    if (isBuffBlacklisted(entry.buffId, entry.buffName, { ...config, blacklistedBuffs })) continue
+    blacklistedBuffs = addBlacklistedBuff(blacklistedBuffs, {
+      buffId: entry.buffId,
+      buffName: entry.buffName,
+      skillIcon: entry.skillIcon,
+    })
+    changed = true
+  }
+
+  if (!changed) return config
+  return { ...config, blacklistedBuffs }
+}
+
 export function blacklistEntryMatches(
   a: BuffTrackerSavedBuff,
   b: { buffId: string; buffName: string },
@@ -138,6 +199,7 @@ export function normalizeBuffTrackerWidgetConfig(
   const legacyIds = normalizeStringList(o.blacklistedBuffIds)
   const legacyNames = normalizeStringList(o.blacklistedBuffNames)
   const blacklistedBuffs = normalizeBlacklistedBuffs(o.blacklistedBuffs, legacyIds, legacyNames)
+  const shownIconlessBuffs = normalizeBlacklistedBuffs(o.shownIconlessBuffs, [], [])
 
   const hideBuffsLabel =
     typeof o.hideBuffsLabel === 'boolean' ? o.hideBuffsLabel : base.hideBuffsLabel
@@ -174,6 +236,7 @@ export function normalizeBuffTrackerWidgetConfig(
 
   return {
     blacklistedBuffs,
+    shownIconlessBuffs,
     hideBuffsLabel,
     hideBuffLabel,
     hideCountdown,

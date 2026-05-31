@@ -31,7 +31,7 @@ import {
   type BossAlertsDemoSession,
 } from './lib/hudBossAlertsDemo'
 import { loadRandomHardBossAlertsFight } from './lib/hudBossAlertsTest'
-import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG } from './lib/hudBuffTrackerWidget'
+import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, applyAutoBlacklistIconlessBuffs } from './lib/hudBuffTrackerWidget'
 import { fightEngageDungeonKey } from './lib/fightEngageEpoch'
 import { loadTimelineFightForDungeon } from './lib/loadTimelineFightForDungeon'
 import AttackSpeedWidgetSettingsMenu from './components/hud/AttackSpeedWidgetSettingsMenu'
@@ -317,6 +317,36 @@ export default function HudApp() {
     }, 500)
     return () => window.clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    const candidates = [
+      ...buffTrackerState.history.map((entry) => ({
+        buffId: entry.buffId,
+        buffName: entry.buffName,
+        skillIcon: entry.skillIcon,
+      })),
+      ...[...buffTrackerState.activeBuffs.values()].map((buff) => ({
+        buffId: buff.buffId,
+        buffName: buff.buffName,
+        skillIcon: buff.skillIcon,
+      })),
+    ]
+    if (candidates.length === 0) return
+
+    setSettings((s) => {
+      let changed = false
+      const hudWidgets = s.hudWidgets.map((w) => {
+        if (w.type !== 'buff_tracker') return w
+        const base = w.buffTracker ?? DEFAULT_BUFF_TRACKER_WIDGET_CONFIG
+        const next = applyAutoBlacklistIconlessBuffs(base, candidates)
+        if (next === base) return w
+        changed = true
+        return { ...w, buffTracker: next }
+      })
+      if (!changed) return s
+      return { ...s, hudWidgets }
+    })
+  }, [buffTrackerState])
 
   useEffect(() => {
     const id = window.setInterval(() => {
