@@ -46,6 +46,11 @@ async function fetchServerOnline(): Promise<boolean | null> {
   }
 }
 
+/** Shared poll used by notifications and renderer title-bar status. */
+export async function fetchGameServerOnline(): Promise<boolean | null> {
+  return fetchServerOnline()
+}
+
 function notifyMethod(settings: OverlaySettings) {
   return settings.serverStatusNotifyMethod
 }

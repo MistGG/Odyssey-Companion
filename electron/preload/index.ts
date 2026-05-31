@@ -302,6 +302,9 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
       { ok: true } | { ok: false; error: string }
     >,
 
+  fetchGameServerStatus: () =>
+    ipcRenderer.invoke('server-status:get') as Promise<{ online: boolean | null }>,
+
   /** Main sends this when a real pre-spawn sound cue should play (timers window only). */
   connectEventStream: (host: string, port: number) =>
     ipcRenderer.invoke('event-stream:connect', { host, port }) as Promise<

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.62",
+  "version": "0.1.63",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added a fix for some uploads failing"
+      "releaseNotes": "- Server status is now visible in the main window title bar\n- Timeline redesigned for comprehension\n- Raid Timer updated to be less annoying and support boss trains\n- Fixed a few small issues (click-through, market login message, and more)"
     }
   }
 }

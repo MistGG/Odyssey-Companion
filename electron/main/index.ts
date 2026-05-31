@@ -35,6 +35,7 @@ import { registerMeterDebugReportIpc } from './meterDebugReportIpc'
 import {
   syncServerStatusMonitor,
   tryShowServerStatusTestNotification,
+  fetchGameServerOnline,
 } from './serverStatusMonitor'
 import { markWikiApiRequest } from './wikiRequestActivity'
 import {
@@ -873,7 +874,7 @@ function createTimersWindow() {
   const b = normalizeTimersBounds(layout.timers)
   timersWin = new BrowserWindow({
     icon: getWindowIcon(),
-    title: 'Odyssey Companion — Boss timers',
+    title: 'Odyssey Companion — Raid Timer',
     ...(b ?? {
       width: DEFAULT_TIMERS_SIZE.width,
       height: DEFAULT_TIMERS_SIZE.height,
@@ -1285,7 +1286,7 @@ function buildTrayMenuTemplate(): Electron.MenuItemConstructorOptions[] {
       click: () => showMeterWindow(),
     },
     {
-      label: 'Open boss timers',
+      label: 'Open Raid Timer',
       click: () => showTimersWindow(),
     },
     {
@@ -1550,17 +1551,13 @@ async function fetchMarketJson(url: string): Promise<unknown> {
   const res = await fetch(url, { headers })
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
-      throw new Error(
-        'Market API requires a logged-in Odyssey website session. Use Open market login, then try again.',
-      )
+      throw new Error('Please login with Discord to retrieve market values')
     }
     throw new Error(`Market API returned ${res.status}`)
   }
   const type = res.headers.get('content-type') ?? ''
   if (!type.toLowerCase().includes('application/json')) {
-    throw new Error(
-      'Market API did not return JSON. Use Open market login to refresh your Odyssey website session.',
-    )
+    throw new Error('Please login with Discord to retrieve market values')
   }
   return res.json() as Promise<unknown>
 }
@@ -1677,6 +1674,11 @@ ipcMain.handle('boss-timer:test-toast', () => {
 
 ipcMain.handle('server-status:test-notification', () => {
   return tryShowServerStatusTestNotification(lastOverlaySettings, companionChimeWindows)
+})
+
+ipcMain.handle('server-status:get', async () => {
+  const online = await fetchGameServerOnline()
+  return { online }
 })
 
 ipcMain.on('boss-timer:push-schedule', (_event, payload: unknown) => {

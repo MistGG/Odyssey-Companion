@@ -20,3 +20,9 @@ export function formatCastMs(ms: number) {
   if (ms <= 0) return 'instant'
   return `${(ms / 1000).toFixed(1)}s cast`
 }
+
+/** Compact damage readout for timeline rows (0 / invalid → em dash). */
+export function formatSkillDamage(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '—'
+  return amount.toLocaleString(undefined, { maximumFractionDigits: 0 })
+}

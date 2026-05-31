@@ -3,6 +3,24 @@ import { wikiItemIconUrl } from './wikiItemDetailApi'
 
 export type MarketMoneyTier = 'b' | 'm' | 't'
 
+export const MARKET_LOGIN_REQUIRED_MESSAGE =
+  'Please login with Discord to retrieve market values'
+
+function marketUserFacingErrorMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e)
+  const inner = raw.replace(/^Error invoking remote method '[^']+': Error: /, '')
+  if (
+    inner.includes(MARKET_LOGIN_REQUIRED_MESSAGE) ||
+    inner.includes('Market API did not return JSON') ||
+    inner.includes('logged-in Odyssey website session') ||
+    inner.includes('Open market login') ||
+    /Market API returned (401|403)\b/.test(inner)
+  ) {
+    return MARKET_LOGIN_REQUIRED_MESSAGE
+  }
+  return inner.trim() || raw
+}
+
 function parseMarketSearchItems(raw: unknown): MarketSearchItem[] {
   if (!Array.isArray(raw)) throw new Error('Invalid market search response')
   return raw.map((row) => {
@@ -52,7 +70,11 @@ export async function fetchMarketSearch(query: string): Promise<MarketSearchItem
   if (!q) return []
   let raw: unknown
   if (window.odysseyCompanion?.fetchMarketSearch) {
-    raw = await window.odysseyCompanion.fetchMarketSearch(q)
+    try {
+      raw = await window.odysseyCompanion.fetchMarketSearch(q)
+    } catch (e) {
+      throw new Error(marketUserFacingErrorMessage(e))
+    }
   } else {
     raw = await fetchJson(`/api/market/items?q=${encodeURIComponent(q)}`)
   }
@@ -64,7 +86,11 @@ export async function fetchMarketSellListings(itemId: string): Promise<MarketLis
   if (!item) throw new Error('Missing market item id')
   let raw: unknown
   if (window.odysseyCompanion?.fetchMarketListings) {
-    raw = await window.odysseyCompanion.fetchMarketListings(item, 'sell', 50)
+    try {
+      raw = await window.odysseyCompanion.fetchMarketListings(item, 'sell', 50)
+    } catch (e) {
+      throw new Error(marketUserFacingErrorMessage(e))
+    }
   } else {
     raw = await fetchJson(`/api/market/listings?item=${encodeURIComponent(item)}&side=sell&limit=50`)
   }

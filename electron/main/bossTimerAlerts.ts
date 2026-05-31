@@ -1,13 +1,21 @@
 import { BrowserWindow, Notification } from 'electron'
 import type { OverlaySettings } from '../../src/types'
-import type { RaidBossAlertSnapshot, RaidBossStatus } from '../../src/lib/raidTimerApi'
+import {
+  BOSS_TRAIN_WINDOW_MS,
+  groupAlertSnapshotsIntoTrains,
+  type RaidBossAlertSnapshot,
+  type RaidBossStatus,
+} from '../../src/lib/raidTimerApi'
 
 let activeBossAlerts: RaidBossAlertSnapshot[] = []
 
 export type ParsedChimeStyle = 'off' | 'braveHeart' | 'digivice' | 'digibeep'
 
-/** Boss spawns within this window are batched into one toast/chime. */
-export const BOSS_SPAWN_GROUP_WINDOW_MS = 60_000
+/** Must match `BOSS_TIMER_ALERT_INTERVAL_MS` in electron/main/index.ts. */
+export const BOSS_TIMER_ALERT_TICK_MS = 15_000
+
+/** @deprecated Use BOSS_TRAIN_WINDOW_MS from raidTimerApi */
+export const BOSS_SPAWN_GROUP_WINDOW_MS = BOSS_TRAIN_WINDOW_MS
 
 export function parseBossTimerChimeStyle(raw: unknown): ParsedChimeStyle {
   if (raw === 'off' || raw === 'braveHeart' || raw === 'digivice' || raw === 'digibeep') {
@@ -57,25 +65,25 @@ function relaxedBossCopy(boss: RaidBossAlertSnapshot, minsApprox: number): { tit
   }
 }
 
-function relaxedGroupedBossCopy(
-  bosses: RaidBossAlertSnapshot[],
+function relaxedTrainCopy(
+  train: RaidBossAlertSnapshot[],
   minsApprox: number,
 ): { title: string; body: string } {
-  if (bosses.length === 1) return relaxedBossCopy(bosses[0]!, minsApprox)
+  if (train.length === 1) return relaxedBossCopy(train[0]!, minsApprox)
 
   const timeFmt = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   })
-  const lines = bosses.map((boss) => {
+  const lines = train.map((boss) => {
     const place = boss.mapName?.trim() || 'world boss location'
     const time = timeFmt.format(new Date(boss.nextSpawnUtcMs))
     return `• ${boss.monsterName} — ${place} (${time})`
   })
 
   return {
-    title: `${bosses.length} bosses spawning soon`,
-    body: `About ${minsApprox} min until the next window.\n${lines.join('\n')}`,
+    title: `Boss train (${train.length} spawns)`,
+    body: `About ${minsApprox} min until the train starts.\n${lines.join('\n')}`,
   }
 }
 
@@ -130,34 +138,33 @@ function timersWindowIsUsableVisible(win: BrowserWindow | null): boolean {
   return !!(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized())
 }
 
-const notifiedSpawnByKey = new Map<string, number>()
+/** Stable key for one train spawn cycle — minute bucket absorbs raid-timer API jitter. */
+function trainNotifyKey(train: RaidBossAlertSnapshot[]): string {
+  const first = train[0]!
+  const spawnBucket = Math.floor(first.nextSpawnUtcMs / 60_000)
+  const roster = train
+    .map((b) => b.monsterName)
+    .sort()
+    .join('|')
+  return `${spawnBucket}:${roster}`
+}
+
+const notifiedTrainKeys = new Set<string>()
+/** Previous tick's ms-until-first-spawn — detects crossing into the lead window. */
+const lastFirstRemainingMs = new Map<string, number>()
 
 /** Group bosses whose spawn times are within `windowMs` of the previous boss in sorted order. */
 export function groupBossAlertsBySpawnWindow(
   bosses: RaidBossAlertSnapshot[],
-  windowMs = BOSS_SPAWN_GROUP_WINDOW_MS,
+  nowMs = Date.now(),
+  windowMs = BOSS_TRAIN_WINDOW_MS,
 ): RaidBossAlertSnapshot[][] {
-  if (bosses.length === 0) return []
-  const sorted = [...bosses].sort((a, b) => a.nextSpawnUtcMs - b.nextSpawnUtcMs)
-  const groups: RaidBossAlertSnapshot[][] = []
-  let current: RaidBossAlertSnapshot[] = [sorted[0]!]
-
-  for (let i = 1; i < sorted.length; i++) {
-    const boss = sorted[i]!
-    const prev = current[current.length - 1]!
-    if (boss.nextSpawnUtcMs - prev.nextSpawnUtcMs <= windowMs) {
-      current.push(boss)
-    } else {
-      groups.push(current)
-      current = [boss]
-    }
-  }
-  groups.push(current)
-  return groups
+  return groupAlertSnapshotsIntoTrains(bosses, nowMs, windowMs)
 }
 
 /**
  * Pre-spawn alerts for bosses in `respawning` state (raid timer API).
+ * Trains share one toast/chime when the first boss crosses into the lead window (~N min before spawn).
  */
 export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: BrowserWindow | null): void {
   if (!settings) return
@@ -166,7 +173,8 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const whenClosed = settings.bossTimerNotifyWhenUiClosed
   if (!timersVisible && !whenClosed) return
 
-  const leadMs = settings.bossTimerNotifyLeadMin * 60_000
+  const leadMin = Math.min(120, Math.max(1, Math.round(settings.bossTimerNotifyLeadMin)))
+  const leadMs = leadMin * 60_000
   const method = settings.bossTimerNotifyMethod
   const now = Date.now()
 
@@ -174,32 +182,46 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const wantToast = method === 'toast' || method === 'both'
   const wantSound = (method === 'sound' || method === 'both') && chime !== 'off'
 
-  const pending: RaidBossAlertSnapshot[] = []
+  const respawning = activeBossAlerts.filter((boss) => boss.status === 'respawning')
+  const trains = groupAlertSnapshotsIntoTrains(respawning, now)
 
-  for (const boss of activeBossAlerts) {
-    if (boss.status !== 'respawning') continue
-    const remaining = boss.nextSpawnUtcMs - now
-    if (remaining > leadMs || remaining <= 0) {
-      notifiedSpawnByKey.delete(boss.monsterName)
+  for (const train of trains) {
+    const first = train[0]!
+    const firstRemaining = first.nextSpawnUtcMs - now
+    const notifyKey = trainNotifyKey(train)
+    const prevRemaining = lastFirstRemainingMs.get(notifyKey)
+
+    if (firstRemaining <= 0) {
+      notifiedTrainKeys.delete(notifyKey)
+      lastFirstRemainingMs.delete(notifyKey)
       continue
     }
-    if (notifiedSpawnByKey.get(boss.monsterName) === boss.nextSpawnUtcMs) continue
-    pending.push(boss)
-  }
 
-  if (pending.length === 0) return
-
-  const groups = groupBossAlertsBySpawnWindow(pending)
-
-  for (const group of groups) {
-    for (const boss of group) {
-      notifiedSpawnByKey.set(boss.monsterName, boss.nextSpawnUtcMs)
+    if (firstRemaining > leadMs) {
+      notifiedTrainKeys.delete(notifyKey)
+      lastFirstRemainingMs.set(notifyKey, firstRemaining)
+      continue
     }
 
-    const soonestRemaining = Math.min(...group.map((boss) => boss.nextSpawnUtcMs - now))
-    const mins = Math.max(1, Math.ceil(soonestRemaining / 60_000))
-    const { title, body } =
-      group.length === 1 ? relaxedBossCopy(group[0]!, mins) : relaxedGroupedBossCopy(group, mins)
+    lastFirstRemainingMs.set(notifyKey, firstRemaining)
+
+    const crossedIntoLead =
+      prevRemaining != null && prevRemaining > leadMs && firstRemaining <= leadMs
+    const coldStartNearLead =
+      prevRemaining == null &&
+      firstRemaining <= leadMs &&
+      firstRemaining >= leadMs - BOSS_TIMER_ALERT_TICK_MS * 2
+
+    if (!crossedIntoLead && !coldStartNearLead) {
+      continue
+    }
+
+    if (notifiedTrainKeys.has(notifyKey)) {
+      continue
+    }
+    notifiedTrainKeys.add(notifyKey)
+
+    const { title, body } = relaxedTrainCopy(train, leadMin)
 
     if (wantToast && Notification.isSupported()) {
       void new Notification({ title, body }).show()

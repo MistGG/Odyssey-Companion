@@ -128,14 +128,6 @@ function clearStreamCombat(session: MeterStreamSession) {
 export default function MeterApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
-  const titleDragRef = useRef<HTMLDivElement>(null)
-  const lockBtnRef = useRef<HTMLButtonElement>(null)
-  const gearBtnRef = useRef<HTMLButtonElement>(null)
-  const uploadBtnRef = useRef<HTMLButtonElement>(null)
-  const resetBtnRef = useRef<HTMLButtonElement>(null)
-  const minimizeBtnRef = useRef<HTMLButtonElement>(null)
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
-  const meterBodyRef = useRef<HTMLElement | null>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
   const streamRef = useRef<MeterStreamSession>(createMeterStreamSession())
@@ -345,8 +337,8 @@ export default function MeterApp() {
   }, [resetSession])
 
   /**
-   * Locked overlay: OS click-through except title controls (same pattern as timeline).
-   * Disabled while the cloud & party panel is open.
+   * Locked overlay: OS click-through except native resize edges.
+   * Title bar stays interactive via CSS pointer-events with forward:true.
    */
   useEffect(() => {
     const api = window.odysseyCompanion
@@ -366,26 +358,23 @@ export default function MeterApp() {
       return
     }
 
-    const inRect = (x: number, y: number, el: Element | null) => {
-      if (!el) return false
-      const r = el.getBoundingClientRect()
-      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+    const RESIZE_EDGE_PX = 16
+    const nearResizeEdge = (x: number, y: number) => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      return (
+        x <= RESIZE_EDGE_PX ||
+        y <= RESIZE_EDGE_PX ||
+        x >= w - RESIZE_EDGE_PX ||
+        y >= h - RESIZE_EDGE_PX
+      )
     }
 
     const onPointer = (clientX: number, clientY: number) => {
       if (ignoreMouseRaf.current != null) cancelAnimationFrame(ignoreMouseRaf.current)
       ignoreMouseRaf.current = requestAnimationFrame(() => {
         ignoreMouseRaf.current = null
-        const interactive =
-          inRect(clientX, clientY, titleDragRef.current) ||
-          inRect(clientX, clientY, lockBtnRef.current) ||
-          inRect(clientX, clientY, gearBtnRef.current) ||
-          inRect(clientX, clientY, uploadBtnRef.current) ||
-          inRect(clientX, clientY, resetBtnRef.current) ||
-          inRect(clientX, clientY, minimizeBtnRef.current) ||
-          inRect(clientX, clientY, closeBtnRef.current) ||
-          inRect(clientX, clientY, meterBodyRef.current)
-        setIgnore(!interactive)
+        setIgnore(!nearResizeEdge(clientX, clientY))
       })
     }
 
@@ -1156,19 +1145,18 @@ export default function MeterApp() {
     <div className={shellCls} style={shellStyle}>
       <div className={`meter-backdrop ${ghostChrome ? 'meter-backdrop--ghost' : ''}`}>
         <header className="titlebar titlebar--meter titlebar--meter-compact">
-          <div ref={titleDragRef} className="titlebar-drag titlebar-drag--meter">
+          <div className="titlebar-drag titlebar-drag--meter">
             <span className="logo-dot logo-dot--meter" aria-hidden />
             <strong className="meter-title-text">DPS</strong>
           </div>
           <div className="titlebar-actions titlebar-actions--meter">
             <button
-              ref={lockBtnRef}
               type="button"
               className={`btn meter-icon-tile ${positionLocked ? 'meter-icon-tile--active' : ''}`}
               title={
                 positionLocked
-                  ? 'Unlock — meter panel becomes click-through again'
-                  : 'Lock — keep position; clicks pass through except the title bar and meter panel'
+                  ? 'Unlock — drag the window and use the breakdown again'
+                  : 'Lock — pin position; clicks pass through except the title bar'
               }
               aria-pressed={positionLocked}
               aria-label={positionLocked ? 'Unlock meter overlay' : 'Lock overlay — title bar and meter stay clickable'}
@@ -1191,7 +1179,6 @@ export default function MeterApp() {
               )}
             </button>
             <button
-              ref={gearBtnRef}
               type="button"
               className="btn meter-icon-tile"
               title="Companion settings (DPS meter section)"
@@ -1207,7 +1194,6 @@ export default function MeterApp() {
             </button>
             {supabase ? (
               <button
-                ref={uploadBtnRef}
                 type="button"
                 className="btn meter-icon-tile"
                 title="Odyssey Calc — account, bar themes, uploads"
@@ -1223,7 +1209,6 @@ export default function MeterApp() {
               </button>
             ) : null}
             <button
-              ref={resetBtnRef}
               type="button"
               className="btn meter-icon-tile"
               title={eventStreamConnected ? 'Reset session' : 'Connect to game'}
@@ -1247,7 +1232,6 @@ export default function MeterApp() {
               </svg>
             </button>
             <button
-              ref={minimizeBtnRef}
               type="button"
               className="btn meter-icon-tile"
               title="Minimize to tray"
@@ -1259,7 +1243,6 @@ export default function MeterApp() {
               </span>
             </button>
             <button
-              ref={closeBtnRef}
               type="button"
               className="btn meter-icon-tile meter-icon-tile--danger"
               title="Close to tray"
@@ -1283,7 +1266,7 @@ export default function MeterApp() {
           </div>
         ) : null}
 
-        <main ref={meterBodyRef} className="meter-body meter-body--compact">
+        <main className="meter-body meter-body--compact">
           {readerHint ? (
             <p className="meter-banner meter-banner--info muted meter-banner--compact" role="status">
               {readerHint}

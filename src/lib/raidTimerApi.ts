@@ -143,12 +143,133 @@ export function toAlertSnapshots(
   }))
 }
 
-export function sortBossesByNextSpawn(bosses: RaidBossEntry[]): RaidBossEntry[] {
-  return [...bosses].sort((a, b) => nextSpawnUtcMs(a) - nextSpawnUtcMs(b))
+/** Consecutive spawns within this gap form one train (e.g. Suka → Crowmon → Goatmon). */
+export const BOSS_TRAIN_WINDOW_MS = 5 * 60_000
+
+/** Spawn groups tighter than this are simultaneous spawns, not a train. */
+export const BOSS_TRAIN_MIN_SPAN_MS = 10_000
+
+/** Spawn instant used for train grouping — active bosses count as "now". */
+export function bossTrainSpawnMs(boss: RaidBossEntry, nowMs: number): number {
+  if (boss.status === 'alive' || boss.status === 'ready') return nowMs
+  return nextSpawnUtcMs(boss)
+}
+
+function alertTrainSpawnMs(boss: RaidBossAlertSnapshot, nowMs: number): number {
+  if (boss.status === 'alive' || boss.status === 'ready') return nowMs
+  return boss.nextSpawnUtcMs
+}
+
+function isMultiBossTrain<T>(group: T[], spawnMs: (item: T) => number): boolean {
+  if (group.length <= 1) return false
+  const first = spawnMs(group[0]!)
+  const last = spawnMs(group[group.length - 1]!)
+  return last - first > BOSS_TRAIN_MIN_SPAN_MS
+}
+
+/** Group items when each spawn is within `windowMs` of the previous in sorted order. */
+export function groupByNextSpawnWindow<T>(
+  items: T[],
+  spawnMs: (item: T) => number,
+  windowMs = BOSS_TRAIN_WINDOW_MS,
+): T[][] {
+  if (items.length === 0) return []
+  const sorted = [...items].sort((a, b) => spawnMs(a) - spawnMs(b))
+  const groups: T[][] = []
+  let current: T[] = [sorted[0]!]
+
+  for (let i = 1; i < sorted.length; i++) {
+    const item = sorted[i]!
+    const prev = current[current.length - 1]!
+    if (spawnMs(item) - spawnMs(prev) <= windowMs) {
+      current.push(item)
+    } else {
+      groups.push(current)
+      current = [item]
+    }
+  }
+  groups.push(current)
+  return groups
+}
+
+/** Like `groupByNextSpawnWindow`, but splits groups that are only simultaneous spawns (<10s span). */
+export function groupByNextSpawnWindowWithTrains<T>(
+  items: T[],
+  spawnMs: (item: T) => number,
+  windowMs = BOSS_TRAIN_WINDOW_MS,
+): T[][] {
+  const raw = groupByNextSpawnWindow(items, spawnMs, windowMs)
+  const out: T[][] = []
+  for (const group of raw) {
+    if (isMultiBossTrain(group, spawnMs)) {
+      out.push(group)
+    } else {
+      for (const item of group) out.push([item])
+    }
+  }
+  return out
+}
+
+export function groupBossesIntoTrains(
+  bosses: RaidBossEntry[],
+  nowMs = Date.now(),
+  windowMs = BOSS_TRAIN_WINDOW_MS,
+): RaidBossEntry[][] {
+  return groupByNextSpawnWindowWithTrains(bosses, (b) => bossTrainSpawnMs(b, nowMs), windowMs)
+}
+
+export function groupAlertSnapshotsIntoTrains(
+  bosses: RaidBossAlertSnapshot[],
+  nowMs = Date.now(),
+  windowMs = BOSS_TRAIN_WINDOW_MS,
+): RaidBossAlertSnapshot[][] {
+  return groupByNextSpawnWindowWithTrains(bosses, (b) => alertTrainSpawnMs(b, nowMs), windowMs)
+}
+
+export function sortBossesForVisibility(bosses: RaidBossEntry[], nowMs: number): RaidBossEntry[] {
+  return [...bosses].sort((a, b) => {
+    const da = bossTrainSpawnMs(a, nowMs)
+    const db = bossTrainSpawnMs(b, nowMs)
+    if (da !== db) return da - db
+    return nextSpawnUtcMs(a) - nextSpawnUtcMs(b)
+  })
 }
 
 /** Soonest spawns first; clamps count to 1–15. */
-export function pickVisibleBosses(bosses: RaidBossEntry[], count: number): RaidBossEntry[] {
+export function pickVisibleBosses(
+  bosses: RaidBossEntry[],
+  count: number,
+  nowMs = Date.now(),
+): RaidBossEntry[] {
   const n = Math.min(15, Math.max(1, Math.round(count)))
-  return sortBossesByNextSpawn(bosses).slice(0, n)
+  return sortBossesForVisibility(bosses, nowMs).slice(0, n)
+}
+
+export type BossTimerVisibleTrain = {
+  bosses: RaidBossEntry[]
+  /** Full roster train size when grouped spawns; otherwise same as `bosses.length`. */
+  totalSpawnCount: number
+}
+
+/** Visible bosses clustered into spawn trains for the timer UI. */
+export function pickVisibleBossTrains(
+  bosses: RaidBossEntry[],
+  count: number,
+  serverOffsetMs = 0,
+): BossTimerVisibleTrain[] {
+  const nowMs = serverNowMs(serverOffsetMs)
+  const visible = pickVisibleBosses(bosses, count, nowMs)
+  const fullTrainByBossId = new Map<string, RaidBossEntry[]>()
+  for (const train of groupBossesIntoTrains(bosses, nowMs)) {
+    if (train.length < 2) continue
+    for (const boss of train) fullTrainByBossId.set(boss.monster_id, train)
+  }
+
+  return groupBossesIntoTrains(visible, nowMs).map((train) => {
+    const fullTrain = fullTrainByBossId.get(train[0]!.monster_id)
+    return {
+      bosses: train,
+      totalSpawnCount: fullTrain?.length ?? train.length,
+    }
+  })
 }

@@ -51,7 +51,7 @@ const STARTUP_PANEL_LABELS: Record<StartupPanelKey, string> = {
   main: 'Main (dungeons)',
   timeline: 'Timeline',
   meter: 'DPS meter',
-  timers: 'Boss timers',
+  timers: 'Raid Timer',
   hud: 'Digi Aura',
 }
 
@@ -59,7 +59,7 @@ const NAV: { id: SettingsSectionId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'meter', label: 'DPS meter' },
-  { id: 'timers', label: 'Boss timers' },
+  { id: 'timers', label: 'Raid Timer' },
   { id: 'hud', label: 'Digi Aura' },
   { id: 'updates', label: 'Updates' },
 ]
@@ -938,7 +938,7 @@ export default function SettingsApp() {
           </section>
 
           <section id={sectionScrollId('timers')} className="settings-app-section">
-            <h2 className="settings-app-section__title">Boss timers</h2>
+            <h2 className="settings-app-section__title">Raid Timer</h2>
             <section className="field-group" style={{ marginTop: 0 }}>
               <h3 className="settings-app-subhead">Overlay</h3>
               <label className="field">
@@ -968,7 +968,7 @@ export default function SettingsApp() {
                     }))
                   }
                 />
-                Keep timers above other apps
+                Keep Raid Timer above other apps
               </label>
               <label className="field">
                 <span>Bosses to show</span>
@@ -989,7 +989,7 @@ export default function SettingsApp() {
                   }
                 />
                 <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                  Upcoming spawns in the timers overlay, soonest first.
+                  Upcoming spawns in the Raid Timer overlay, soonest first.
                 </span>
               </label>
             </section>
@@ -1026,7 +1026,7 @@ export default function SettingsApp() {
                     }))
                   }
                 />
-                Notify while timers window is hidden (tray)
+                Notify while Raid Timer window is hidden (tray)
               </label>
               <label className="field">
                 <span>Notify with</span>
@@ -1044,7 +1044,7 @@ export default function SettingsApp() {
                   <option value="both">Toast and sound</option>
                 </select>
                 <span className="hint muted" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                  Sound plays in the timers window. If the timers process is not running, you may only get a toast.
+                  Sound plays in the Raid Timer window. If it is not running, you may only get a toast.
                 </span>
               </label>
               <label className="field">

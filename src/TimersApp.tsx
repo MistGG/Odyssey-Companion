@@ -8,14 +8,9 @@ export default function TimersApp() {
   const lastPushedSettingsJson = useRef<string | null>(null)
   const [settings, setSettings] = useState<OverlaySettings>(() => loadSettings())
 
-  const titleDragRef = useRef<HTMLDivElement>(null)
-  const lockBtnRef = useRef<HTMLButtonElement>(null)
-  const gearBtnRef = useRef<HTMLButtonElement>(null)
-  const minimizeBtnRef = useRef<HTMLButtonElement>(null)
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
-  const timersBodyRef = useRef<HTMLElement | null>(null)
   const ignoreMouseRaf = useRef<number | null>(null)
   const lastIgnoreSent = useRef<boolean | null>(null)
+  const titlebarRef = useRef<HTMLElement>(null)
 
   const [timersLootExpanded, setTimersLootExpanded] = useState(false)
 
@@ -72,6 +67,18 @@ export default function TimersApp() {
       return
     }
 
+    const RESIZE_EDGE_PX = 16
+    const nearResizeEdge = (x: number, y: number) => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      return (
+        x <= RESIZE_EDGE_PX ||
+        y <= RESIZE_EDGE_PX ||
+        x >= w - RESIZE_EDGE_PX ||
+        y >= h - RESIZE_EDGE_PX
+      )
+    }
+
     const inRect = (x: number, y: number, el: Element | null) => {
       if (!el) return false
       const r = el.getBoundingClientRect()
@@ -83,12 +90,7 @@ export default function TimersApp() {
       ignoreMouseRaf.current = requestAnimationFrame(() => {
         ignoreMouseRaf.current = null
         const interactive =
-          inRect(clientX, clientY, titleDragRef.current) ||
-          inRect(clientX, clientY, lockBtnRef.current) ||
-          inRect(clientX, clientY, gearBtnRef.current) ||
-          inRect(clientX, clientY, minimizeBtnRef.current) ||
-          inRect(clientX, clientY, closeBtnRef.current) ||
-          inRect(clientX, clientY, timersBodyRef.current)
+          nearResizeEdge(clientX, clientY) || inRect(clientX, clientY, titlebarRef.current)
         setIgnore(!interactive)
       })
     }
@@ -148,23 +150,22 @@ export default function TimersApp() {
   return (
     <div className={shellCls} style={shellStyle}>
       <div className={`timers-backdrop ${ghostChrome ? 'timers-backdrop--ghost' : ''}`}>
-        <header className="titlebar titlebar--timers titlebar--timers-compact">
-          <div ref={titleDragRef} className="titlebar-drag titlebar-drag--timers">
+        <header ref={titlebarRef} className="titlebar titlebar--timers titlebar--timers-compact">
+          <div className="titlebar-drag titlebar-drag--timers">
             <span className="logo-dot logo-dot--timers" aria-hidden />
-            <strong className="timers-title-text">Timers</strong>
+            <strong className="timers-title-text">Raid Timer</strong>
           </div>
           <div className="titlebar-actions titlebar-actions--timers">
             <button
-              ref={lockBtnRef}
               type="button"
               className={`btn timers-icon-tile ${positionLocked ? 'timers-icon-tile--active' : ''}`}
               title={
                 positionLocked
                   ? 'Unlock — drag the window freely'
-                  : 'Lock — pin position; clicks pass through except this bar and the timer strip'
+                  : 'Lock — pin position; clicks pass through except this title bar'
               }
               aria-pressed={positionLocked}
-              aria-label={positionLocked ? 'Unlock timers overlay' : 'Lock timers overlay'}
+              aria-label={positionLocked ? 'Unlock Raid Timer overlay' : 'Lock Raid Timer overlay'}
               onClick={toggleTimersLock}
             >
               {positionLocked ? (
@@ -184,10 +185,9 @@ export default function TimersApp() {
               )}
             </button>
             <button
-              ref={gearBtnRef}
               type="button"
               className="btn timers-icon-tile"
-              title="Open Companion settings (boss timers section)"
+              title="Open Companion settings (Raid Timer section)"
               aria-label="Open Companion settings"
               onClick={() => void window.odysseyCompanion?.openSettings?.('timers')}
             >
@@ -199,7 +199,6 @@ export default function TimersApp() {
               </svg>
             </button>
             <button
-              ref={minimizeBtnRef}
               type="button"
               className="btn timers-icon-tile"
               title="Minimize to tray"
@@ -211,7 +210,6 @@ export default function TimersApp() {
               </span>
             </button>
             <button
-              ref={closeBtnRef}
               type="button"
               className="btn timers-icon-tile timers-icon-tile--danger"
               title="Close to tray"
@@ -226,14 +224,15 @@ export default function TimersApp() {
         </header>
 
         <main
-          ref={timersBodyRef}
           className={`timers-body timers-body--compact${timersLootExpanded ? ' timers-body--loot-expanded' : ''}`}
         >
-          <BossTimersView
-            variant="overlay"
-            visibleCount={settings.bossTimerVisibleCount}
-            onLootRatesExpandedChange={onLootRatesExpandedChange}
-          />
+          <div className="timers-content-hit">
+            <BossTimersView
+              variant="overlay"
+              visibleCount={settings.bossTimerVisibleCount}
+              onLootRatesExpandedChange={onLootRatesExpandedChange}
+            />
+          </div>
         </main>
       </div>
     </div>

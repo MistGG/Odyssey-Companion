@@ -111,6 +111,7 @@ declare global {
       dismissUpdateWindow: () => Promise<boolean>
       bossTimerTestToast: () => Promise<{ ok: true } | { ok: false; error: string }>
       serverStatusTestNotification?: () => Promise<{ ok: true } | { ok: false; error: string }>
+      fetchGameServerStatus?: () => Promise<{ online: boolean | null }>
       /** Timers window: play Web Audio chime when main fires a pre-spawn sound reminder. */
       onBossTimerChime?: (
         handler: (payload: {

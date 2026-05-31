@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { MonsterDetail } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
 import { fetchMonsterDetail } from '../lib/monsterDetailApi'
@@ -8,12 +8,14 @@ import { formatDropRatePermille } from '../lib/wikiDropRateFormat'
 import { runBossTimerTestToast } from '../lib/bossTimerClientTest'
 import {
   bossStatusLabel,
+  bossTrainSpawnMs,
   fetchRaidTimer,
   formatRespawnCycleMinutes,
   isBossAlive,
   isBossReady,
   nextSpawnUtcMs,
-  pickVisibleBosses,
+  pickVisibleBossTrains,
+  serverNowMs,
   toAlertSnapshots,
   type RaidBossEntry,
   type RaidTimerResponse,
@@ -32,6 +34,47 @@ function titleCase(value: string): string {
   const clean = value.replace(/[_-]+/g, ' ').trim()
   if (!clean) return 'Drop'
   return clean.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function bossNameInitial(name: string): string {
+  const trimmed = name.trim()
+  return trimmed ? trimmed[0]!.toUpperCase() : '?'
+}
+
+function BossTimerPortrait({
+  name,
+  imgUrl,
+  portraitClassName,
+  imgClassName,
+}: {
+  name: string
+  imgUrl: string | null
+  portraitClassName: string
+  imgClassName: string
+}) {
+  const [imgFailed, setImgFailed] = useState(false)
+
+  useEffect(() => {
+    setImgFailed(false)
+  }, [imgUrl])
+
+  if (imgUrl && !imgFailed) {
+    return (
+      <img
+        className={imgClassName}
+        src={imgUrl}
+        alt=""
+        decoding="async"
+        onError={() => setImgFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <span className={portraitClassName} aria-hidden>
+      {bossNameInitial(name)}
+    </span>
+  )
 }
 
 function flattenMonsterRewards(monster: MonsterDetail | null): BossTimerReward[] {
@@ -75,18 +118,6 @@ function formatTimeStamp(ms: number): string {
   }).format(new Date(ms))
 }
 
-function measureTimersElectronContentHeightPx(): number {
-  const titlebar = document.querySelector('.titlebar--timers')
-  const main = document.querySelector('main.timers-body')
-  const th = titlebar instanceof HTMLElement ? titlebar.offsetHeight : 0
-  const mh =
-    main instanceof HTMLElement
-      ? Math.max(main.offsetHeight, main.scrollHeight, Math.ceil(main.getBoundingClientRect().height))
-      : 0
-  const doc = Math.ceil(document.documentElement.scrollHeight)
-  return Math.max(Math.ceil(th + mh), doc)
-}
-
 function RaidDropsTable({ rewards, compact }: { rewards: BossTimerReward[]; compact?: boolean }) {
   return (
     <div className={compact ? 'boss-timer-drops__table-wrap boss-timer-drops__table-wrap--overlay meter-scroll--themed' : 'boss-timer-drops__table-wrap meter-scroll--themed'}>
@@ -119,7 +150,9 @@ function RaidDropsTable({ rewards, compact }: { rewards: BossTimerReward[]; comp
                       ◆
                     </span>
                   )}
-                  <span className="boss-timer-drops__row-name">{r.item_name}</span>
+                  <span className="boss-timer-drops__row-name" title={r.item_name}>
+                    {r.item_name}
+                  </span>
                 </span>
               </td>
               <td className="boss-timer-drops__td-num boss-timer-drops__td-qty">
@@ -170,6 +203,7 @@ function BossTimerCard({
   variant,
   lootRatesOpen,
   onToggleLootRates,
+  inTrain = false,
 }: {
   boss: RaidBossEntry
   serverOffsetMs: number
@@ -177,6 +211,8 @@ function BossTimerCard({
   variant: 'overlay' | 'page'
   lootRatesOpen: boolean
   onToggleLootRates: () => void
+  /** Nested inside a multi-boss train row. */
+  inTrain?: boolean
 }) {
   const [monster, setMonster] = useState<MonsterDetail | null>(null)
 
@@ -200,6 +236,10 @@ function BossTimerCard({
   const ready = useMemo(() => isBossReady(boss), [boss.status])
   const countdownLabel = useMemo(() => bossStatusLabel(boss, serverOffsetMs), [boss, serverOffsetMs, tick])
   const stripStatusMod = alive ? 'alive' : ready ? 'ready' : null
+  const stripRowStatusClass =
+    stripStatusMod && !inTrain ? ` boss-timer-overlay-strip--${stripStatusMod}` : ''
+  const stripInTrainStatusClass =
+    stripStatusMod && inTrain ? ` boss-timer-overlay-strip--in-train-${stripStatusMod}` : ''
   const nextMs = useMemo(() => nextSpawnUtcMs(boss), [boss.next_spawn_ts])
   const nextLocalLabel = useMemo(
     () =>
@@ -222,7 +262,7 @@ function BossTimerCard({
 
   const raidRewards = useMemo(() => flattenMonsterRewards(monster), [monster])
   const mapDisplayName = boss.map_name?.trim() || monster?.locations?.[0]?.map_name?.trim() || 'Unknown map'
-  const locationLine = `${mapDisplayName} (Bottom Right)`
+  const locationLine = mapDisplayName
 
   const nextLine = (compact: boolean) => (
     <div className={compact ? 'boss-timer-next-row boss-timer-next-row--compact' : 'boss-timer-next-row'}>
@@ -248,22 +288,28 @@ function BossTimerCard({
   if (variant === 'overlay') {
     return (
       <div
-        className={`boss-timer-overlay-strip${stripStatusMod ? ` boss-timer-overlay-strip--${stripStatusMod}` : ''}`}
+        className={`boss-timer-overlay-strip${stripRowStatusClass}${stripInTrainStatusClass}${inTrain ? ' boss-timer-overlay-strip--in-train' : ''}`}
       >
-        <div className="boss-timer-overlay-strip__thumb">
-          {bossImg ? (
-            <img className="boss-timer-overlay-strip__img" src={bossImg} alt="" decoding="async" />
-          ) : (
-            <span className="boss-timer-overlay-strip__fallback" aria-hidden>
-              {bossName.slice(0, 1)}
-            </span>
-          )}
+        <div className={`boss-timer-overlay-strip__thumb${inTrain ? ' boss-timer-overlay-strip__thumb--train' : ''}`}>
+          <BossTimerPortrait
+            name={bossName}
+            imgUrl={bossImg}
+            portraitClassName="boss-timer-overlay-strip__portrait"
+            imgClassName="boss-timer-overlay-strip__img"
+          />
         </div>
         <div className="boss-timer-overlay-strip__main">
           <div className="boss-timer-overlay-strip__top">
-            <span className="boss-timer-overlay-strip__name">{bossName}</span>
+            <span className="boss-timer-overlay-strip__name-row">
+              <span className="boss-timer-overlay-strip__name">{bossName}</span>
+              {inTrain && alive ? (
+                <span className="boss-timer-train__status-pill boss-timer-train__status-pill--live">Live</span>
+              ) : inTrain && ready ? (
+                <span className="boss-timer-train__status-pill boss-timer-train__status-pill--ready">Ready</span>
+              ) : null}
+            </span>
             <span
-              className={`boss-timer-overlay-strip__countdown${stripStatusMod ? ` boss-timer-overlay-strip__countdown--${stripStatusMod}` : ''}`}
+              className={`boss-timer-overlay-strip__countdown${stripStatusMod ? ` boss-timer-overlay-strip__countdown--${stripStatusMod}` : ''}${inTrain ? ' boss-timer-overlay-strip__countdown--in-train' : ''}`}
               aria-live="polite"
             >
               {countdownLabel}
@@ -272,8 +318,10 @@ function BossTimerCard({
           <div className="boss-timer-overlay-strip__meta muted">
             <div className="boss-timer-overlay-strip__loc-line">{locationLine}</div>
             {lootBar({ overlay: true })}
-            {lootRatesOpen && raidRewards.length > 0 ? <RaidDropsTable rewards={raidRewards} compact /> : null}
-            {nextLine(true)}
+            {lootRatesOpen && raidRewards.length > 0 ? (
+              <RaidDropsTable rewards={raidRewards} compact />
+            ) : null}
+            {!inTrain ? nextLine(true) : null}
           </div>
         </div>
       </div>
@@ -281,18 +329,24 @@ function BossTimerCard({
   }
 
   return (
-    <article className="boss-timer-card">
+    <article className={`boss-timer-card${inTrain ? ' boss-timer-card--in-train' : ''}${stripStatusMod && inTrain ? ` boss-timer-card--in-train-${stripStatusMod}` : ''}`}>
       <div className="boss-timer-card__media">
-        {bossImg ? (
-          <img className="boss-timer-card__boss-img" src={bossImg} alt="" decoding="async" />
-        ) : (
-          <div className="boss-timer-card__boss-fallback" aria-hidden>
-            {bossName.slice(0, 1)}
-          </div>
-        )}
+        <BossTimerPortrait
+          name={bossName}
+          imgUrl={bossImg}
+          portraitClassName="boss-timer-card__portrait"
+          imgClassName="boss-timer-card__boss-img"
+        />
       </div>
       <div className="boss-timer-card__body">
-        <h2 className="boss-timer-card__title">{bossName}</h2>
+        <h2 className="boss-timer-card__title">
+          {bossName}
+          {inTrain && alive ? (
+            <span className="boss-timer-train__status-pill boss-timer-train__status-pill--live">Live</span>
+          ) : inTrain && ready ? (
+            <span className="boss-timer-train__status-pill boss-timer-train__status-pill--ready">Ready</span>
+          ) : null}
+        </h2>
         <p className="boss-timer-card__location">
           <span className="boss-timer-card__label">Location</span>
           {locationLine}
@@ -323,19 +377,113 @@ function BossTimerCard({
   )
 }
 
+function BossTimerTrainGroup({
+  bosses,
+  totalSpawnCount,
+  serverOffsetMs,
+  tick,
+  variant,
+  expandedLootBossId,
+  onToggleLootRatesForBoss,
+}: {
+  bosses: RaidBossEntry[]
+  totalSpawnCount: number
+  serverOffsetMs: number
+  tick: number
+  variant: 'overlay' | 'page'
+  expandedLootBossId: string | null
+  onToggleLootRatesForBoss: (bossId: string) => void
+}) {
+  const isTrain = totalSpawnCount > 1
+  const displayBosses = useMemo(() => {
+    const nowMs = serverNowMs(serverOffsetMs)
+    return [...bosses].sort((a, b) => bossTrainSpawnMs(a, nowMs) - bossTrainSpawnMs(b, nowMs))
+  }, [bosses, serverOffsetMs])
+
+  if (!isTrain) {
+    const boss = bosses[0]!
+    return (
+      <BossTimerCard
+        boss={boss}
+        serverOffsetMs={serverOffsetMs}
+        tick={tick}
+        variant={variant}
+        lootRatesOpen={expandedLootBossId === boss.monster_id}
+        onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+      />
+    )
+  }
+
+  const trainKey = displayBosses.map((b) => b.monster_id).join('|')
+
+  if (variant === 'overlay') {
+    return (
+      <div className="boss-timer-train" data-train-count={totalSpawnCount}>
+        <div className="boss-timer-train__header">
+          <span className="boss-timer-train__title">Boss train</span>
+          <span className="boss-timer-train__count muted">{totalSpawnCount} spawns</span>
+        </div>
+        <div className="boss-timer-train__rows">
+          {displayBosses.map((boss) => (
+            <BossTimerCard
+              key={`${trainKey}:${boss.monster_id}`}
+              boss={boss}
+              serverOffsetMs={serverOffsetMs}
+              tick={tick}
+              variant="overlay"
+              lootRatesOpen={expandedLootBossId === boss.monster_id}
+              onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+              inTrain
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <section className="boss-timer-train boss-timer-train--page" data-train-count={totalSpawnCount}>
+      <header className="boss-timer-train__header boss-timer-train__header--page">
+        <h2 className="boss-timer-train__title">Boss train</h2>
+        <p className="hint muted boss-timer-train__count">
+          {totalSpawnCount} bosses spawning within 5 minutes
+        </p>
+      </header>
+      <div className="boss-timer-train__cards">
+        {displayBosses.map((boss) => (
+          <BossTimerCard
+            key={`${trainKey}:${boss.monster_id}`}
+            boss={boss}
+            serverOffsetMs={serverOffsetMs}
+            tick={tick}
+            variant="page"
+            lootRatesOpen={expandedLootBossId === boss.monster_id}
+            onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+            inTrain
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function BossTimersView({
   variant = 'page',
   visibleCount = DEFAULT_SETTINGS.bossTimerVisibleCount,
   onLootRatesExpandedChange,
 }: BossTimersViewProps) {
-  const overlayStripRef = useRef<HTMLDivElement>(null)
   const [tick, setTick] = useState(0)
   const [testBusy, setTestBusy] = useState<'toast' | null>(null)
   const [testHint, setTestHint] = useState<string | null>(null)
   const [testHintIsError, setTestHintIsError] = useState(false)
-  const [lootRatesOpen, setLootRatesOpen] = useState(false)
+  const [expandedLootBossId, setExpandedLootBossId] = useState<string | null>(null)
+  const lootDetailsExpanded = expandedLootBossId !== null
   const [raid, setRaid] = useState<RaidTimerResponse | null>(null)
   const [raidErr, setRaidErr] = useState<string | null>(null)
+
+  const onToggleLootRatesForBoss = useCallback((bossId: string) => {
+    setExpandedLootBossId((prev) => (prev === bossId ? null : bossId))
+  }, [])
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((t) => t + 1), 1000)
@@ -343,8 +491,8 @@ export default function BossTimersView({
   }, [])
 
   useEffect(() => {
-    onLootRatesExpandedChange?.(lootRatesOpen)
-  }, [lootRatesOpen, onLootRatesExpandedChange])
+    onLootRatesExpandedChange?.(lootDetailsExpanded)
+  }, [lootDetailsExpanded, onLootRatesExpandedChange])
 
   const refreshRaid = useCallback(() => {
     void fetchRaidTimer()
@@ -365,41 +513,9 @@ export default function BossTimersView({
   }, [refreshRaid])
 
   useLayoutEffect(() => {
-    if (variant !== 'overlay' || lootRatesOpen) return
-    void window.odysseyCompanion?.setTimersLootDetailExpanded?.(false)
-  }, [variant, lootRatesOpen])
-
-  useLayoutEffect(() => {
-    if (variant !== 'overlay' || !lootRatesOpen) return
-    const api = window.odysseyCompanion?.setTimersLootDetailExpanded
-    if (!api) return
-
-    let id1 = 0
-    let id2 = 0
-    let ro: ResizeObserver | null = null
-
-    const push = () => {
-      void api(true, measureTimersElectronContentHeightPx())
-    }
-
-    id1 = requestAnimationFrame(() => {
-      id2 = requestAnimationFrame(push)
-    })
-
-    const strip = overlayStripRef.current
-    if (strip && typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => {
-        requestAnimationFrame(push)
-      })
-      ro.observe(strip)
-    }
-
-    return () => {
-      cancelAnimationFrame(id1)
-      cancelAnimationFrame(id2)
-      ro?.disconnect()
-    }
-  }, [variant, lootRatesOpen, raid?.bosses.length, visibleCount])
+    if (variant !== 'overlay') return
+    void window.odysseyCompanion?.setTimersLootDetailExpanded?.(lootDetailsExpanded)
+  }, [variant, lootDetailsExpanded])
 
   useEffect(() => {
     return () => {
@@ -409,31 +525,32 @@ export default function BossTimersView({
 
   const serverOffsetMs = raid?.serverOffsetMs ?? 0
   const allBosses = raid?.bosses ?? []
-  const bosses = useMemo(
-    () => pickVisibleBosses(allBosses, visibleCount),
-    [allBosses, visibleCount],
+  const bossTrains = useMemo(
+    () => pickVisibleBossTrains(allBosses, visibleCount, serverOffsetMs),
+    [allBosses, visibleCount, serverOffsetMs],
   )
 
   if (variant === 'overlay') {
     return (
-      <div ref={overlayStripRef} className="boss-timer-overlay-stack">
+      <div className="boss-timer-overlay-stack">
         {!raid?.live && raid ? (
           <p className="hint muted" style={{ margin: '0 0 6px', fontSize: 10 }}>
             Raid timer feed is not live.
           </p>
         ) : null}
-        {bosses.map((boss) => (
-          <BossTimerCard
-            key={boss.monster_id}
-            boss={boss}
+        {bossTrains.map((train) => (
+          <BossTimerTrainGroup
+            key={train.bosses.map((b) => b.monster_id).join('|')}
+            bosses={train.bosses}
+            totalSpawnCount={train.totalSpawnCount}
             serverOffsetMs={serverOffsetMs}
             tick={tick}
             variant="overlay"
-            lootRatesOpen={lootRatesOpen}
-            onToggleLootRates={() => setLootRatesOpen((v) => !v)}
+            expandedLootBossId={expandedLootBossId}
+            onToggleLootRatesForBoss={onToggleLootRatesForBoss}
           />
         ))}
-        {!bosses.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
+        {!bossTrains.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
       </div>
     )
   }
@@ -477,26 +594,29 @@ export default function BossTimersView({
 
       {!raid?.live && raid ? <p className="hint muted">Raid timer feed is not live.</p> : null}
 
-      {bosses.map((boss) => (
-        <p key={`intro-${boss.monster_id}`} className="timers-intro muted">
-          {boss.monster_name} — respawns about every {formatRespawnCycleMinutes(boss.respawn_sec)}; next spawn{' '}
-          {formatTimeStamp(nextSpawnUtcMs(boss))} (your local time).
-        </p>
-      ))}
+      {bossTrains.flatMap((train) =>
+        train.bosses.map((boss) => (
+          <p key={`intro-${boss.monster_id}`} className="timers-intro muted">
+            {boss.monster_name} — respawns about every {formatRespawnCycleMinutes(boss.respawn_sec)}; next spawn{' '}
+            {formatTimeStamp(nextSpawnUtcMs(boss))} (your local time).
+          </p>
+        )),
+      )}
 
-      {bosses.map((boss) => (
-        <BossTimerCard
-          key={boss.monster_id}
-          boss={boss}
+      {bossTrains.map((train) => (
+        <BossTimerTrainGroup
+          key={train.bosses.map((b) => b.monster_id).join('|')}
+          bosses={train.bosses}
+          totalSpawnCount={train.totalSpawnCount}
           serverOffsetMs={serverOffsetMs}
           tick={tick}
           variant="page"
-          lootRatesOpen={lootRatesOpen}
-          onToggleLootRates={() => setLootRatesOpen((v) => !v)}
+          expandedLootBossId={expandedLootBossId}
+          onToggleLootRatesForBoss={onToggleLootRatesForBoss}
         />
       ))}
 
-      {!bosses.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
+      {!bossTrains.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
     </div>
   )
 }
