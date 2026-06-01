@@ -2,7 +2,7 @@ import { BrowserWindow, Notification } from 'electron'
 import type { OverlaySettings } from '../../src/types'
 import {
   BOSS_TRAIN_WINDOW_MS,
-  groupAlertSnapshotsIntoTrains,
+  groupAlertSnapshotsForNotify,
   type RaidBossAlertSnapshot,
   type RaidBossStatus,
 } from '../../src/lib/raidTimerApi'
@@ -153,13 +153,13 @@ const notifiedTrainKeys = new Set<string>()
 /** Previous tick's ms-until-first-spawn — detects crossing into the lead window. */
 const lastFirstRemainingMs = new Map<string, number>()
 
-/** Group bosses whose spawn times are within `windowMs` of the previous boss in sorted order. */
+/** Group bosses whose spawn times are within `windowMs` of the previous boss in sorted order (notify grouping). */
 export function groupBossAlertsBySpawnWindow(
   bosses: RaidBossAlertSnapshot[],
   nowMs = Date.now(),
   windowMs = BOSS_TRAIN_WINDOW_MS,
 ): RaidBossAlertSnapshot[][] {
-  return groupAlertSnapshotsIntoTrains(bosses, nowMs, windowMs)
+  return groupAlertSnapshotsForNotify(bosses, nowMs, windowMs)
 }
 
 /**
@@ -183,7 +183,7 @@ export function bossTimerAlertTick(settings: OverlaySettings | null, timersWin: 
   const wantSound = (method === 'sound' || method === 'both') && chime !== 'off'
 
   const respawning = activeBossAlerts.filter((boss) => boss.status === 'respawning')
-  const trains = groupAlertSnapshotsIntoTrains(respawning, now)
+  const trains = groupAlertSnapshotsForNotify(respawning, now)
 
   for (const train of trains) {
     const first = train[0]!

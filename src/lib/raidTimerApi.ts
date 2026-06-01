@@ -226,6 +226,19 @@ export function groupAlertSnapshotsIntoTrains(
   return groupByNextSpawnWindowWithTrains(bosses, (b) => alertTrainSpawnMs(b, nowMs), windowMs)
 }
 
+/**
+ * Group respawning bosses for spawn reminders — any spawns within `windowMs` share one toast/chime.
+ * Unlike {@link groupAlertSnapshotsIntoTrains}, does not split simultaneous spawns (<10s span); that
+ * split is UI-only so clustered train starts still get a single alert.
+ */
+export function groupAlertSnapshotsForNotify(
+  bosses: RaidBossAlertSnapshot[],
+  nowMs = Date.now(),
+  windowMs = BOSS_TRAIN_WINDOW_MS,
+): RaidBossAlertSnapshot[][] {
+  return groupByNextSpawnWindow(bosses, (b) => alertTrainSpawnMs(b, nowMs), windowMs)
+}
+
 export function sortBossesForVisibility(bosses: RaidBossEntry[], nowMs: number): RaidBossEntry[] {
   return [...bosses].sort((a, b) => {
     const da = bossTrainSpawnMs(a, nowMs)

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.67",
+  "version": "0.1.68",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Optimized multiple uploads within the same party"
+      "releaseNotes": "- Boss train spawn reminders now send one alert per train instead of one per boss when spawns cluster together"
     }
   }
 }
