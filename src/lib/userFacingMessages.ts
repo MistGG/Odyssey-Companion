@@ -29,6 +29,10 @@ export function userFacingUploadError(raw: string | null | undefined): string {
 }
 
 export function userFacingAuthError(raw: string | null | undefined): string {
+  const t = raw?.trim() ?? ''
+  if (/rate limit|too many requests|429/i.test(t)) {
+    return 'Too many sign-up emails sent recently. Wait about an hour and try again, or ask an admin to confirm your account manually.'
+  }
   return sanitizeUserMessage(raw, 'Could not sign in. Check your email and password.')
 }
 

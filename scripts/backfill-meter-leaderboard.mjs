@@ -6,14 +6,20 @@
  *   $env:SUPABASE_ANON_KEY = "sb_publishable_..."
  *   node scripts/backfill-meter-leaderboard.mjs
  *
+ * If you hit "not enough compute resources", use smaller batches + pause:
+ *   $env:BATCH_SIZE = "50"
+ *   $env:BATCH_PAUSE_MS = "10000"
+ *   node scripts/backfill-meter-leaderboard.mjs
+ *
  * Progress only:
  *   node scripts/backfill-meter-leaderboard.mjs --status
  */
 
 const url = process.env.SUPABASE_URL?.replace(/\/$/, '')
 const key = process.env.SUPABASE_ANON_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-const batchSize = Math.min(Math.max(Number(process.env.BATCH_SIZE) || 200, 1), 500)
+let batchSize = Math.min(Math.max(Number(process.env.BATCH_SIZE) || 100, 1), 500)
 const maxBatches = Math.min(Math.max(Number(process.env.MAX_BATCHES) || 100, 1), 500)
+const batchPauseMs = Math.max(Number(process.env.BATCH_PAUSE_MS) || 5000, 0)
 const statusOnly = process.argv.includes('--status')
 
 if (!url || !key) {
@@ -23,6 +29,10 @@ if (!url || !key) {
 
 const functionEndpoint = `${url}/functions/v1/process-meter-leaderboard`
 const restBase = `${url}/rest/v1`
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 function authHeaders(apiKey) {
   const headers = {
@@ -80,11 +90,16 @@ function formatProgress(progress) {
   return parts.join(' ') || '(run count RPC SQL for remaining — see script comment)'
 }
 
-async function runBackfillBatch() {
+function isComputeLimitError(message) {
+  const text = String(message ?? '').toLowerCase()
+  return text.includes('compute resources') || text.includes('worker limit') || text.includes('546')
+}
+
+async function runBackfillBatch(limit) {
   const res = await fetch(functionEndpoint, {
     method: 'POST',
     headers: authHeaders(key),
-    body: JSON.stringify({ backfill_limit: batchSize }),
+    body: JSON.stringify({ backfill_limit: limit }),
   })
   const payload = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -92,6 +107,34 @@ async function runBackfillBatch() {
     throw new Error(detail || res.statusText || `HTTP ${res.status}`)
   }
   return payload
+}
+
+async function runBackfillBatchWithRetry(initialLimit) {
+  let limit = initialLimit
+  let attempt = 0
+  const maxAttempts = 5
+
+  while (attempt < maxAttempts) {
+    attempt += 1
+    try {
+      return await runBackfillBatch(limit)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!isComputeLimitError(message) || attempt >= maxAttempts) {
+        throw error
+      }
+      const nextLimit = Math.max(10, Math.floor(limit / 2))
+      const waitMs = Math.min(60_000, 10_000 * attempt)
+      console.warn(
+        `Compute limit hit (batch=${limit}, attempt ${attempt}/${maxAttempts}). Waiting ${waitMs / 1000}s, retrying with batch=${nextLimit}…`,
+      )
+      await sleep(waitMs)
+      limit = nextLimit
+      batchSize = nextLimit
+    }
+  }
+
+  throw new Error('Backfill failed after retries.')
 }
 
 if (statusOnly) {
@@ -110,11 +153,15 @@ let totalInserted = 0
 let totalSkipped = 0
 
 const initial = await fetchProgress()
-console.log(`Starting backfill. ${formatProgress(initial)}`)
+console.log(`Starting backfill (batch_size=${batchSize}, pause_ms=${batchPauseMs}). ${formatProgress(initial)}`)
 
 for (let batch = 0; batch < maxBatches; batch += 1) {
+  if (batch > 0 && batchPauseMs > 0) {
+    await sleep(batchPauseMs)
+  }
+
   const started = Date.now()
-  const result = await runBackfillBatch()
+  const result = await runBackfillBatchWithRetry(batchSize)
   const elapsedSec = ((Date.now() - started) / 1000).toFixed(1)
   const processed = Number(result.processed) || 0
   const inserted = Number(result.inserted) || 0
@@ -129,7 +176,7 @@ for (let batch = 0; batch < maxBatches; batch += 1) {
       : await fetchProgress()
 
   console.log(
-    `Batch ${batch + 1} (${elapsedSec}s): processed=${processed} inserted=${inserted} skipped=${skipped} ${formatProgress(progress)}`,
+    `Batch ${batch + 1} (${elapsedSec}s, size=${batchSize}): processed=${processed} inserted=${inserted} skipped=${skipped} ${formatProgress(progress)}`,
   )
   if (result.errors?.length) {
     for (const err of result.errors.slice(0, 5)) console.warn('  ', err)

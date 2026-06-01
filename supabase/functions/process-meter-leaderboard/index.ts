@@ -178,20 +178,26 @@ function isLeaderboardEligiblePayload(payload: DungeonPayload): boolean {
   return d.runOutcome === 'clear'
 }
 
-async function fetchWikiRole(digimonId: string): Promise<string | null> {
+async function fetchWikiDigimon(digimonId: string): Promise<{ name: string | null; role: string | null }> {
   const id = digimonId.trim()
-  if (!id || id === 'unknown') return null
+  if (!id || id === 'unknown') return { name: null, role: null }
   try {
     const join = WIKI_DIGIMON_URL.includes('?') ? '&' : '?'
     const url = `${WIKI_DIGIMON_URL}${join}id=${encodeURIComponent(id)}`
     const res = await fetch(url, { headers: { Accept: 'application/json' } })
-    if (!res.ok) return null
-    const raw = (await res.json()) as { role?: unknown }
+    if (!res.ok) return { name: null, role: null }
+    const raw = (await res.json()) as { role?: unknown; name?: unknown }
     const role = typeof raw.role === 'string' ? raw.role.trim() : ''
-    return role || null
+    const name = typeof raw.name === 'string' ? raw.name.trim() : ''
+    return { name: name || null, role: role || null }
   } catch {
-    return null
+    return { name: null, role: null }
   }
+}
+
+async function fetchWikiRole(digimonId: string): Promise<string | null> {
+  const info = await fetchWikiDigimon(digimonId)
+  return info.role
 }
 
 async function resolveRoleBucket(
@@ -281,6 +287,7 @@ async function processParse(
   }
 
   const roleCache = new Map<string, RoleBucket | null>()
+  const nameCache = new Map<string, string | null>()
   const entries: Array<Record<string, unknown>> = []
 
   const memberList = members.length
@@ -307,6 +314,21 @@ async function processParse(
     if (!roleBucket) continue
 
     const primary = memberPrimaryDigimon(member)
+    const digimonId = sm?.digimonId?.trim() || primary?.digimonId?.trim() || ''
+    let officialName: string | null = null
+    if (digimonId) {
+      if (nameCache.has(digimonId)) {
+        officialName = nameCache.get(digimonId) ?? null
+      } else {
+        const wiki = await fetchWikiDigimon(digimonId)
+        officialName = wiki.name
+        nameCache.set(digimonId, officialName)
+        if (!roleCache.has(digimonId) && wiki.role) {
+          roleCache.set(digimonId, wikiRoleToBucket(wiki.role))
+        }
+      }
+    }
+
     const dps = sm?.dps ?? memberDps(member, payload, Number(row.duration_sec) || 0, memberList)
     if (!(dps > 0)) continue
 
@@ -323,8 +345,12 @@ async function processParse(
         member.displayLabel?.trim() ||
         playerKey,
       dps,
-      digimon_id: sm?.digimonId?.trim() || primary?.digimonId?.trim() || '',
-      digimon_name: sm?.digimonName?.trim() || primary?.digimonName?.trim() || '',
+      digimon_id: digimonId,
+      digimon_name:
+        officialName ||
+        sm?.digimonName?.trim() ||
+        primary?.digimonName?.trim() ||
+        '',
       icon_id: sm?.iconId?.trim() || primary?.iconId?.trim() || null,
       portrait_url: sm?.portraitUrl?.trim() || primary?.portraitUrl || null,
     })

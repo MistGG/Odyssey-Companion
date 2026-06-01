@@ -74,13 +74,16 @@ export function buildMeterLeaderboardSummary(
     const roleBucket = digimonId ? digimonIdToBucket(digimonId, roleByDigimonId) : null
     const memberDur = Math.max(member.durationSec, sessionDur, 1e-6)
     const dps = member.totalDamage / memberDur
+    const wikiName = digimonId ? session.wikiByDigimonId.get(digimonId)?.digimonName?.trim() : ''
+    const storedName =
+      primary?.digimonName?.trim() || member.currentDigimonName?.trim() || member.displayLabel.trim()
 
     out.push({
       playerKey: normalizePlayerKey(member.tamerName, member.displayLabel),
       displayName: member.tamerName.trim() || member.displayLabel.trim(),
       dps,
       digimonId,
-      digimonName: primary?.digimonName?.trim() || member.currentDigimonName?.trim() || member.displayLabel.trim(),
+      digimonName: wikiName || storedName,
       iconId: iconId || null,
       portraitUrl: primary?.portraitUrl || member.portraitUrl,
       roleBucket,

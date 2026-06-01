@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.65",
+  "version": "0.1.66",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter uploads: send slim leaderboard summary with role buckets for faster public leaderboards\n- Wiki cache includes Digimon role for party role bucketing on upload\n- Triggers server-side leaderboard processing after dungeon parse upload"
+      "releaseNotes": "- Meter uploads: leaderboard summary uses wiki species names instead of in-game nicknames\n- Backfill script retries on Supabase compute limits with progress reporting\n- Clearer auth error when signup emails are rate limited"
     }
   }
 }
