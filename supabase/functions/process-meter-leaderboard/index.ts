@@ -10,6 +10,7 @@ const ROLE_BUCKETS = ['melee', 'ranged', 'caster', 'hybrid', 'tank', 'healer'] a
 type RoleBucket = (typeof ROLE_BUCKETS)[number]
 
 const MIN_PARTY_DAMAGE_SHARE = 0.02
+const PARTY_UPLOAD_DEDUPE_WINDOW_SEC = 10
 const WIKI_DIGIMON_URL =
   Deno.env.get('WIKI_DIGIMON_DETAIL_URL')?.trim() ||
   'https://odyssey-proxy.qawsar-ahmed.workers.dev/proxy/api/wiki/digimon'
@@ -98,6 +99,40 @@ function wikiRoleToBucket(role: string | null | undefined): RoleBucket | null {
 function normalizePlayerKey(member: StoredMember): string {
   const raw = member.tamerName?.trim() || member.displayLabel?.trim() || ''
   return raw.toLowerCase()
+}
+
+function buildPartyRunFingerprint(
+  dungeonId: string,
+  difficultyId: number,
+  durationSec: number,
+  members: StoredMember[],
+): string {
+  const players = members
+    .map((m) => normalizePlayerKey(m))
+    .filter(Boolean)
+    .sort()
+  const dur = Math.max(0, Math.round(durationSec))
+  return `${dungeonId.trim()}:${difficultyId}:${dur}:${players.join('\u0001')}`
+}
+
+async function findDuplicatePartyParseInWindow(
+  supabase: ReturnType<typeof createClient>,
+  fingerprint: string,
+  excludeParseId: string,
+): Promise<string | null> {
+  const since = new Date(Date.now() - PARTY_UPLOAD_DEDUPE_WINDOW_SEC * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('meter_parses')
+    .select('id')
+    .eq('parse_kind', 'dungeon_party')
+    .eq('party_fingerprint', fingerprint)
+    .neq('id', excludeParseId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error || !data?.id) return null
+  return data.id as string
 }
 
 function memberDigimons(member: StoredMember) {
@@ -269,13 +304,28 @@ async function processParse(
   if ((existingCount ?? 0) > 0) return { inserted: 0, skipped: 'already processed' }
 
   const payload = (row.payload ?? {}) as DungeonPayload
+  const members = payload.members ?? []
+  const durationSec = sessionDuration(payload, Number(row.duration_sec) || 0, members)
+  const fingerprint =
+    members.length > 0
+      ? buildPartyRunFingerprint(dungeonId, difficultyId, durationSec, members)
+      : null
+
+  if (fingerprint) {
+    const dupId = await findDuplicatePartyParseInWindow(supabase, fingerprint, row.id)
+    if (dupId) {
+      await supabase.from('meter_parses').update({ party_fingerprint: fingerprint }).eq('id', row.id)
+      return { inserted: 0, skipped: 'duplicate party upload within window' }
+    }
+    await supabase.from('meter_parses').update({ party_fingerprint: fingerprint }).eq('id', row.id)
+  }
+
   let summary = row.leaderboard_summary
   if (!summary?.members?.length) {
     summary = buildSummaryFromPayload(payload, Number(row.duration_sec) || 0)
   }
   if (!summary?.eligible) return { inserted: 0, skipped: 'not leaderboard eligible' }
 
-  const members = payload.members ?? []
   if (members.length && isBrokenPartyParse(payload, members)) {
     return { inserted: 0, skipped: 'broken party parse' }
   }

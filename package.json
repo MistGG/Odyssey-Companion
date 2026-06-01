@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.66",
+  "version": "0.1.67",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter uploads: leaderboard summary uses wiki species names instead of in-game nicknames\n- Backfill script retries on Supabase compute limits with progress reporting\n- Clearer auth error when signup emails are rate limited"
+      "releaseNotes": "- Optimized multiple uploads within the same party"
     }
   }
 }

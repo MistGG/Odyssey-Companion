@@ -1,6 +1,10 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createSupabaseAuthStorage } from './supabaseAuthStorage'
 import type { MeterLeaderboardSummary } from './buildLeaderboardSummary'
+import {
+  buildPartyRunFingerprint,
+  PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
+} from './meterPartyFingerprint'
 
 export type MeterHitLike = {
   skill: string
@@ -301,7 +305,7 @@ export async function insertMeterParse(
   client: SupabaseClient,
   userId: string | null,
   input: InsertMeterParseInput,
-): Promise<{ error: string | null; parseId?: string }> {
+): Promise<{ error: string | null; parseId?: string; deduped?: boolean }> {
   if (input.mode === 'dungeon_party') {
     const { members, dungeon, durationSec, appVersion, digimonNamesRequireWikiLookup } = input
     if (!dungeon.dungeonId.trim()) {
@@ -370,6 +374,27 @@ export async function insertMeterParse(
       })),
       ...(digimonNamesRequireWikiLookup ? { digimonNamesRequireWikiLookup: true } : {}),
     }
+
+    const partyFingerprint = buildPartyRunFingerprint(
+      payload.dungeon.dungeonId,
+      payload.dungeon.difficultyId,
+      payload.sessionDurationSec,
+      payload.members,
+    )
+
+    const { data: duplicateId, error: dupError } = await client.rpc('meter_find_duplicate_party_parse', {
+      p_fingerprint: partyFingerprint,
+      p_window_seconds: PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
+    })
+    const existingParseId =
+      !dupError && typeof duplicateId === 'string' && duplicateId.trim() ? duplicateId.trim() : null
+    if (existingParseId) {
+      if (cachedClient?.url && cachedClient?.key) {
+        void notifyLeaderboardProcessor(cachedClient.url, cachedClient.key, existingParseId)
+      }
+      return { error: null, parseId: existingParseId, deduped: true }
+    }
+
     const { data, error } = await client.from('meter_parses').insert({
       user_id: userId,
       app_version: appVersion,
@@ -381,6 +406,7 @@ export async function insertMeterParse(
       dungeon_name: payload.dungeon.dungeonName,
       difficulty: payload.dungeon.difficulty,
       difficulty_id: payload.dungeon.difficultyId,
+      party_fingerprint: partyFingerprint,
       payload,
       leaderboard_summary: input.leaderboardSummary ?? null,
     }).select('id').single()
