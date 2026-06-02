@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.68",
+  "version": "0.1.69",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Boss train spawn reminders now send one alert per train instead of one per boss when spawns cluster together"
+      "releaseNotes": "- Meter: when several party members run the overlay, each tamer's damage stays on their own row instead of merging into the uploader (fixes missing peers and inflated self DPS on co-uploaded clears)"
     }
   }
 }

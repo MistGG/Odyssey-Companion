@@ -260,9 +260,6 @@ function syncSelfCombatAliases(session: MeterStreamSession) {
   for (const row of session.members.values()) {
     if (!rowLooksLikeSelf(session, row)) continue
     if (row.digimonName.trim()) aliasList.add(row.digimonName.trim())
-    if (row.tamerName.trim() && normKey(row.tamerName) !== normKey(tamer)) {
-      aliasList.add(row.tamerName.trim())
-    }
   }
 
   putRosterAliases(session, tamer, displaySpecies, iconId, [...aliasList])
@@ -324,6 +321,18 @@ function refreshSelfRosterPresentation(session: MeterStreamSession) {
 
 function memberMapKey(tamerName: string): string {
   return normKey(tamerName)
+}
+
+/** Another party member from roster — never merge their row into self or credit them as self. */
+function isRosterPeerTamer(session: MeterStreamSession, tamerName: string): boolean {
+  const name = tamerName.trim()
+  const selfTamer = session.selfTamerName?.trim()
+  if (!name || !selfTamer || normKey(name) === normKey(selfTamer)) return false
+  const snap =
+    session.rosterMembers.get(memberMapKey(name)) ??
+    session.rosterMembers.get(normKey(name))
+  if (snap) return !snap.isSelf
+  return false
 }
 
 function selfCanonicalMemberKey(session: MeterStreamSession): string | null {
@@ -409,6 +418,8 @@ function dedupePartyMemberRows(session: MeterStreamSession) {
       continue
     }
     if (!selfKey || row.key === selfKey) continue
+    const rowTamer = row.tamerName.trim()
+    if (rowTamer && isRosterPeerTamer(session, rowTamer)) continue
     const alias = session.rosterByAlias.get(normKey(row.tamerName))
     const aliasTamer = alias?.tamerName.trim()
     const nickMatch = selfNick && normKey(row.tamerName) === normKey(selfNick)
@@ -997,19 +1008,16 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
   const tamerDirect = extractPartyTamerFromCombat(ev)
 
   let tamerName = tamerDirect
-  if (!tamerName && fromSelf && session.selfTamerName) {
-    tamerName = session.selfTamerName
-  }
   if (!tamerName && digimonFromHit) {
     tamerName = resolveTamerFromRoster(session, [digimonFromHit])
-  }
-  if (!tamerName && fromSelf && session.selfTamerName) {
-    tamerName = session.selfTamerName
   }
   if (!tamerName && digimonFromHit && session.selfTamerName) {
     if (combatLabelMatchesSelfDigimon(session, digimonFromHit)) {
       tamerName = session.selfTamerName
     }
+  }
+  if (!tamerName && fromSelf && session.selfTamerName) {
+    tamerName = session.selfTamerName
   }
   if (!tamerName && fromSelf) {
     tamerName = session.selfTamerName?.trim() || extractPartyTamerFromCombat(ev)
@@ -1065,12 +1073,12 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
   }
 
   const isSelf =
-    fromSelf ||
-    combatHitFromSelfDigimon(session, ev) ||
-    (!!session.selfTamerName && normKey(tamerName) === normKey(session.selfTamerName)) ||
-    (!!session.selfTamerName &&
-      !!digimonFromHit &&
-      combatLabelMatchesSelfDigimon(session, digimonFromHit))
+    !isRosterPeerTamer(session, tamerName) &&
+    ((!!session.selfTamerName && normKey(tamerName) === normKey(session.selfTamerName)) ||
+      combatHitFromSelfDigimon(session, ev) ||
+      (!!session.selfTamerName &&
+        !!digimonFromHit &&
+        combatLabelMatchesSelfDigimon(session, digimonFromHit)))
 
   let digimonId = eventDigimonId(ev)
   if (!digimonId && isSelf) digimonId = session.selfDigimonId ?? ''
@@ -1529,11 +1537,13 @@ export function ingestMeterEventStream(
       meterDebugLogEvent(ev, `SKIP combat: empty tamerName | ${meterDebugIngestState(session)}`)
     }
     if (who.tamerName) {
+      const isPeer = isRosterPeerTamer(session, who.tamerName)
       const fromSelf =
-        Boolean(ev.from_self) ||
-        who.isSelf ||
-        combatHitFromSelfDigimon(session, ev) ||
-        combatLabelMatchesSelfDigimon(session, who.tamerName)
+        !isPeer &&
+        (Boolean(ev.from_self) ||
+          who.isSelf ||
+          combatHitFromSelfDigimon(session, ev) ||
+          combatLabelMatchesSelfDigimon(session, who.tamerName))
       const selfTamer = session.selfTamerName?.trim()
       const creditTamer = fromSelf && selfTamer ? selfTamer : who.tamerName
       const canonKey =
