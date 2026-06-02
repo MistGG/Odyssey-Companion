@@ -40,6 +40,20 @@ function notifyHistoryChanged() {
   window.dispatchEvent(new CustomEvent(HISTORY_CHANGED_EVENT))
 }
 
+function isValidHistoryEntry(row: unknown): row is MeterRunHistoryEntry {
+  if (!row || typeof row !== 'object') return false
+  const e = row as MeterRunHistoryEntry
+  return typeof e.id === 'string' && typeof e.sessionEndMs === 'number'
+}
+
+/** Newest first; drops runs beyond {@link MAX_ENTRIES} so old debug reports are not kept. */
+function pruneMeterRunHistoryEntries(entries: MeterRunHistoryEntry[]): MeterRunHistoryEntry[] {
+  return [...entries]
+    .filter(isValidHistoryEntry)
+    .sort((a, b) => b.sessionEndMs - a.sessionEndMs)
+    .slice(0, MAX_ENTRIES)
+}
+
 export function readMeterRunHistory(): MeterRunHistoryEntry[] {
   if (typeof localStorage === 'undefined') return []
   try {
@@ -47,22 +61,22 @@ export function readMeterRunHistory(): MeterRunHistoryEntry[] {
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((row): row is MeterRunHistoryEntry => {
-        if (!row || typeof row !== 'object') return false
-        const e = row as MeterRunHistoryEntry
-        return typeof e.id === 'string' && typeof e.sessionEndMs === 'number'
-      })
-      .slice(0, MAX_ENTRIES)
+    const valid = (parsed as MeterRunHistoryEntry[]).filter(isValidHistoryEntry)
+    const pruned = pruneMeterRunHistoryEntries(valid)
+    if (pruned.length !== valid.length) {
+      writeMeterRunHistory(pruned, { notify: false })
+    }
+    return pruned
   } catch {
     return []
   }
 }
 
-function writeMeterRunHistory(entries: MeterRunHistoryEntry[]) {
+function writeMeterRunHistory(entries: MeterRunHistoryEntry[], opts?: { notify?: boolean }) {
   if (typeof localStorage === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)))
-  notifyHistoryChanged()
+  const pruned = pruneMeterRunHistoryEntries(entries)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned))
+  if (opts?.notify !== false) notifyHistoryChanged()
 }
 
 export function upsertMeterRunHistoryEntry(entry: MeterRunHistoryEntry) {
@@ -268,10 +282,6 @@ export function uploadStatusLabel(status: MeterRunUploadStatus): string {
     default:
       return 'Unknown'
   }
-}
-
-export function runHistoryShowsCopyButton(status: MeterRunUploadStatus): boolean {
-  return status !== 'uploaded_ranked' && status !== 'uploaded_unranked'
 }
 
 export function getMeterRunHistoryEntry(id: string): MeterRunHistoryEntry | null {

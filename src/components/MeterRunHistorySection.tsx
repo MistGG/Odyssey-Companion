@@ -3,7 +3,6 @@ import {
   formatRunHistoryWhen,
   meterRunHistoryChangedEventName,
   readMeterRunHistory,
-  runHistoryShowsCopyButton,
   uploadStatusLabel,
   type MeterRunHistoryEntry,
   type MeterRunUploadStatus,
@@ -51,8 +50,8 @@ export function MeterRunHistorySection() {
     <section className="field-group" style={{ marginTop: 16 }}>
       <h3 className="settings-app-subhead">Recent runs</h3>
       <p className="hint muted" style={{ marginTop: 0 }}>
-        Last 10 Normal or Hard dungeon runs. If a parse did not upload, copy the report and send it
-        to Mist on Discord.
+        Last 10 Normal or Hard dungeon runs (older reports are removed automatically). Copy a report
+        to review or send to Mist on Discord.
       </p>
       {entries.length === 0 ? (
         <p className="hint muted">No Normal/Hard dungeon runs yet — finish a dungeon with the meter open.</p>
@@ -76,15 +75,13 @@ export function MeterRunHistorySection() {
                     : ''}
                 </span>
               </div>
-              {runHistoryShowsCopyButton(entry.uploadStatus) ? (
-                <button
-                  type="button"
-                  className="btn secondary meter-run-history__copy"
-                  onClick={() => void copyReport(entry)}
-                >
-                  Copy report
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="btn secondary meter-run-history__copy"
+                onClick={() => void copyReport(entry)}
+              >
+                Copy report
+              </button>
             </li>
           ))}
         </ul>

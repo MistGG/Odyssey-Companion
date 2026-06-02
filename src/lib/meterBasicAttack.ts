@@ -28,6 +28,19 @@ export function isMeterBasicAttackEvent(ev: EventStreamRecord): boolean {
   return isMeterBasicAttackSkillKey(sid)
 }
 
+/**
+ * `skill_use` / `party_skill` rows for default attacks — skip crediting; the matching
+ * `hit_taken` event carries the same damage.
+ */
+export function isMeterBasicSkillUseEvent(ev: EventStreamRecord): boolean {
+  const t = String(ev.type ?? '').trim()
+  if (t !== 'skill_use' && t !== 'party_skill') return false
+  const rawSkill = String(ev.skill ?? '').trim()
+  if (isMeterBasicAttackSkillKey(rawSkill)) return true
+  const sid = String(ev.skill_id ?? ev.skillId ?? '').trim()
+  return isMeterBasicAttackSkillKey(sid)
+}
+
 export function meterBasicAttackIconUrl(): string {
   return autoAttackIconUrl
 }

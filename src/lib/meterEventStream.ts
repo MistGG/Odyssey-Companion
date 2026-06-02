@@ -53,6 +53,7 @@ import {
   meterDebugLog,
   meterDebugLogEvent,
 } from './meterDebugLog'
+import { isMeterBasicSkillUseEvent } from './meterBasicAttack'
 import {
   DEV_METER_TAMER_NAME,
   METER_DEV_BASELINE_PREVIEW_ROWS,
@@ -1562,9 +1563,13 @@ export function ingestMeterEventStream(
         const themeId = effectiveEquippedThemeIdForSelf(creditTamer)
         if (themeId) creditRow.meterBarThemeId = themeId
       }
-      creditRow.totalDamage += dmg
-      const cache = wikiCacheForDigimon(session, who.digimonId)
-      recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId)
+      if (!isMeterBasicSkillUseEvent(ev)) {
+        creditRow.totalDamage += dmg
+        const cache = wikiCacheForDigimon(session, who.digimonId)
+        recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId)
+      } else if (isMeterDebugEnabled()) {
+        meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
+      }
       if (fromSelf) syncSelfCombatAliases(session)
       dedupePartyMemberRows(session)
     }

@@ -6083,10 +6083,10 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
 }
 
 .meter-run-history__item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px 12px;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid rgba(120, 200, 255, 0.14);
@@ -6098,6 +6098,7 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .meter-run-history__title {

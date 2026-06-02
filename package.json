@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.69",
+  "version": "0.1.70",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter: when several party members run the overlay, each tamer's damage stays on their own row instead of merging into the uploader (fixes missing peers and inflated self DPS on co-uploaded clears)"
+      "releaseNotes": "- Meter: stop double-counting auto attacks (ignore basic skill_use; hit_taken only) — fixes inflated self DPS on uploads\n- Settings: Copy report on every recent run; fix run list layout; keep only the last 10 debug reports in local storage"
     }
   }
 }
