@@ -20,6 +20,7 @@ import {
   selfTamerNameFromDungeonMembers,
 } from './lib/meterParseTamerClaim'
 import { boostMeterSelfBarForThemePreview } from './lib/meterEventStream'
+import { applyMeterDevTestPartyIfEnabled } from './lib/meterDevPartyTest'
 import {
   fetchEquippedMeterPartyBarThemeIdFromAccount,
   startMeterEquippedThemeSync,
@@ -549,6 +550,12 @@ export default function MeterApp() {
       }
     })
   }, [readerHint])
+
+  useEffect(() => {
+    if (applyMeterDevTestPartyIfEnabled(streamRef.current)) {
+      bumpStream()
+    }
+  }, [bumpStream])
 
   useEffect(() => {
     const w = window as Window & {
@@ -1149,6 +1156,8 @@ export default function MeterApp() {
 
   const ghostChrome = settings.meterBackdropOpacity < 0.04
 
+  const showUploadSignInBanner = Boolean(supabase) && !sbUser
+
   const shellCls = [
     'shell',
     'shell--meter',
@@ -1284,6 +1293,25 @@ export default function MeterApp() {
         ) : null}
 
         <main className="meter-body meter-body--compact">
+          {streamSession.devTestPartySeeded && !eventStreamConnected ? (
+            <p className="meter-banner meter-banner--info meter-banner--compact" role="status">
+              Dev preview (game not connected). Bar widths are sample data; DPS stays 0 until combat.
+            </p>
+          ) : null}
+
+          {showUploadSignInBanner ? (
+            <p className="meter-banner meter-banner--error meter-banner--compact" role="status">
+              Not signed in. Uploads unavailable.{' '}
+              <button
+                type="button"
+                className="meter-banner-sign-in-link"
+                onClick={() => void window.odysseyCompanion?.openSettings?.('meter')}
+              >
+                Sign in here
+              </button>
+            </p>
+          ) : null}
+
           {readerHint ? (
             <p className="meter-banner meter-banner--info muted meter-banner--compact" role="status">
               {readerHint}

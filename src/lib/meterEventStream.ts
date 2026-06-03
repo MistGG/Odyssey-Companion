@@ -1842,22 +1842,17 @@ export function meterSelfTotals(session: MeterStreamSession, nowMs = Date.now())
 }
 
 /** Dev-only sample party for `npm run dev:meter` (includes Mist). */
-export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.now()): void {
+export function seedMeterDevTestParty(session: MeterStreamSession): void {
   if (session.devTestPartySeeded) return
   session.devTestPartySeeded = true
 
-  const startMs = nowMs - 92_000
   session.selfTamerName = DEV_METER_TAMER_NAME
-  session.sessionStartMs = startMs
+  session.sessionStartMs = null
   session.sessionEndMs = null
   session.dungeonId = 'dev-test-dungeon'
   session.dungeonName = 'Dev Test — Puppet Master'
   session.dungeonNameLoading = false
 
-  const themePreviewDamage = [
-    428_500, 401_200, 388_400, 375_600, 362_800, 350_000, 337_200, 324_400, 311_600, 298_800, 286_000,
-    273_200, 260_400,
-  ]
   const themePreviewBarFillPct = METER_PARTY_BAR_THEMES.map((_, index) =>
     meterDevThemePreviewBarFillPct(index),
   )
@@ -1875,9 +1870,9 @@ export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.
       partyBarFillPct: barFill,
       isSelf: false,
     })
-    row.totalDamage = themePreviewDamage[index] ?? 240_000
+    row.totalDamage = 0
     row.partyBarFillPct = barFill
-    row.firstHitMs = startMs
+    row.firstHitMs = null
     session.rosterMembers.set(row.key, {
       memberKey: row.key,
       tamerName: DEV_METER_TAMER_NAME,
@@ -1898,9 +1893,9 @@ export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.
     memberKey: selfKey,
     isSelf: true,
   })
-  selfRow.totalDamage = 312_000
+  selfRow.totalDamage = 0
   selfRow.partyBarFillPct = 88
-  selfRow.firstHitMs = startMs
+  selfRow.firstHitMs = null
   session.rosterMembers.set(selfRow.key, {
     memberKey: selfRow.key,
     tamerName: DEV_METER_TAMER_NAME,
@@ -1922,8 +1917,8 @@ export function seedMeterDevTestParty(session: MeterStreamSession, nowMs = Date.
       partyBarFillPct: baseline.fillPct,
       isSelf: false,
     })
-    row.totalDamage = baseline.totalDamage
-    row.firstHitMs = startMs
+    row.totalDamage = 0
+    row.firstHitMs = null
     session.rosterMembers.set(row.key, {
       memberKey: row.key,
       tamerName: DEV_METER_TAMER_NAME,

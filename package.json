@@ -1,12 +1,12 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.71",
+  "version": "0.1.72",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
-    "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
+    "dev:meter": "cross-env ODYSSEY_START_PANEL=meter VITE_METER_DEV_TEST=1 vite",
     "dev:timers": "cross-env ODYSSEY_START_PANEL=timers vite",
     "dev:hud": "cross-env ODYSSEY_START_PANEL=hud vite",
     "dev:settings": "cross-env ODYSSEY_START_PANEL=settings vite",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter: stop double-counting auto attacks (ignore basic skill_use; hit_taken only) — fixes inflated self DPS on uploads\n- Settings: Copy report on every recent run; fix run list layout; keep only the last 10 debug reports in local storage"
+      "releaseNotes": "- Meter: when you are not signed in, show a clear message that uploads are unavailable, with Sign in here opening Meter settings\n- Dev meter preview no longer shows fake DPS while the game is not running"
     }
   }
 }

@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg-deep: #070a12;
   --glass: rgba(12, 18, 32, 0.55);
   --glass-border: rgba(120, 200, 255, 0.12);
@@ -6919,6 +6919,24 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   overflow: hidden;
 }
 
+.meter-party-member--hall-of-fame {
+  background: rgba(32, 22, 6, 0.62);
+  box-shadow:
+    inset 3px 0 0 var(--mb-accent, #f5c451),
+    inset 0 0 0 1px rgba(245, 196, 81, 0.22),
+    0 0 16px rgba(245, 196, 81, 0.1);
+}
+
+.meter-party-member-bar.meter-party-bar-theme--hall-of-fame {
+  background: linear-gradient(
+    90deg,
+    var(--mb-c1) 0%,
+    var(--mb-c2) 50%,
+    color-mix(in srgb, var(--mb-accent) 35%, transparent) 100%
+  );
+  overflow: hidden;
+}
+
 .meter-party-bar-fill-stack--iliad {
   min-height: 36px;
 }
@@ -9924,9 +9942,27 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
 }
 
 .meter-banner--error {
-  background: rgba(255, 80, 110, 0.12);
-  border: 1px solid rgba(255, 120, 140, 0.35);
-  color: var(--text);
+  background: rgba(220, 38, 38, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  color: rgba(254, 202, 202, 0.98);
+  font-weight: 600;
+}
+
+.meter-banner-sign-in-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: #fca5a5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.meter-banner-sign-in-link:hover {
+  color: #fecaca;
 }
 
 .meter-banner--info {
