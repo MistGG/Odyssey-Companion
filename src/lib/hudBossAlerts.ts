@@ -4,13 +4,14 @@ import type { BossAlertsWidgetConfig, TimelineFightPayload } from '../types'
 import { shouldTrackSkillTargetCount } from './hudBossAlertSound'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 import {
-  allKillObjectivesComplete,
   combatHitStartsMeterTimer,
   deathIndicatesBossClear,
+  eventStreamReportsFullClear,
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
   markDungeonRunClear,
   shouldStartNewDungeonPull,
+  syncDungeonBossTargets,
 } from './meterDungeonRun'
 import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
 import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
@@ -195,9 +196,12 @@ export function ingestHudBossAlertsEvent(
     const diffMeta = extractDungeonDifficultyMeta(ev)
     const difficulty = diffMeta.label?.trim() || ''
     const targets = extractBossTargetsFromObjectives(ev)
-    if (targets.length) next.dungeonBossTargets = targets
+    if (targets.length) syncDungeonBossTargets(next, ev)
 
-    if (allKillObjectivesComplete(ev) && next.dungeonRunActive) {
+    if (
+      eventStreamReportsFullClear(ev, { dungeonBossTargets: next.dungeonBossTargets }) &&
+      next.dungeonRunActive
+    ) {
       markHudDungeonRunClear(next)
       resetBossPull(next)
       dungeonReset = true

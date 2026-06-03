@@ -83,6 +83,7 @@ export function seedDungeonKillStepsFromWiki(
     if (ob.step > maxStep) {
       maxStep = ob.step
       if (!finalTarget) finalTarget = wikiObjectiveDisplayTarget(ob)
+      if (!finalMonsterId && ob.monster_id?.trim()) finalMonsterId = ob.monster_id.trim()
     }
   }
 
@@ -181,17 +182,19 @@ export function markNextWikiStepForVictim(
 
 /** Credit boss kills from `death` events (EventStream omits step ids on objectives). */
 export function mergeDeathIntoObjectiveProgress(
-  session: DungeonObjectiveProgressFields & {
-    dungeonId: string | null
-    dungeonDifficulty: string | null
-    dungeonDifficultyTier: number | null
-  },
+  session: DungeonObjectiveProgressFields &
+    DungeonBossTargetTracking & {
+      dungeonId: string | null
+      dungeonDifficulty: string | null
+      dungeonDifficultyTier: number | null
+    },
   ev: EventStreamRecord,
 ): number | null {
   if (!session.dungeonId?.trim() || !session.dungeonExpectedKillSteps.length) return null
   const victim = deathEntityName(ev)
   if (!victim) return null
   const victimId = deathEntityMonsterId(ev)
+  recordBossTargetKill(session, victim, session.dungeonBossTargets)
   if (isFinalDungeonBossKill(victim, victimId, session)) {
     markFinalKillStepComplete(session)
     return finalWikiKillStep(session)
@@ -199,17 +202,102 @@ export function mergeDeathIntoObjectiveProgress(
   return markNextWikiStepForVictim(session, victim, victimId)
 }
 
-/** Merge completed kill steps from a `dungeon_progress` / query payload (partial updates OK). */
-export function mergeDungeonObjectiveProgress(
-  session: DungeonObjectiveProgressFields & {
-    dungeonId: string | null
-    dungeonDifficulty: string | null
-    dungeonDifficultyTier: number | null
-    clientReportedFullClear?: boolean
-  },
+export type DungeonBossTargetTracking = {
+  dungeonBossTargets: string[]
+  dungeonKilledBossTargets: string[]
+}
+
+/** Union boss labels across partial `dungeon_progress` snapshots (multi-phase dungeons). */
+export function syncDungeonBossTargets(
+  session: Pick<DungeonBossTargetTracking, 'dungeonBossTargets'>,
   source: EventStreamRecord | unknown[],
 ): void {
-  if (allKillObjectivesComplete(source)) {
+  const incoming = extractBossTargetsFromObjectives(source)
+  if (!incoming.length) return
+  const seen = new Set(session.dungeonBossTargets.map(normBossName))
+  for (const target of incoming) {
+    const key = normBossName(target)
+    if (seen.has(key)) continue
+    seen.add(key)
+    session.dungeonBossTargets.push(target)
+  }
+}
+
+export function resetDungeonBossTargetTracking(session: DungeonBossTargetTracking): void {
+  session.dungeonBossTargets = []
+  session.dungeonKilledBossTargets = []
+}
+
+/** Record a boss kill when the victim matches a known dungeon objective target. */
+export function recordBossTargetKill(
+  session: Pick<DungeonBossTargetTracking, 'dungeonKilledBossTargets'>,
+  victimLabel: string,
+  bossTargets: readonly string[],
+): void {
+  const victim = victimLabel.trim()
+  if (!victim || !bossTargets.length) return
+  for (const target of bossTargets) {
+    if (!bossNamesMatch(victim, target)) continue
+    const killed = session.dungeonKilledBossTargets
+    if (killed.some((k) => bossNamesMatch(k, target))) return
+    killed.push(target)
+    return
+  }
+}
+
+export function finalBossTargetKilled(
+  session: Pick<DungeonObjectiveProgressFields, 'dungeonFinalBossTarget'> &
+    Pick<DungeonBossTargetTracking, 'dungeonKilledBossTargets'>,
+): boolean {
+  const final = session.dungeonFinalBossTarget?.trim()
+  if (!final) return true
+  return session.dungeonKilledBossTargets.some((k) => bossNamesMatch(k, final))
+}
+
+export function allBossTargetsKilled(session: DungeonBossTargetTracking): boolean {
+  const targets = session.dungeonBossTargets.filter((t) => t.trim())
+  if (!targets.length) return true
+  const killed = session.dungeonKilledBossTargets
+  return targets.every((target) => killed.some((k) => bossNamesMatch(k, target)))
+}
+
+/** Add synthetic wiki steps when EventStream reports more bosses than the wiki lists. */
+export function syncExpectedKillStepsFromBossTargets(
+  session: DungeonObjectiveProgressFields & Pick<DungeonBossTargetTracking, 'dungeonBossTargets'>,
+): void {
+  const targetCount = session.dungeonBossTargets.length
+  if (targetCount <= session.dungeonExpectedKillSteps.length) return
+  const steps = new Set(session.dungeonExpectedKillSteps)
+  let next = steps.size ? Math.max(...steps) + 1 : 1
+  while (steps.size < targetCount) {
+    steps.add(next++)
+  }
+  session.dungeonExpectedKillSteps = [...steps].sort((a, b) => a - b)
+}
+
+function completeKillObjectiveRows(source: EventStreamRecord | unknown[]): Record<string, unknown>[] {
+  const kills: Record<string, unknown>[] = []
+  for (const raw of objectiveRows(source)) {
+    if (!raw || typeof raw !== 'object') continue
+    const row = raw as Record<string, unknown>
+    if (!objectiveRowIsKill(row) || !objectiveRowComplete(row)) continue
+    kills.push(row)
+  }
+  return kills
+}
+
+/** Merge completed kill steps from a `dungeon_progress` / query payload (partial updates OK). */
+export function mergeDungeonObjectiveProgress(
+  session: DungeonObjectiveProgressFields &
+    DungeonBossTargetTracking & {
+      dungeonId: string | null
+      dungeonDifficulty: string | null
+      dungeonDifficultyTier: number | null
+      clientReportedFullClear?: boolean
+    },
+  source: EventStreamRecord | unknown[],
+): void {
+  if (eventStreamReportsFullClear(source, session)) {
     syncAllWikiKillStepsComplete(session)
     session.clientReportedFullClear = true
   }
@@ -220,6 +308,7 @@ export function mergeDungeonObjectiveProgress(
     const parsed = parsedObjectiveProgress(row)
     const label = parsed?.label ?? extractObjectiveTargetName(row)
     const monsterId = String(row.monster_id ?? row.monsterId ?? '').trim()
+    if (label) recordBossTargetKill(session, label, session.dungeonBossTargets)
     if (label || monsterId) {
       markNextWikiStepForVictim(session, label, monsterId)
     }
@@ -258,10 +347,15 @@ export function sessionFinalKillStepComplete(session: DungeonObjectiveProgressFi
 
 /** All wiki kill steps done — infer a clear even when `dungeonRunActive` never flipped true (query-only entry). */
 export function sessionObjectiveProgressIndicatesClear(
-  session: DungeonObjectiveProgressFields & { dungeonId?: string | null },
+  session: DungeonObjectiveProgressFields &
+    DungeonBossTargetTracking & { dungeonId?: string | null; clientReportedFullClear?: boolean },
 ): boolean {
   if (!session.dungeonId?.trim()) return false
-  return sessionAllKillObjectivesComplete(session) && sessionFinalKillStepComplete(session)
+  if (!sessionAllKillObjectivesComplete(session) || !sessionFinalKillStepComplete(session)) {
+    return false
+  }
+  if (session.clientReportedFullClear) return true
+  return dungeonBossPhaseComplete(session)
 }
 
 export function deathEntityMonsterId(ev: EventStreamRecord): string {
@@ -419,7 +513,10 @@ export function objectiveRowComplete(row: Record<string, unknown>): boolean {
 }
 
 /** All kill objectives in the payload are complete (boss dead / run cleared). */
-export function allKillObjectivesComplete(source: EventStreamRecord | unknown[]): boolean {
+export function allKillObjectivesComplete(
+  source: EventStreamRecord | unknown[],
+  requiredBossTargets: readonly string[] = [],
+): boolean {
   const kills: Record<string, unknown>[] = []
   for (const raw of objectiveRows(source)) {
     if (!raw || typeof raw !== 'object') continue
@@ -427,7 +524,50 @@ export function allKillObjectivesComplete(source: EventStreamRecord | unknown[])
     if (objectiveRowIsKill(row)) kills.push(row)
   }
   if (!kills.length) return false
-  return kills.every(objectiveRowComplete)
+  if (!kills.every(objectiveRowComplete)) return false
+  if (!requiredBossTargets.length) return true
+  const completeLabels = kills
+    .filter(objectiveRowComplete)
+    .map((row) => extractObjectiveTargetName(row))
+  return requiredBossTargets.every((target) =>
+    completeLabels.some((label) => bossNamesMatch(label, target)),
+  )
+}
+
+/**
+ * True when the client payload marks every known boss dead — not just every row in a partial snapshot.
+ * When a final boss is known, that boss must appear complete in the payload (Twins: Giga-only ≠ clear).
+ */
+export function eventStreamReportsFullClear(
+  source: EventStreamRecord | unknown[],
+  session: {
+    dungeonBossTargets?: readonly string[]
+    dungeonFinalBossTarget?: string | null
+  },
+): boolean {
+  const required = (session.dungeonBossTargets ?? []).filter((t) => t.trim())
+  if (!allKillObjectivesComplete(source, required)) return false
+  // Multi-boss: every known target must be complete in this payload (order-independent).
+  if (required.length >= 2) return true
+  const final = session.dungeonFinalBossTarget?.trim()
+  if (!final) return true
+  const completeLabels = completeKillObjectiveRows(source).map((row) =>
+    extractObjectiveTargetName(row),
+  )
+  return completeLabels.some((label) => bossNamesMatch(label, final))
+}
+
+/** True when this pull has no remaining dungeon boss targets (any kill order). */
+export function dungeonBossPhaseComplete(
+  session: DungeonBossTargetTracking &
+    Pick<DungeonObjectiveProgressFields, 'dungeonFinalBossTarget'>,
+): boolean {
+  const targets = session.dungeonBossTargets.filter((t) => t.trim())
+  if (targets.length >= 2) return allBossTargetsKilled(session)
+  if (targets.length === 1) {
+    return session.dungeonKilledBossTargets.some((k) => bossNamesMatch(k, targets[0]))
+  }
+  return finalBossTargetKilled(session)
 }
 
 /** Kill objective targets from `dungeon_progress` / `query_result.dungeon` (supports multi-boss runs). */
@@ -445,14 +585,6 @@ export function extractBossTargetsFromObjectives(source: EventStreamRecord | unk
     out.push(target)
   }
   return out
-}
-
-export function syncDungeonBossTargets(
-  session: { dungeonBossTargets: string[] },
-  ev: EventStreamRecord,
-) {
-  const targets = extractBossTargetsFromObjectives(ev)
-  if (targets.length) session.dungeonBossTargets = targets
 }
 
 /** Entity name on `death` events (field varies by EventStream build). */
@@ -526,15 +658,15 @@ export function leaveDungeonSession(session: {
   dungeonDifficulty: string | null
   dungeonDifficultyTier: number | null
   dungeonRunActive: boolean
-  dungeonBossTargets: string[]
-} & DungeonObjectiveProgressFields) {
+} & DungeonObjectiveProgressFields &
+  DungeonBossTargetTracking) {
   session.dungeonId = null
   session.dungeonName = null
   session.dungeonNameLoading = false
   session.dungeonDifficulty = null
   session.dungeonDifficultyTier = null
   session.dungeonRunActive = false
-  session.dungeonBossTargets = []
+  resetDungeonBossTargetTracking(session)
   resetDungeonObjectiveProgress(session)
 }
 

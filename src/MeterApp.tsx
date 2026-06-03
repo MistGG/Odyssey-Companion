@@ -991,6 +991,11 @@ export default function MeterApp() {
       return
     }
     const userId = sbUser?.id ?? null
+    if (!userId) {
+      setUploadToast({ text: 'Sign in on the Meter tab to upload clears', kind: 'warn' })
+      patchRunHistoryUpload('not_uploaded', 'Sign in required to upload')
+      return
+    }
     const snapshotBuilt = pendingAutoUploadBuiltRef.current
     pendingAutoUploadBuiltRef.current = null
     const session = streamRef.current

@@ -25,6 +25,13 @@ export function sanitizeUserMessage(raw: string | null | undefined, fallback: st
 }
 
 export function userFacingUploadError(raw: string | null | undefined): string {
+  const t = raw?.trim() ?? ''
+  if (/permission denied for table meter_parses/i.test(t)) {
+    return 'Upload blocked: sign in on the Meter tab (Settings), then clear again. If you are signed in, the database still needs INSERT access on meter_parses for your account.'
+  }
+  if (/row-level security|violates.*policy/i.test(t)) {
+    return 'Upload blocked by account permissions. Sign in on the Meter tab and try again.'
+  }
   return sanitizeUserMessage(raw, 'Upload failed. Try again.')
 }
 
