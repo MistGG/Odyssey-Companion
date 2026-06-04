@@ -30,18 +30,11 @@ function normalizePlayerKey(tamerName: string, displayLabel: string): string {
   return (tamerName.trim() || displayLabel.trim()).toLowerCase()
 }
 
-/** Most damage this run; ignores end-of-run swap when multiple digimon appear in the breakdown. */
+/** Digimon with the highest damage this run (any end-of-run swap, same role or not). */
 function memberPrimaryDigimonFromUpload(member: MeterDungeonPartyMemberParse) {
-  const current = member.currentDigimonId?.trim() || ''
-  const pool =
-    member.digimons.length > 1 && current
-      ? member.digimons.filter((d) => (d.digimonId?.trim() || '') !== current)
-      : member.digimons
-  const candidates = pool.length > 0 ? pool : member.digimons
-
-  let best = candidates[0]
+  let best = member.digimons[0]
   let bestDamage = -1
-  for (const dg of candidates) {
+  for (const dg of member.digimons) {
     const damage = Math.max(0, dg.totalDamage)
     if (damage > bestDamage) {
       bestDamage = damage

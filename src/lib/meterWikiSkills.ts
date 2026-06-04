@@ -26,12 +26,27 @@ export type MeterSkillRow = {
   hits: number
 }
 
-/** Map key: `{digimonId}|{skillKey}` — one tamer row, skills split per digimon for breakdown. */
-export function meterSkillStorageKey(hitDigimonId: string, skillKey: string): string {
-  const d = hitDigimonId.trim()
+/** Groups skill damage per active form (`digimonId` + `iconId` when the stream reuses one id across evolutions). */
+export function meterSkillAttributionKey(digimonId: string, iconId: string): string {
+  const d = digimonId.trim()
+  const icon = iconId.trim()
+  if (d && icon) return `${norm(d)}::${norm(icon)}`
+  if (d) return norm(d)
+  if (icon) return `icon:${norm(icon)}`
+  return ''
+}
+
+/** Map key: `{attributionKey}|{skillKey}` — one tamer row, skills split per form for breakdown. */
+export function meterSkillStorageKey(attributionKey: string, skillKey: string): string {
+  const a = attributionKey.trim()
   const k = skillKey.trim()
-  if (!d) return k
-  return `${norm(d)}|${k}`
+  if (!a) return k
+  return `${a}|${k}`
+}
+
+function attributionKeyFromStorage(storageKey: string): string {
+  const i = storageKey.indexOf('|')
+  return i >= 0 ? storageKey.slice(0, i) : storageKey
 }
 
 function skillKeyFromStorage(storageKey: string): string {
@@ -40,8 +55,19 @@ function skillKeyFromStorage(storageKey: string): string {
 }
 
 export function digimonIdFromStorage(storageKey: string): string {
-  const i = storageKey.indexOf('|')
-  return i >= 0 ? storageKey.slice(0, i) : ''
+  const attr = attributionKeyFromStorage(storageKey)
+  const split = attr.indexOf('::')
+  if (split >= 0) return attr.slice(0, split)
+  if (attr.startsWith('icon:')) return ''
+  return attr
+}
+
+export function iconIdFromStorage(storageKey: string): string {
+  const attr = attributionKeyFromStorage(storageKey)
+  const split = attr.indexOf('::')
+  if (split >= 0) return attr.slice(split + 2)
+  if (attr.startsWith('icon:')) return attr.slice(5)
+  return ''
 }
 
 export type MeterMemberSkillTarget = {
@@ -334,9 +360,11 @@ export function recordMeterSkillHit(
   cache: DigimonWikiSkillCache | undefined,
   damage: number,
   hitDigimonId = '',
+  hitIconId = '',
 ) {
   const skill = resolveMeterSkillFromEvent(ev, cache)
-  const storageKey = meterSkillStorageKey(hitDigimonId, skill.skillKey)
+  const attributionKey = meterSkillAttributionKey(hitDigimonId, hitIconId)
+  const storageKey = meterSkillStorageKey(attributionKey, skill.skillKey)
   const prev = row.skills.get(storageKey)
   if (prev) {
     prev.damage += damage

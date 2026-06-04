@@ -48,6 +48,7 @@ import {
 import type { DigimonWikiSkillCache, MeterSkillRow } from './meterWikiSkills'
 import {
   digimonIdFromStorage,
+  iconIdFromStorage,
   digimonPortraitUrl,
   recordMeterSkillHit,
   syncMemberLatestDigimonPresentation,
@@ -1584,7 +1585,9 @@ export function ingestMeterEventStream(
       if (!isMeterBasicSkillUseEvent(ev)) {
         creditRow.totalDamage += dmg
         const cache = wikiCacheForDigimon(session, who.digimonId)
-        recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId)
+        const hitIconId =
+          String(ev.digimon_icon_id ?? ev.icon_id ?? '').trim() || who.iconId
+        recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId, hitIconId)
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
       }
@@ -1708,11 +1711,18 @@ function digimonDisplayNameForBreakdown(
   return id
 }
 
-function digimonPortraitForBreakdown(session: MeterStreamSession, digimonId: string): string {
-  const id = digimonId.trim()
-  if (!id) return ''
+function digimonPortraitForBreakdown(
+  session: MeterStreamSession,
+  digimonId: string,
+  iconId = '',
+): string {
   const portraitId =
-    streamIconIdForDigimon(session, id) || session.wikiByDigimonId.get(id)?.modelId.trim() || ''
+    iconId.trim() ||
+    (digimonId.trim()
+      ? streamIconIdForDigimon(session, digimonId) ||
+        session.wikiByDigimonId.get(digimonId.trim())?.modelId.trim() ||
+        ''
+      : '')
   return portraitUrlForIcon(portraitId)
 }
 
@@ -1724,23 +1734,35 @@ export function meterMemberSkillBreakdownByDigimon(
   const row = session.members.get(memberKey)
   if (!row) return []
 
-  const byDigimon = new Map<string, { digimonId: string; skills: MeterMemberSkillBreakdownEntry[] }>()
+  const byForm = new Map<
+    string,
+    { digimonId: string; iconId: string; skills: MeterMemberSkillBreakdownEntry[] }
+  >()
   for (const [storageKey, skill] of row.skills) {
     const digimonId = digimonIdFromStorage(storageKey)
-    const bucketKey = digimonId.trim() ? normKey(digimonId) : '__unknown__'
-    const bucket = byDigimon.get(bucketKey) ?? { digimonId: digimonId.trim(), skills: [] }
-    bucket.skills.push({ ...skill, storageKey, digimonId: bucket.digimonId || digimonId })
-    byDigimon.set(bucketKey, bucket)
+    const iconId = iconIdFromStorage(storageKey)
+    const bucketKey = `${normKey(digimonId)}::${normKey(iconId)}` || '__unknown__'
+    const bucket = byForm.get(bucketKey) ?? {
+      digimonId: digimonId.trim(),
+      iconId: iconId.trim(),
+      skills: [],
+    }
+    bucket.skills.push({
+      ...skill,
+      storageKey,
+      digimonId: bucket.digimonId || digimonId,
+    })
+    byForm.set(bucketKey, bucket)
   }
 
   const groups: MeterDigimonSkillBreakdownGroup[] = []
-  for (const { digimonId, skills } of byDigimon.values()) {
+  for (const { digimonId, iconId, skills } of byForm.values()) {
     skills.sort((a, b) => b.damage - a.damage)
     const totalDamage = skills.reduce((sum, s) => sum + s.damage, 0)
     groups.push({
       digimonId,
       digimonName: digimonDisplayNameForBreakdown(session, memberKey, digimonId),
-      portraitUrl: digimonPortraitForBreakdown(session, digimonId),
+      portraitUrl: digimonPortraitForBreakdown(session, digimonId, iconId),
       totalDamage,
       skills,
     })
