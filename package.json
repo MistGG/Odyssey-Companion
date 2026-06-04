@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.73",
+  "version": "0.1.74",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Supabase: send official client header so meter cloud API calls work after server-side anon gating\n- Uploads: party and solo inserts no longer return full parse payloads in the API response (id only, same as dungeon clears)"
+      "releaseNotes": "- Uploads: stop sending leaderboard_summary on insert (smaller POST body; server builds it)\n- Dedupe: no longer re-notifies leaderboard processor for existing parses\n- Edge function: skip re-processing parses that already have leaderboard entries"
     }
   }
 }

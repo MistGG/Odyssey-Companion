@@ -1,6 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createSupabaseAuthStorage } from './supabaseAuthStorage'
-import type { MeterLeaderboardSummary } from './buildLeaderboardSummary'
 import {
   buildPartyRunFingerprint,
   PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
@@ -119,7 +118,6 @@ export type InsertMeterParseInput =
       dungeon: MeterParseDungeonContext
       members: MeterDungeonPartyMemberParse[]
       digimonNamesRequireWikiLookup?: boolean
-      leaderboardSummary?: MeterLeaderboardSummary
     }
 
 let cachedClient: { url: string; key: string; client: SupabaseClient } | null = null
@@ -395,9 +393,6 @@ export async function insertMeterParse(
     const existingParseId =
       !dupError && typeof duplicateId === 'string' && duplicateId.trim() ? duplicateId.trim() : null
     if (existingParseId) {
-      if (cachedClient?.url && cachedClient?.key) {
-        void notifyLeaderboardProcessor(cachedClient.url, cachedClient.key, existingParseId)
-      }
       return { error: null, parseId: existingParseId, deduped: true }
     }
 
@@ -414,7 +409,6 @@ export async function insertMeterParse(
       difficulty_id: payload.dungeon.difficultyId,
       party_fingerprint: partyFingerprint,
       payload,
-      leaderboard_summary: input.leaderboardSummary ?? null,
     }).select('id').single()
     if (error) return { error: error.message }
     const parseId = (data as { id?: string } | null)?.id

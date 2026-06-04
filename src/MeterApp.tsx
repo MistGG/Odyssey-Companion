@@ -6,7 +6,6 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
-import { buildMeterLeaderboardSummary } from './lib/buildLeaderboardSummary'
 import {
   isMeterSessionLeaderboardEligible,
   meterLeaderboardEligibilityDebugReason,
@@ -1023,7 +1022,6 @@ export default function MeterApp() {
     try {
       const info = await window.odysseyCompanion?.getAppVersion()
       const appVersion = info?.version ?? 'unknown'
-      const leaderboardSummary = buildMeterLeaderboardSummary(session, dungeon, members, durationSec)
       const { error } = await insertMeterParse(supabase, userId, {
         mode: 'dungeon_party',
         appVersion,
@@ -1031,7 +1029,6 @@ export default function MeterApp() {
         dungeon,
         members,
         digimonNamesRequireWikiLookup,
-        leaderboardSummary,
       })
       if (error) {
         setUploadToast({ text: userFacingUploadError(error), kind: 'warn' })
@@ -1293,12 +1290,6 @@ export default function MeterApp() {
         ) : null}
 
         <main className="meter-body meter-body--compact">
-          {streamSession.devTestPartySeeded && !eventStreamConnected ? (
-            <p className="meter-banner meter-banner--info meter-banner--compact" role="status">
-              Dev preview (game not connected). Bar widths are sample data; DPS stays 0 until combat.
-            </p>
-          ) : null}
-
           {showUploadSignInBanner ? (
             <p className="meter-banner meter-banner--error meter-banner--compact" role="status">
               Not signed in. Uploads unavailable.{' '}

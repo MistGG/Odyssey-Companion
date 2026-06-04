@@ -523,8 +523,19 @@ Deno.serve(async (req) => {
     })
   }
 
-  const parseId = body.parse_id?.trim()
+  const parseId = (body.parse_id ?? body.parseId)?.trim()
   if (!parseId) return json(400, { ok: false, error: 'parse_id is required.' })
+
+  const force = body.force === true
+  if (!force) {
+    const { count, error: countError } = await supabase
+      .from('meter_leaderboard_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('parse_id', parseId)
+    if (!countError && (count ?? 0) > 0) {
+      return json(200, { ok: true, inserted: 0, skipped: 'already processed' })
+    }
+  }
 
   const { data, error } = await supabase
     .from('meter_parses')
