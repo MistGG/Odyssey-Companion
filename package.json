@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.74",
+  "version": "0.1.75",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Uploads: stop sending leaderboard_summary on insert (smaller POST body; server builds it)\n- Dedupe: no longer re-notifies leaderboard processor for existing parses\n- Edge function: skip re-processing parses that already have leaderboard entries"
+      "releaseNotes": "- Meter leaderboard: attribute DPS to the digimon that dealt the most damage (ignores end-of-run swap to healer/tank/etc.)\n- Combat hits: prefer stream digimon_id over roster slot when crediting skill damage\n- Upload summary: ranked DPS uses attributed digimon damage on multi-form runs"
     }
   }
 }

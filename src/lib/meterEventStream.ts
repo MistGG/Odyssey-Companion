@@ -1000,13 +1000,14 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
 } {
   const fromSelf = Boolean(ev.from_self)
   const slotRaw = Number(ev.attacker_slot ?? ev.slot)
+  const digimonIdFromEvent = eventDigimonId(ev)
   if (Number.isFinite(slotRaw) && slotRaw > 0) {
     const bySlot = resolveRosterMemberBySlot(session, slotRaw)
     if (bySlot) {
       return {
         tamerName: bySlot.tamerName,
         digimonName: bySlot.digimonName,
-        digimonId: bySlot.digimonId,
+        digimonId: digimonIdFromEvent || bySlot.digimonId,
         iconId: bySlot.iconId,
         isSelf: bySlot.isSelf,
       }

@@ -30,14 +30,21 @@ function normalizePlayerKey(tamerName: string, displayLabel: string): string {
   return (tamerName.trim() || displayLabel.trim()).toLowerCase()
 }
 
+/** Most damage this run; ignores end-of-run swap when multiple digimon appear in the breakdown. */
 function memberPrimaryDigimonFromUpload(member: MeterDungeonPartyMemberParse) {
-  const dur = Math.max(member.durationSec, 1e-6)
-  let best = member.digimons[0]
-  let bestDps = -1
-  for (const dg of member.digimons) {
-    const dps = dg.totalDamage / dur
-    if (dps > bestDps) {
-      bestDps = dps
+  const current = member.currentDigimonId?.trim() || ''
+  const pool =
+    member.digimons.length > 1 && current
+      ? member.digimons.filter((d) => (d.digimonId?.trim() || '') !== current)
+      : member.digimons
+  const candidates = pool.length > 0 ? pool : member.digimons
+
+  let best = candidates[0]
+  let bestDamage = -1
+  for (const dg of candidates) {
+    const damage = Math.max(0, dg.totalDamage)
+    if (damage > bestDamage) {
+      bestDamage = damage
       best = dg
     }
   }
@@ -73,7 +80,11 @@ export function buildMeterLeaderboardSummary(
 
     const roleBucket = digimonId ? digimonIdToBucket(digimonId, roleByDigimonId) : null
     const memberDur = Math.max(member.durationSec, sessionDur, 1e-6)
-    const dps = member.totalDamage / memberDur
+    const attributedDamage =
+      member.digimons.length > 1
+        ? Math.max(0, primary?.totalDamage ?? 0)
+        : member.totalDamage
+    const dps = attributedDamage / memberDur
     const wikiName = digimonId ? session.wikiByDigimonId.get(digimonId)?.digimonName?.trim() : ''
     const storedName =
       primary?.digimonName?.trim() || member.currentDigimonName?.trim() || member.displayLabel.trim()
