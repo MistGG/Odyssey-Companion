@@ -148,6 +148,11 @@ export function getSupabaseClient(url: string, anonKey: string): SupabaseClient 
       detectSessionInUrl: false,
       ...(authStorage ? { storage: authStorage } : {}),
     },
+    global: {
+      headers: {
+        'x-odyssey-client': 'odyssey-companion',
+      },
+    },
   })
   cachedClient = { url: u, key: k, client }
   return client
@@ -293,6 +298,7 @@ async function notifyLeaderboardProcessor(
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${anonKey}`,
+        'x-odyssey-client': 'odyssey-companion',
       },
       body: JSON.stringify({ parse_id: parseId }),
     })
@@ -458,7 +464,7 @@ export async function insertMeterParse(
       hit_count: hitCount,
       parse_kind: 'party',
       payload,
-    })
+    }).select('id')
     return { error: error?.message ?? null }
   }
 
@@ -475,6 +481,6 @@ export async function insertMeterParse(
     hit_count: hitCount,
     parse_kind: 'solo',
     payload,
-  })
+  }).select('id')
   return { error: error?.message ?? null }
 }
