@@ -16,7 +16,8 @@
     "prepare:icons": "node scripts/generate-app-icon.mjs",
     "pack": "npm run prepare:icons && npm run prepare:dps-python && npm run build && electron-builder --win",
     "release": "npm run prepare:icons && npm run prepare:dps-python && npm run build && electron-builder --win --publish always",
-    "release:overwrite": "cross-env EP_GH_IGNORE_TIME=true npm run release"
+    "release:overwrite": "cross-env EP_GH_IGNORE_TIME=true npm run release",
+    "release:fix-yml": "node scripts/fix-release-latest-yml.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
