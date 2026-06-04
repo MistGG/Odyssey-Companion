@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.72",
+  "version": "0.1.73",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -102,7 +102,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter: when you are not signed in, show a clear message that uploads are unavailable, with Sign in here opening Meter settings\n- Dev meter preview no longer shows fake DPS while the game is not running"
+      "releaseNotes": "- Supabase: send official client header so meter cloud API calls work after server-side anon gating\n- Uploads: party and solo inserts no longer return full parse payloads in the API response (id only, same as dungeon clears)"
     }
   }
 }
