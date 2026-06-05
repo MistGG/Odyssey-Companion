@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  exportMeterRunCombatLog,
   formatRunHistoryWhen,
   meterRunHistoryChangedEventName,
   readMeterRunHistory,
@@ -16,7 +17,7 @@ function statusClassName(status: MeterRunUploadStatus): string {
 
 export function MeterRunHistorySection() {
   const [entries, setEntries] = useState<MeterRunHistoryEntry[]>(() => readMeterRunHistory())
-  const [copyHint, setCopyHint] = useState<string | null>(null)
+  const [hint, setHint] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
     setEntries(readMeterRunHistory())
@@ -35,23 +36,49 @@ export function MeterRunHistorySection() {
     }
   }, [refresh])
 
-  const copyReport = useCallback(async (entry: MeterRunHistoryEntry) => {
-    try {
-      await navigator.clipboard.writeText(entry.debugReport)
-      setCopyHint(`Copied report for ${entry.dungeonName ?? 'run'}. Paste to Mist on Discord.`)
-      window.setTimeout(() => setCopyHint(null), 3500)
-    } catch {
-      setCopyHint('Could not copy — check clipboard permissions.')
-      window.setTimeout(() => setCopyHint(null), 3500)
-    }
+  const showHint = useCallback((text: string) => {
+    setHint(text)
+    window.setTimeout(() => setHint(null), 4000)
   }, [])
+
+  const copyReport = useCallback(
+    async (entry: MeterRunHistoryEntry) => {
+      try {
+        await navigator.clipboard.writeText(entry.debugReport)
+        showHint(`Copied summary report for ${entry.dungeonName ?? 'run'}. Paste to Mist on Discord.`)
+      } catch {
+        showHint('Could not copy — check clipboard permissions.')
+      }
+    },
+    [showHint],
+  )
+
+  const exportCombatLog = useCallback(
+    async (entry: MeterRunHistoryEntry) => {
+      const result = await exportMeterRunCombatLog(entry)
+      if (result.ok) {
+        showHint(`Combat log saved to ${result.filePath}`)
+        return
+      }
+      if (entry.combatLogSaved === false || !entry.combatLogSaved) {
+        showHint(
+          result.error === 'Combat log not found for this run.'
+            ? 'Combat log is still saving or this run predates combat logging — try again in a moment.'
+            : result.error,
+        )
+        return
+      }
+      showHint(result.error)
+    },
+    [showHint],
+  )
 
   return (
     <section className="field-group" style={{ marginTop: 16 }}>
       <h3 className="settings-app-subhead">Recent runs</h3>
       <p className="hint muted" style={{ marginTop: 0 }}>
-        Last 10 Normal or Hard dungeon runs (older reports are removed automatically). Copy a report
-        to review or send to Mist on Discord.
+        Last 10 Normal or Hard dungeon runs (older reports are removed automatically). Copy report
+        for a summary; export combat log for every party hit and skill use.
       </p>
       {entries.length === 0 ? (
         <p className="hint muted">No Normal/Hard dungeon runs yet — finish a dungeon with the meter open.</p>
@@ -75,18 +102,27 @@ export function MeterRunHistorySection() {
                     : ''}
                 </span>
               </div>
-              <button
-                type="button"
-                className="btn secondary meter-run-history__copy"
-                onClick={() => void copyReport(entry)}
-              >
-                Copy report
-              </button>
+              <div className="meter-run-history__actions">
+                <button
+                  type="button"
+                  className="btn secondary meter-run-history__copy"
+                  onClick={() => void copyReport(entry)}
+                >
+                  Copy report
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary meter-run-history__copy"
+                  onClick={() => void exportCombatLog(entry)}
+                >
+                  Export combat log
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
-      {copyHint ? <p className="hint" style={{ marginTop: 10 }}>{copyHint}</p> : null}
+      {hint ? <p className="hint" style={{ marginTop: 10 }}>{hint}</p> : null}
     </section>
   )
 }

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.76",
+  "version": "0.1.77",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Meter: split damage per evolution when the stream reuses one digimon_id (digimon_id + icon_id buckets)\n- Leaderboard: rank by whichever form dealt the most damage (same-role swaps included)\n- Combat hits: credit damage using stream digimon_id and icon_id on each hit"
+      "releaseNotes": "- Added better support for logging"
     }
   }
 }

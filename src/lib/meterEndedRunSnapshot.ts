@@ -1,10 +1,11 @@
 import { buildMeterDungeonPartyParse } from './buildMeterDungeonPartyParse'
-import { buildMeterDebugReport } from './meterDebugReport'
 import { isDungeonParseUploadAllowed } from './dungeonDifficultyTags'
+import { meterRunLogCapture } from './meterRunLog'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 import type { MeterStreamSession } from './meterEventStream'
 
 export type MeterEndedRunSnapshot = {
+  sessionStartMs: number | null
   sessionEndMs: number
   lastRunOutcome: MeterDungeonRunOutcome
   dungeonId: string
@@ -15,8 +16,9 @@ export type MeterEndedRunSnapshot = {
   dungeonCompletedKillSteps: number[]
   dungeonFinalBossTarget: string | null
   dungeonFinalBossMonsterId: string | null
+  dungeonKilledBossTargets: string[]
   builtParse: ReturnType<typeof buildMeterDungeonPartyParse>
-  debugReportBase: string
+  runEventLog: string
 }
 
 export function meterSessionTotalDamage(session: MeterStreamSession): number {
@@ -45,6 +47,7 @@ export function captureMeterEndedRunSnapshot(
   if (!isMeterDungeonRunHistoryCandidate(session)) return null
 
   return {
+    sessionStartMs: session.sessionStartMs,
     sessionEndMs,
     lastRunOutcome,
     dungeonId,
@@ -55,12 +58,9 @@ export function captureMeterEndedRunSnapshot(
     dungeonCompletedKillSteps: [...session.dungeonCompletedKillSteps],
     dungeonFinalBossTarget: session.dungeonFinalBossTarget,
     dungeonFinalBossMonsterId: session.dungeonFinalBossMonsterId,
+    dungeonKilledBossTargets: [...session.dungeonKilledBossTargets],
     builtParse: buildMeterDungeonPartyParse(session),
-    debugReportBase: buildMeterDebugReport(session, {
-      appVersion: 'captured-at-dungeon-exit',
-      eventStreamConnected: false,
-      readerHint: null,
-    }),
+    runEventLog: meterRunLogCapture(),
   }
 }
 
@@ -68,6 +68,7 @@ export function applyMeterEndedRunSnapshotToSession(
   session: MeterStreamSession,
   snap: MeterEndedRunSnapshot,
 ): void {
+  session.sessionStartMs = snap.sessionStartMs
   session.sessionEndMs = snap.sessionEndMs
   session.lastRunOutcome = snap.lastRunOutcome
   session.dungeonId = snap.dungeonId
@@ -78,5 +79,6 @@ export function applyMeterEndedRunSnapshotToSession(
   session.dungeonCompletedKillSteps = [...snap.dungeonCompletedKillSteps]
   session.dungeonFinalBossTarget = snap.dungeonFinalBossTarget
   session.dungeonFinalBossMonsterId = snap.dungeonFinalBossMonsterId
+  session.dungeonKilledBossTargets = [...snap.dungeonKilledBossTargets]
   session.dungeonRunActive = false
 }

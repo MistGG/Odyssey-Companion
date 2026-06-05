@@ -55,6 +55,18 @@ declare global {
       saveMeterDebugReport?: () => Promise<
         { ok: true; filePath?: string } | { ok: false; error: string }
       >
+      saveMeterCombatLog?: (payload: {
+        runId: string
+        text: string
+      }) => Promise<{ ok: true; filePath: string } | { ok: false; error: string }>
+      hasMeterCombatLog?: (runId: string) => Promise<{ ok: true; exists: boolean }>
+      exportMeterCombatLog?: (payload: {
+        runId: string
+        defaultName: string
+      }) => Promise<{ ok: true; filePath: string } | { ok: false; error: string }>
+      pruneMeterCombatLogs?: (
+        keepRunIds: string[],
+      ) => Promise<{ ok: true } | { ok: false; error: string }>
       sendMeterDebugReportReady?: (payload: {
         requestId: string
         text?: string

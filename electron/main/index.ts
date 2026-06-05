@@ -31,6 +31,7 @@ import {
   setActiveRaidBossAlerts,
   tryShowBossTimerTestNotification,
 } from './bossTimerAlerts'
+import { registerMeterCombatLogIpc } from './meterCombatLogIpc'
 import { registerMeterDebugReportIpc } from './meterDebugReportIpc'
 import {
   syncServerStatusMonitor,
@@ -1442,6 +1443,7 @@ registerEventStreamBridge(() => {
 })
 
 registerMeterDebugReportIpc(() => meterWin, showMeterWindow)
+registerMeterCombatLogIpc()
 
 app.whenReady().then(() => {
   app.on('browser-window-focus', scheduleHotkeysFocusRefresh)

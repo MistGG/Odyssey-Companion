@@ -141,6 +141,24 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
       { ok: true; filePath?: string } | { ok: false; error: string }
     >,
 
+  saveMeterCombatLog: (payload: { runId: string; text: string }) =>
+    ipcRenderer.invoke('meter:save-combat-log', payload) as Promise<
+      { ok: true; filePath: string } | { ok: false; error: string }
+    >,
+
+  hasMeterCombatLog: (runId: string) =>
+    ipcRenderer.invoke('meter:has-combat-log', runId) as Promise<{ ok: true; exists: boolean }>,
+
+  exportMeterCombatLog: (payload: { runId: string; defaultName: string }) =>
+    ipcRenderer.invoke('meter:export-combat-log', payload) as Promise<
+      { ok: true; filePath: string } | { ok: false; error: string }
+    >,
+
+  pruneMeterCombatLogs: (keepRunIds: string[]) =>
+    ipcRenderer.invoke('meter:prune-combat-logs', keepRunIds) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
   sendMeterDebugReportReady: (payload: {
     requestId: string
     text?: string

@@ -59,6 +59,15 @@ import {
   meterDebugLog,
   meterDebugLogEvent,
 } from './meterDebugLog'
+import {
+  meterCombatLogClear,
+  meterCombatLogRecordPartyHit,
+} from './meterCombatLog'
+import {
+  meterRunLogClear,
+  meterRunLogNote,
+  meterRunLogRecordEvent,
+} from './meterRunLog'
 import { isMeterBasicSkillUseEvent } from './meterBasicAttack'
 import {
   DEV_METER_TAMER_NAME,
@@ -1175,6 +1184,7 @@ function refreshMeterAfterLeavingDungeon(session: MeterStreamSession, eventMs: n
       `refresh meter after dungeon → map (${session.mapName ?? '?'}) pendingEndedRun=${pendingEndedRun ? pendingEndedRun.lastRunOutcome : 'none'}`,
     )
   }
+  meterRunLogClear()
   return true
 }
 
@@ -1243,6 +1253,7 @@ function maybeMarkFullDungeonClear(
   }
   markDungeonRunClear(session)
   freezeMeterTimer(session, eventMs)
+  meterRunLogNote(session, 'run outcome: CLEAR (all objectives + final step)')
   if (isMeterDebugEnabled()) meterDebugLog('dungeon run CLEAR (all objectives + final step)')
   return 'clear'
 }
@@ -1280,6 +1291,9 @@ export function applyDungeonProgress(
   const newPull = shouldStartNewDungeonPull(session, dungeonId)
 
   if (newPull) {
+    meterRunLogClear()
+    meterCombatLogClear()
+    meterRunLogNote(session, `new dungeon pull | dungeon_id=${dungeonId}`)
     session.lastRunOutcome = null
     session.clientReportedFullClear = false
     resetDungeonBossTargetTracking(session)
@@ -1313,6 +1327,7 @@ function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: numb
   if (session.lastRunOutcome == null) {
     if (session.clientReportedFullClear || sessionObjectiveProgressIndicatesClear(session)) {
       markDungeonRunClear(session)
+      meterRunLogNote(session, 'run outcome: CLEAR (inferred on dungeon leave)')
       if (
         isMeterDebugEnabled() &&
         !session.clientReportedFullClear &&
@@ -1322,6 +1337,7 @@ function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: numb
       }
     } else if (session.dungeonId?.trim() || session.dungeonRunActive) {
       markDungeonRunFail(session)
+      meterRunLogNote(session, 'run outcome: FAIL (left dungeon incomplete)')
     }
   }
   freezeMeterTimer(session, eventMs)
@@ -1373,6 +1389,7 @@ function maybeMarkDungeonRunClear(
 
   markDungeonRunClear(session)
   freezeMeterTimer(session, endMs)
+  meterRunLogNote(session, `run outcome: CLEAR (all bosses down, last=${victim})`)
   if (isMeterDebugEnabled()) meterDebugLog(`dungeon run CLEAR (all bosses down, last=${victim})`)
   return 'clear'
 }
@@ -1531,10 +1548,35 @@ export function ingestMeterEventStream(
 
     const startsTimer = combatHitStartsMeterTimer(session, ev)
     const timerActive = session.sessionStartMs != null
+    const whoEarly = resolveAttacker(session, ev)
+    const earlyPeer = whoEarly.tamerName ? isRosterPeerTamer(session, whoEarly.tamerName) : false
+    const earlyFromSelf =
+      !earlyPeer &&
+      (Boolean(ev.from_self) ||
+        whoEarly.isSelf ||
+        combatHitFromSelfDigimon(session, ev) ||
+        (whoEarly.tamerName
+          ? combatLabelMatchesSelfDigimon(session, whoEarly.tamerName)
+          : false))
+    const earlySelfTamer = session.selfTamerName?.trim()
+    const earlyCreditTamer =
+      earlyFromSelf && earlySelfTamer ? earlySelfTamer : whoEarly.tamerName
+
     if (!startsTimer && !timerActive) {
       if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, `SKIP combat: timer_not_started (no target/boss gate?)`)
       }
+      if (earlyCreditTamer) {
+        meterCombatLogRecordPartyHit(session, ev, {
+          ts: now,
+          tamer: earlyCreditTamer,
+          digimon: whoEarly.digimonName,
+          digimonId: whoEarly.digimonId,
+          fromSelf: earlyFromSelf || whoEarly.isSelf,
+          credited: false,
+        })
+      }
+      meterRunLogRecordEvent(session, ev)
       return {
         session,
         dungeonId,
@@ -1550,6 +1592,7 @@ export function ingestMeterEventStream(
       session.sessionStartMs = now
       sessionStarted = true
       fightEngagedAtMs = now
+      meterRunLogNote(session, 'meter timer started (first qualifying combat hit)')
     }
 
     const who = resolveAttacker(session, ev)
@@ -1582,7 +1625,8 @@ export function ingestMeterEventStream(
         const themeId = effectiveEquippedThemeIdForSelf(creditTamer)
         if (themeId) creditRow.meterBarThemeId = themeId
       }
-      if (!isMeterBasicSkillUseEvent(ev)) {
+      const credited = Boolean(who.tamerName && !isMeterBasicSkillUseEvent(ev))
+      if (credited) {
         creditRow.totalDamage += dmg
         const cache = wikiCacheForDigimon(session, who.digimonId)
         const hitIconId =
@@ -1590,6 +1634,17 @@ export function ingestMeterEventStream(
         recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId, hitIconId)
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
+      }
+      if (who.tamerName) {
+        const logTamer = fromSelf && selfTamer ? selfTamer : who.tamerName
+        meterCombatLogRecordPartyHit(session, ev, {
+          ts: now,
+          tamer: logTamer,
+          digimon: who.digimonName,
+          digimonId: who.digimonId,
+          fromSelf: fromSelf || who.isSelf,
+          credited,
+        })
       }
       if (fromSelf) syncSelfCombatAliases(session)
       dedupePartyMemberRows(session)
@@ -1599,6 +1654,8 @@ export function ingestMeterEventStream(
   // Credit killing-blow damage before freezing the meter (death / target HP 0 on boss).
   const clearFromEvent = maybeMarkDungeonRunClear(session, ev)
   if (clearFromEvent) runOutcome = clearFromEvent
+
+  meterRunLogRecordEvent(session, ev)
 
   return {
     session,

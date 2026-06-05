@@ -1,8 +1,17 @@
 import { isDungeonParseUploadAllowed } from './dungeonDifficultyTags'
+import type { MeterDebugReportMeta } from './meterDebugReport'
+import { buildMeterDungeonPartyParse } from './buildMeterDungeonPartyParse'
 import {
-  buildMeterDebugReport,
-  type MeterDebugReportMeta,
-} from './meterDebugReport'
+  formatMeterCombatLogFile,
+  meterCombatLogClear,
+  meterCombatLogSnapshot,
+  type MeterCombatLogFileHeader,
+} from './meterCombatLog'
+import { meterRunLogCapture } from './meterRunLog'
+import {
+  buildMeterRunReportFromSession,
+  buildMeterRunReportFromSnapshot,
+} from './meterRunReport'
 import {
   isMeterSessionLeaderboardEligible,
   meterLeaderboardEligibilityDebugReason,
@@ -29,6 +38,8 @@ export type MeterRunHistoryEntry = {
   uploadStatus: MeterRunUploadStatus
   uploadDetail: string
   debugReport: string
+  /** Set after auto-save to disk completes (Electron only). */
+  combatLogSaved?: boolean
 }
 
 const STORAGE_KEY = 'odyssey-meter-run-history-v1'
@@ -76,7 +87,54 @@ function writeMeterRunHistory(entries: MeterRunHistoryEntry[], opts?: { notify?:
   if (typeof localStorage === 'undefined') return
   const pruned = pruneMeterRunHistoryEntries(entries)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned))
+  void pruneMeterCombatLogFiles(pruned.map((e) => e.id))
   if (opts?.notify !== false) notifyHistoryChanged()
+}
+
+function scheduleCombatLogFileSave(args: {
+  header: MeterCombatLogFileHeader
+  runTimeline: string
+  sessionStartMs: number | null
+}): void {
+  const snapshot = meterCombatLogSnapshot(args.sessionStartMs)
+  if (snapshot.rows.length === 0 && !args.runTimeline.trim()) {
+    meterCombatLogClear()
+    return
+  }
+
+  const run = () => {
+    const text = formatMeterCombatLogFile(args.header, args.runTimeline, snapshot)
+    const api = typeof window !== 'undefined' ? window.odysseyCompanion : undefined
+    if (!api?.saveMeterCombatLog) {
+      meterCombatLogClear()
+      return
+    }
+    void api
+      .saveMeterCombatLog({ runId: args.header.runId, text })
+      .then((result) => {
+        if (result.ok) {
+          updateMeterRunHistoryEntry(args.header.runId, { combatLogSaved: true })
+        }
+        meterCombatLogClear()
+      })
+      .catch(() => meterCombatLogClear())
+  }
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => run(), { timeout: 4000 })
+  } else {
+    setTimeout(run, 0)
+  }
+}
+
+async function pruneMeterCombatLogFiles(keepRunIds: string[]): Promise<void> {
+  const api = typeof window !== 'undefined' ? window.odysseyCompanion : undefined
+  if (!api?.pruneMeterCombatLogs) return
+  try {
+    await api.pruneMeterCombatLogs(keepRunIds)
+  } catch {
+    /* */
+  }
 }
 
 export function upsertMeterRunHistoryEntry(entry: MeterRunHistoryEntry) {
@@ -86,7 +144,7 @@ export function upsertMeterRunHistoryEntry(entry: MeterRunHistoryEntry) {
 
 export function updateMeterRunHistoryEntry(
   id: string,
-  patch: Pick<MeterRunHistoryEntry, 'uploadStatus' | 'uploadDetail'> & {
+  patch: Pick<MeterRunHistoryEntry, 'uploadStatus' | 'uploadDetail' | 'combatLogSaved'> & {
     debugReport?: string
   },
 ) {
@@ -158,33 +216,6 @@ export function classifyMeterRunUpload(
   return { uploadStatus: 'not_uploaded', uploadDetail: 'Upload pending' }
 }
 
-export function buildMeterRunHistoryReport(
-  session: MeterStreamSession,
-  meta: MeterDebugReportMeta,
-  run: {
-    endedAt: string
-    dungeonName: string | null
-    dungeonId: string | null
-    difficulty: string | null
-    outcome: MeterDungeonRunOutcome
-    uploadStatus: MeterRunUploadStatus
-    uploadDetail: string
-  },
-): string {
-  const base = buildMeterDebugReport(session, meta)
-  return [
-    'Odyssey Companion — meter run report',
-    `ended_at=${run.endedAt}`,
-    `dungeon=${run.dungeonName ?? run.dungeonId ?? '?'}`,
-    `difficulty=${run.difficulty ?? '?'}`,
-    `outcome=${run.outcome}`,
-    `upload_status=${run.uploadStatus}`,
-    `upload_detail=${run.uploadDetail}`,
-    '',
-    base,
-  ].join('\n')
-}
-
 export function recordMeterRunHistoryEntry(
   session: MeterStreamSession,
   meta: MeterDebugReportMeta,
@@ -211,18 +242,37 @@ export function recordMeterRunHistoryEntry(
     outcome,
     uploadStatus,
     uploadDetail,
-    debugReport: buildMeterRunHistoryReport(session, meta, {
+    debugReport: buildMeterRunReportFromSession(
+      session,
+      meta,
+      {
+        endedAt,
+        dungeonName,
+        dungeonId: session.dungeonId?.trim() || null,
+        difficulty,
+        outcome,
+        uploadStatus,
+        uploadDetail,
+      },
+      buildMeterDungeonPartyParse(session),
+      meterRunLogCapture(),
+    ),
+  }
+
+  upsertMeterRunHistoryEntry(entry)
+  scheduleCombatLogFileSave({
+    header: {
+      runId: entry.id,
       endedAt,
       dungeonName,
       dungeonId: session.dungeonId?.trim() || null,
       difficulty,
       outcome,
-      uploadStatus,
-      uploadDetail,
-    }),
-  }
-
-  upsertMeterRunHistoryEntry(entry)
+      appVersion: meta.appVersion,
+    },
+    runTimeline: meterRunLogCapture(),
+    sessionStartMs: session.sessionStartMs,
+  })
   return entry
 }
 
@@ -238,19 +288,10 @@ export function recordMeterRunHistoryFromSnapshot(
   )
   const dungeonName = snap.dungeonName?.trim() || snap.dungeonId
   const difficulty = snap.dungeonDifficulty?.trim() || null
-  const debugReport = [
-    'Odyssey Companion — meter run report',
-    `ended_at=${endedAt}`,
-    `dungeon=${dungeonName}`,
-    `difficulty=${difficulty ?? '?'}`,
-    `outcome=${snap.lastRunOutcome}`,
-    `upload_status=${uploadStatus}`,
-    `upload_detail=${uploadDetail}`,
-    `app_version=${meta.appVersion}`,
-    `event_stream_connected=${meta.eventStreamConnected}`,
-    '',
-    snap.debugReportBase,
-  ].join('\n')
+  const debugReport = buildMeterRunReportFromSnapshot(snap, meta, {
+    uploadStatus,
+    uploadDetail,
+  })
 
   const entry: MeterRunHistoryEntry = {
     id: String(snap.sessionEndMs),
@@ -266,7 +307,41 @@ export function recordMeterRunHistoryFromSnapshot(
   }
 
   upsertMeterRunHistoryEntry(entry)
+  scheduleCombatLogFileSave({
+    header: {
+      runId: entry.id,
+      endedAt,
+      dungeonName: snap.dungeonName ?? snap.dungeonId,
+      dungeonId: snap.dungeonId,
+      difficulty,
+      outcome: snap.lastRunOutcome,
+      appVersion: meta.appVersion,
+    },
+    runTimeline: snap.runEventLog,
+    sessionStartMs: snap.sessionStartMs,
+  })
   return entry
+}
+
+export function defaultCombatLogExportName(entry: MeterRunHistoryEntry): string {
+  const dungeon = (entry.dungeonName ?? entry.dungeonId ?? 'dungeon')
+    .replace(/[^\w.-]+/g, '_')
+    .slice(0, 48)
+  const stamp = entry.endedAt.replace(/[:.]/g, '-').slice(0, 19)
+  return `odyssey-combat-log-${dungeon}-${stamp}.txt`
+}
+
+export async function exportMeterRunCombatLog(
+  entry: MeterRunHistoryEntry,
+): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> {
+  const api = window.odysseyCompanion
+  if (!api?.exportMeterCombatLog) {
+    return { ok: false, error: 'Combat log export is only available in the Odyssey Companion app.' }
+  }
+  return api.exportMeterCombatLog({
+    runId: entry.id,
+    defaultName: defaultCombatLogExportName(entry),
+  })
 }
 
 export function uploadStatusLabel(status: MeterRunUploadStatus): string {

@@ -6129,10 +6129,18 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   color: rgba(252, 165, 165, 0.92);
 }
 
+.meter-run-history__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .meter-run-history__copy {
   flex-shrink: 0;
   font-size: 11px;
   padding: 6px 10px;
+  white-space: nowrap;
 }
 
 .settings-panel-toggles {
