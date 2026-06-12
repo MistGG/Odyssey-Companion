@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.80",
+  "version": "0.1.81",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed forum teaser not loading in the UK (hosts from odyssey-calc.com instead of Imgur)"
+      "releaseNotes": "- Home teaser auto-updates from odyssey-calc.com manifest (no manual sync needed for UK users)"
     }
   }
 }

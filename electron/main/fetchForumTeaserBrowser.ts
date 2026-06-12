@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { parseForumTeaserHtml, type ForumTeaser } from '../../src/lib/forumTeaser'
+import { fetchTeaserManifest } from '../../src/lib/teaserManifest'
 import { resolveForumTeaserDisplay } from './forumTeaserImageCache'
 
 export const FORUM_HOME_URL = 'https://digitalodyssey.proboards.com/'
@@ -88,6 +89,15 @@ async function waitForTeaser(win: BrowserWindow, timeoutMs = 25000): Promise<For
   return null
 }
 
+async function fetchFromManifest(): Promise<ForumTeaser | null> {
+  const manifest = await fetchTeaserManifest()
+  if (!manifest) return null
+  return {
+    imageUrl: manifest.teaser.imageRemoteUrl,
+    readMoreUrl: manifest.teaser.readMoreUrl,
+  }
+}
+
 async function fetchViaHiddenWindow(): Promise<ForumTeaser> {
   const win = new BrowserWindow({
     show: false,
@@ -123,7 +133,7 @@ export async function fetchForumTeaserLive(): Promise<ForumTeaser> {
     const disk = readDiskCache()
 
     try {
-      const raw = await fetchViaHiddenWindow()
+      const raw = (await fetchFromManifest()) ?? (await fetchViaHiddenWindow())
       const teaser = await finalizeTeaser(raw)
       const entry: TeaserCacheEntry = { teaser, fetchedAt: Date.now() }
       memoryCache = entry
