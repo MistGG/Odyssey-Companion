@@ -161,20 +161,25 @@ async function refreshTeaserLive(): Promise<ForumTeaser> {
 
 /** Fetch the latest forum teaser; falls back to last good cache on failure. */
 export async function fetchForumTeaserLive(): Promise<ForumTeaser> {
-  const disk = readDiskCache()
-  if (disk) {
-    void refreshTeaserLive().catch(() => {
-      /* keep showing cached teaser */
-    })
-    return normalizeCachedTeaser(disk.teaser)
-  }
-
   if (fetchInFlight) return fetchInFlight
 
   fetchInFlight = (async () => {
+    const disk = readDiskCache()
     try {
+      // Always prefer live manifest (tiny JSON) over stale disk cache — avoids
+      // serving old odyssey-teaser:// or wrong bundled ext on first paint.
+      const fromManifest = await fetchFromManifest()
+      if (fromManifest) {
+        const teaser = await finalizeTeaser(fromManifest)
+        const entry: TeaserCacheEntry = { teaser, fetchedAt: Date.now() }
+        memoryCache = entry
+        writeDiskCache(entry)
+        return teaser
+      }
+      if (disk) return normalizeCachedTeaser(disk.teaser)
       return await refreshTeaserLive()
     } catch (e) {
+      if (disk) return normalizeCachedTeaser(disk.teaser)
       if (memoryCache) return normalizeCachedTeaser(memoryCache.teaser)
       throw e
     } finally {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchForumTeaser, type ForumTeaser } from '../lib/forumTeaser'
+import { imgurIdFromUrl, odysseyCalcTeaserImageUrls } from '../lib/teaserImageProxy'
 import {
   patchNoteDisplayParts,
   patchNoteKind,
@@ -24,6 +25,7 @@ export function HomePanel() {
 
   const teaserRef = useRef<ForumTeaser | null>(null)
   teaserRef.current = teaser
+  const imgRetryRef = useRef(0)
   const patchNotesRef = useRef<PatchNoteEntry[]>([])
   patchNotesRef.current = patchNotes
 
@@ -31,6 +33,7 @@ export function HomePanel() {
     const hadTeaser = teaserRef.current != null
     setTeaserError(null)
     setImgFailed(false)
+    imgRetryRef.current = 0
     if (!hadTeaser) setTeaserLoading(true)
     try {
       setTeaser(await fetchForumTeaser())
@@ -117,6 +120,25 @@ export function HomePanel() {
     void window.odysseyCompanion?.openExternal?.(url)
   }
 
+  const onTeaserImgError = useCallback(() => {
+    const current = teaserRef.current
+    if (current && imgRetryRef.current === 0) {
+      const remote = current.imageRemoteUrl ?? current.imageUrl
+      const alt = odysseyCalcTeaserImageUrls(remote).find((url) => url !== current.imageUrl)
+      if (alt) {
+        imgRetryRef.current = 1
+        setTeaser({ ...current, imageUrl: alt })
+        return
+      }
+    }
+    if (imgRetryRef.current < 2) {
+      imgRetryRef.current = 2
+      void loadTeaser()
+      return
+    }
+    setImgFailed(true)
+  }, [loadTeaser])
+
   return (
     <main className="main main--home">
       <div className="home-shell">
@@ -144,7 +166,7 @@ export function HomePanel() {
                     src={teaser.imageUrl}
                     alt="Latest Digital Odyssey teaser"
                     decoding="async"
-                    onError={() => setImgFailed(true)}
+                    onError={onTeaserImgError}
                   />
                 </button>
               ) : (
