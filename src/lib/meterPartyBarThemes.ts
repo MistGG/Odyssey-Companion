@@ -12,15 +12,24 @@ export function olympusThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
 }
 
 export const MIST_DEV_REWARD_THEME_ID: MeterPartyBarThemeId = 'iliad-core'
+export const HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'hall-of-fame'
 
 export function meterThemeRewardsCardTitle(theme: MeterPartyBarTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.label
+  if (theme.id === HALL_OF_FAME_THEME_ID) return theme.label
   return olympusThemeShopDigimonLine(theme)
 }
 
 export function meterThemePreviewDigimonLine(theme: MeterPartyBarTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.subtitle
+  if (theme.id === HALL_OF_FAME_THEME_ID) return theme.subtitle
   return olympusThemeShopDigimonLine(theme)
+}
+
+export function isHallOfFameMeterTheme(
+  theme: MeterPartyBarTheme | null | undefined,
+): theme is MeterPartyBarTheme {
+  return theme?.id === HALL_OF_FAME_THEME_ID
 }
 
 const EQUIPPED_THEME_STORAGE_KEY = 'odyssey-meter-bar-theme'
@@ -41,6 +50,7 @@ export type OlymposXiiBaseThemeId =
 
 export type MeterPartyBarThemeId =
   | 'iliad-core'
+  | 'hall-of-fame'
   | OlymposXiiBaseThemeId
   | `${OlymposXiiBaseThemeId}-rare`
   | `${OlymposXiiBaseThemeId}-legendary`
@@ -83,6 +93,22 @@ const ILIAD_CORE_THEME: MeterPartyBarTheme = {
       grid: 'rgba(62, 224, 255, 0.1)',
     },
   }
+
+const HALL_OF_FAME_THEME: MeterPartyBarTheme = {
+  id: 'hall-of-fame',
+  barStyleId: 'hall-of-fame',
+  label: 'Record Breaker',
+  badge: '',
+  domain: 'Hall of Fame — gold record breaks',
+  earnable: false,
+  subtitle: 'Hall of Fame · Record breaker',
+  style: {
+    accent: '#d4af37',
+    c1: 'rgba(26, 12, 18, 0.97)',
+    c2: 'rgba(74, 52, 22, 0.94)',
+    grid: 'rgba(212, 175, 55, 0.08)',
+  },
+}
 
 const OLYMPOS_XII_COMMON_THEMES: MeterPartyBarTheme[] = [
   {
@@ -309,6 +335,7 @@ export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] 
 
 export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ILIAD_CORE_THEME,
+  HALL_OF_FAME_THEME,
   ...OLYMPOS_XII_COMMON_THEMES,
   ...OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
   ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
@@ -369,6 +396,7 @@ export function shouldShowMeterThemeBadge(
 ): theme is MeterPartyBarTheme {
   if (!theme) return false
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return false
+  if (theme.id === HALL_OF_FAME_THEME_ID) return false
   if (theme.variant === 'legendary') return false
   return theme.badge.trim().length > 0
 }

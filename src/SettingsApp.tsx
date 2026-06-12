@@ -26,7 +26,6 @@ import {
   signOut,
   signUpWithProfile,
 } from './lib/supabaseMeter'
-import { MeterCompanionBarThemes } from './components/MeterCompanionBarThemes'
 import { MeterRunHistorySection } from './components/MeterRunHistorySection'
 import {
   normalizeSettingsSection,
@@ -791,8 +790,8 @@ export default function SettingsApp() {
               ) : (
                 <>
                   <p className="hint muted" style={{ marginTop: 0 }}>
-                    Sign in with the same Odyssey Calc account for bar themes, My Parses history, and
-                    meter rewards. Parses still upload without an account.
+                    Sign in with the same Odyssey Calc account for My Parses history and meter rewards.
+                    Theme shop and equip live in the Themes tab. Parses still upload without an account.
                   </p>
                   <label className="field">
                     <span>Email</span>
@@ -846,23 +845,6 @@ export default function SettingsApp() {
                   </p>
                 </section>
                 <MeterRunHistorySection />
-              </>
-            ) : null}
-
-            {supabase && onlineUser ? (
-              <>
-                <section className="field-group" style={{ marginTop: 16 }}>
-                  <h3 className="settings-app-subhead">Bar themes</h3>
-                  <p className="hint muted" style={{ marginTop: 0 }}>
-                    Equip themes earned on the Odyssey Calc meter shop. Changes apply to your party bar on the
-                    meter overlay.
-                  </p>
-                  <MeterCompanionBarThemes
-                    supabase={supabase}
-                    profileDisplayName={displayNameFromUserMetadata(onlineUser)}
-                    onThemeChange={() => void window.odysseyCompanion?.notifyMeterPartyThemesChanged?.()}
-                  />
-                </section>
               </>
             ) : null}
 

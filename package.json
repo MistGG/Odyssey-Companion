@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.78",
+  "version": "0.1.79",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added a home page for patch notes and teasers (UK users should be able to view this)\n- Fixed various companion issues and updated it for new Client API functionality"
+      "releaseNotes": "- Added themes page/support\n- Added Hall of Fame theme"
     }
   }
 }

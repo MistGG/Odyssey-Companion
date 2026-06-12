@@ -4,8 +4,8 @@ import {
 
   meterPartyBarThemeStyle,
 
+  HALL_OF_FAME_THEME_ID,
   MIST_DEV_REWARD_THEME_ID,
-
   type MeterPartyBarTheme,
 
 } from '../lib/meterPartyBarThemes'
@@ -36,6 +36,7 @@ import { MeterVenusmonLegendaryHearts } from './MeterVenusmonLegendaryHearts'
 
 import { MeterVulcanusmonLegendaryForge } from './MeterVulcanusmonLegendaryForge'
 
+import { MeterHallOfFameBarOverlay } from './MeterHallOfFameBarOverlay'
 import { MeterIliadBarOverlay } from './MeterIliadBarOverlay'
 
 import { MeterOlympusBarDigimonOverlay } from './MeterOlympusBarDigimonOverlay'
@@ -43,23 +44,23 @@ import { MeterOlympusBarDigimonOverlay } from './MeterOlympusBarDigimonOverlay'
 
 
 type MeterPartyThemedBarProps = {
-
   theme: MeterPartyBarTheme
-
   sharePct: number
-
+  hofRecordCount?: number
 }
 
-
-
-export function MeterPartyThemedBar({ theme, sharePct }: MeterPartyThemedBarProps) {
+export function MeterPartyThemedBar({
+  theme,
+  sharePct,
+  hofRecordCount = 0,
+}: MeterPartyThemedBarProps) {
 
   const widthPct = Math.min(100, sharePct)
 
   const themeStyle = meterPartyBarThemeStyle(theme)
 
   const isIliad = theme.id === MIST_DEV_REWARD_THEME_ID
-
+  const isHallOfFame = theme.id === HALL_OF_FAME_THEME_ID
   const isLegendary = theme.variant === 'legendary'
 
   const fillWidth = { width: `${widthPct}%` }
@@ -72,7 +73,7 @@ export function MeterPartyThemedBar({ theme, sharePct }: MeterPartyThemedBarProp
 
       className={meterPartyBarThemeBarClassName(theme)}
 
-      style={isIliad || isLegendary ? themeStyle : undefined}
+      style={isIliad || isHallOfFame || isLegendary ? themeStyle : undefined}
 
       aria-hidden
 
@@ -83,34 +84,32 @@ export function MeterPartyThemedBar({ theme, sharePct }: MeterPartyThemedBarProp
 
 
   if (isIliad) {
-
     return (
-
       <div
-
         className="meter-party-bar-fill-stack meter-party-bar-fill-stack--iliad"
-
         style={fillWidth}
-
         aria-hidden
-
       >
-
         {bar}
-
         <div className="meter-party-bar-iliad-layer">
-
           <MeterIliadBarOverlay />
-
         </div>
-
       </div>
-
     )
-
   }
 
-
+  if (isHallOfFame) {
+    return (
+      <div
+        className="meter-party-bar-fill-stack meter-party-bar-fill-stack--hof"
+        style={fillWidth}
+        aria-hidden
+      >
+        {bar}
+        <MeterHallOfFameBarOverlay recordCount={hofRecordCount} />
+      </div>
+    )
+  }
 
   if (isLegendary) {
 
@@ -325,10 +324,8 @@ export function meterPartyMemberRareClass(theme: MeterPartyBarTheme | null | und
 
 
 export function meterPartyMemberThemeClass(theme: MeterPartyBarTheme | null | undefined): string {
-
   if (theme?.id === MIST_DEV_REWARD_THEME_ID) return ' meter-party-member--iliad-core'
-
+  if (theme?.id === HALL_OF_FAME_THEME_ID) return ' meter-party-member--hall-of-fame'
   return meterPartyMemberRareClass(theme)
-
 }
 

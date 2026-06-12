@@ -34,8 +34,11 @@ import {
   meterPartyBarThemeStyle,
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
-  shouldShowMeterThemeBadge,
 } from './lib/meterPartyBarThemes'
+import { fetchMeterPlayerHofRecordCount, resolveMeterPlayerKeyForHof } from './lib/meterHallOfFameTheme'
+import { maybeAutoEquipHallOfFameTheme } from './lib/meterRewardsCompanion'
+import { normalizeRoutePlayerKey } from './lib/meterPlayerProfileGrant'
+import { MeterPartyThemeBadge } from './components/MeterPartyThemeBadge'
 import { MeterPartyThemedBar, meterPartyMemberThemeClass } from './components/MeterPartyThemedBar'
 import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
@@ -153,6 +156,7 @@ export default function MeterApp() {
     (pending: MeterEndedRunSnapshot) => Promise<void>
   >(async () => {})
   const [streamRev, setStreamRev] = useState(0)
+  const [hofRecordCount, setHofRecordCount] = useState(0)
   const clearBarPreviewRef = useRef<(() => void) | null>(null)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
 
@@ -916,6 +920,50 @@ export default function MeterApp() {
     )
   }, [supabase, sbUser?.id, bumpStream])
 
+  useEffect(() => {
+    if (!supabase) {
+      setHofRecordCount(0)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      let playerKey = await resolveMeterPlayerKeyForHof(supabase, null)
+      if (!playerKey) {
+        for (const row of streamRef.current.members.values()) {
+          if (row.isSelf && row.tamerName?.trim()) {
+            playerKey = normalizeRoutePlayerKey(row.tamerName)
+            break
+          }
+        }
+      }
+      if (!playerKey) {
+        if (!cancelled) setHofRecordCount(0)
+        return
+      }
+      const res = await fetchMeterPlayerHofRecordCount(supabase, playerKey)
+      if (cancelled) return
+      setHofRecordCount(res.count)
+      if (res.count > 0 && sbUser?.id) {
+        const equippedId = await fetchEquippedMeterPartyBarThemeIdFromAccount(supabase, sbUser.id)
+        if (cancelled) return
+        const profileName =
+          streamRef.current.selfTamerName?.trim() ||
+          readRememberedSelfTamerName()?.trim() ||
+          null
+        const auto = await maybeAutoEquipHallOfFameTheme(supabase, profileName, equippedId)
+        if (cancelled) return
+        if (auto.equipped) {
+          if (syncEquippedThemeToMeterSession(streamRef.current, 'hall-of-fame')) {
+            bumpStream()
+          }
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, sbUser?.id, streamRev, bumpStream])
+
   const claimParsesForSelfTamer = useCallback(
     async (tamerName: string | null | undefined) => {
       if (!supabase || !sbUser?.id) return
@@ -1590,7 +1638,11 @@ export default function MeterApp() {
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
                           {barTheme ? (
-                            <MeterPartyThemedBar theme={barTheme} sharePct={sharePct} />
+                            <MeterPartyThemedBar
+                              theme={barTheme}
+                              sharePct={sharePct}
+                              hofRecordCount={hofRecordCount}
+                            />
                           ) : (
                             <div
                               className="meter-party-member-bar"
@@ -1633,15 +1685,7 @@ export default function MeterApp() {
                                       {METER_DEV_TAMER_BADGE}
                                     </span>
                                   ) : null}
-                                  {shouldShowMeterThemeBadge(barTheme) ? (
-                                    <span
-                                      className="meter-party-theme-badge"
-                                      title={barTheme.domain}
-                                      aria-label={barTheme.label}
-                                    >
-                                      {barTheme.badge}
-                                    </span>
-                                  ) : null}
+                                  {barTheme ? <MeterPartyThemeBadge theme={barTheme} /> : null}
                                 </span>
                                 {row.digimonName ? (
                                   <span className="meter-party-digimon">{row.digimonName}</span>

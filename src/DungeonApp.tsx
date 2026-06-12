@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import type { User } from '@supabase/supabase-js'
 import type { Dungeon, DungeonDetail, MonsterDetail } from './types'
 import { loadSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { dungeonImageUrl } from './lib/dungeonImage'
@@ -12,7 +13,11 @@ import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
 import { DungeonDifficultyDetail } from './components/DungeonDifficultyDetail'
 import { HomePanel } from './components/HomePanel'
 import { MarketLookup } from './components/MarketLookup'
+import { ThemesPanel } from './components/ThemesPanel'
 import ServerStatusTitlebar from './components/ServerStatusTitlebar'
+import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
+import { initSupabaseAuth } from './lib/supabaseAuthStorage'
+import { displayNameFromUserMetadata, getSupabaseClient } from './lib/supabaseMeter'
 
 function hashHue(s: string) {
   let h = 0
@@ -38,7 +43,15 @@ export default function DungeonApp() {
   const [prefetchLoading, setPrefetchLoading] = useState(false)
   /** Dungeon list was served from localStorage cache (wiki unreachable). */
   const [listFromCache, setListFromCache] = useState(false)
-  const [toolView, setToolView] = useState<'home' | 'dungeons' | 'market'>('home')
+  const [toolView, setToolView] = useState<'home' | 'themes' | 'dungeons' | 'market'>('home')
+  const [authReady, setAuthReady] = useState(false)
+  const [meterUser, setMeterUser] = useState<User | null>(null)
+
+  const supabase = useMemo(() => {
+    const { url, anonKey } = getMeterSupabaseCredentials()
+    if (!url || !anonKey) return null
+    return getSupabaseClient(url, anonKey)
+  }, [])
 
   const pickedDungeon = useMemo(
     () => dungeons.find((d) => d.id === pickedDungeonId) ?? null,
@@ -62,6 +75,30 @@ export default function DungeonApp() {
     void api.applyHotkeys(hotkeysApplyPayload(s))
     api.pushSettings(s)
   }, [])
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true)
+      return
+    }
+    let cancelled = false
+    void initSupabaseAuth(supabase).then(() => {
+      if (cancelled) return
+      void supabase.auth.getUser().then(({ data }) => {
+        if (!cancelled) {
+          setMeterUser(data.user ?? null)
+          setAuthReady(true)
+        }
+      })
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!cancelled) setMeterUser(session?.user ?? null)
+    })
+    return () => {
+      cancelled = true
+      sub.subscription.unsubscribe()
+    }
+  }, [supabase])
 
   useEffect(() => {
     if (toolView !== 'dungeons') return
@@ -240,8 +277,10 @@ export default function DungeonApp() {
   )
 
   const homeMode = toolView === 'home'
+  const themesMode = toolView === 'themes'
   const browseMode = toolView === 'dungeons' && !pickedDungeonId
   const marketMode = toolView === 'market'
+  const profileDisplayName = meterUser ? displayNameFromUserMetadata(meterUser) : null
 
   return (
     <div className="shell shell--dungeon">
@@ -252,6 +291,8 @@ export default function DungeonApp() {
             <strong>
               {homeMode
                 ? 'Odyssey Companion'
+                : themesMode
+                ? 'Meter themes'
                 : marketMode
                 ? 'Market lookup'
                 : browseMode
@@ -261,6 +302,8 @@ export default function DungeonApp() {
             <span className="subtitle">
               {homeMode
                 ? 'News, teasers & official patch notes'
+                : themesMode
+                ? 'Earn points · shop & equip bar themes'
                 : marketMode
                 ? 'Search listings · compare unit prices'
                 : browseMode
@@ -296,6 +339,19 @@ export default function DungeonApp() {
               }}
             >
               Home
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={themesMode}
+              className={`main-tool-tab${themesMode ? ' main-tool-tab--active' : ''}`}
+              onClick={() => {
+                setToolView('themes')
+                setPickedDungeonId(null)
+                setFightPanelError(null)
+              }}
+            >
+              Themes
             </button>
             <button
               type="button"
@@ -391,6 +447,15 @@ export default function DungeonApp() {
 
       {homeMode ? (
         <HomePanel />
+      ) : themesMode ? (
+        <ThemesPanel
+          supabase={supabase}
+          user={meterUser}
+          profileDisplayName={profileDisplayName}
+          authReady={authReady}
+          onOpenSettings={() => void window.odysseyCompanion?.openSettings?.('meter')}
+          onThemeChange={() => void window.odysseyCompanion?.notifyMeterPartyThemesChanged?.()}
+        />
       ) : marketMode ? (
         <MarketLookup />
       ) : browseMode ? (
