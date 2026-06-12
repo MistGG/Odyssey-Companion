@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.87",
+  "version": "0.1.88",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed meter bar theme animations freezing while playing"
+      "releaseNotes": "- Fixed meter bar themes appearing static when Windows animation effects are disabled"
     }
   }
 }

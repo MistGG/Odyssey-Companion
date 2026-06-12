@@ -8232,14 +8232,6 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .meter-party-hof-count-fx__arch,
-  .meter-party-hof-sparkle {
-    animation: none !important;
-    opacity: 0.75;
-  }
-}
-
 .meter-party-bar-fill-stack--iliad {
   min-height: 36px;
 }
@@ -8438,17 +8430,6 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   );
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .meter-party-iliad-scene-stream,
-  .meter-party-iliad-wash-track,
-  .meter-party-iliad-fx--celestial,
-  .meter-party-iliad-fx--stars,
-  .meter-party-iliad-fx--divine {
-    animation: none !important;
-  }
-}
-
-/* Apollomon — solar flare */
 .meter-party-bar-theme--apollomon {
   background:
     radial-gradient(ellipse 80% 120% at 18% 50%, rgba(255, 220, 120, 0.55) 0%, transparent 55%),
@@ -10790,121 +10771,6 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   padding: 0 2px;
   overflow: visible;
 }
-
-/* Legendary FX — reduced motion */
-
-@media (prefers-reduced-motion: reduce) {
-  .meter-party-bar-theme--legendary::before,
-  .meter-party-bar-theme--legendary::after,
-  .meter-party-apollo-heavenly-glow {
-    animation: none !important;
-    opacity: 0.75;
-    transform: scale(1);
-  }
-
-  .meter-party-bacchus-bubble {
-    animation: none !important;
-    bottom: 50%;
-    opacity: 0.5;
-  }
-
-  .meter-party-ceresmon-spore {
-    animation: none !important;
-    opacity: 0.45;
-    transform: translate(-50%, -50%) scale(1);
-  }
-
-  .meter-party-dianamon-snow::before {
-    animation: none !important;
-    opacity: 0.3;
-  }
-
-  .meter-party-dianamon-snowflake {
-    animation: none !important;
-    top: 52%;
-    opacity: 0.35;
-    transform: translateX(-6px);
-  }
-
-  .meter-party-dianamon-moon {
-    animation: none !important;
-    opacity: 0.7;
-  }
-
-  .meter-party-junomon-sparkle {
-    animation: none !important;
-    opacity: 0.55;
-    transform: translate(-50%, -50%) scale(1) rotate(20deg);
-  }
-
-  .meter-party-jupiter-flash,
-  .meter-party-jupiter-crackle {
-    animation: none !important;
-    opacity: 0;
-  }
-
-  .meter-party-marsmon-flame {
-    animation: none !important;
-    bottom: 50%;
-    opacity: 0.45;
-  }
-
-  .meter-party-marsmon-flame::before,
-  .meter-party-marsmon-flame::after {
-    animation: none !important;
-  }
-
-  .meter-party-mercury-sheen::before,
-  .meter-party-mercury-glint {
-    animation: none !important;
-    opacity: 0.35;
-  }
-
-  .meter-party-minerva-slab,
-  .meter-party-minerva-rift,
-  .meter-party-minerva-sword {
-    animation: none !important;
-  }
-
-  .meter-party-minerva-rift {
-    opacity: 0.5;
-    height: 3px;
-  }
-
-  .meter-party-neptune-wave-track {
-    animation: none !important;
-    transform: translateX(-25%);
-  }
-
-  .meter-party-venus-heart {
-    animation: none !important;
-    opacity: 0.5;
-    transform: translate(-50%, -50%) rotate(var(--venus-heart-tilt, -45deg)) scale(1);
-  }
-
-  .meter-party-vulcan-hammer,
-  .meter-party-vulcan-bar-flash,
-  .meter-party-vulcan-bar-spark,
-  .meter-parses-meter-chrome
-    .meter-party-bar-fill-stack--vulcanusmon-legendary
-    .meter-party-bar-theme--vulcanusmon {
-    animation: none !important;
-  }
-
-  .meter-party-vulcan-hammer {
-    transform: translateX(8px) rotate(-4deg);
-    opacity: 0.55;
-  }
-
-  .meter-party-vulcan-bar-flash {
-    opacity: 0.25;
-  }
-
-  .meter-party-vulcan-bar-spark {
-    opacity: 0.35;
-  }
-}
-
 
 .meter-party-member--rare-olympus .meter-party-theme-badge {
   display: none;
