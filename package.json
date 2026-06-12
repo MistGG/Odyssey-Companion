@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.82",
+  "version": "0.1.83",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed Home teaser stuck on \"Loading teaser…\" (show odyssey-calc image immediately, no 2MB download wait)"
+      "releaseNotes": "- Fixed an issue for UK users unable to see the teaser"
     }
   }
 }

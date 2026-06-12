@@ -32,7 +32,7 @@ export function odysseyCalcTeaserImageUrlsForId(
   if (!id) return []
   const exts = preferredExt
     ? [preferredExt, preferredExt === 'png' ? 'jpg' : 'png']
-    : (['jpg', 'png'] as const)
+    : (['png', 'jpg'] as const)
   return exts.map((ext) => `${ODYSSEY_CALC_TEASER_ORIGIN}/${id}.${ext}`)
 }
 

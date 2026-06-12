@@ -55,13 +55,13 @@ async function finalizeTeaser(raw: ForumTeaser): Promise<ForumTeaser> {
   return resolveForumTeaserDisplay({
     imageUrl: raw.imageUrl,
     readMoreUrl: raw.readMoreUrl,
-    imageRemoteUrl: raw.imageUrl,
+    imageRemoteUrl: raw.imageRemoteUrl ?? raw.imageUrl,
   })
 }
 
 async function normalizeCachedTeaser(teaser: ForumTeaser): Promise<ForumTeaser> {
-  return finalizeTeaser({
-    imageUrl: teaser.imageRemoteUrl ?? teaser.imageUrl,
+  return resolveForumTeaserDisplay({
+    imageUrl: teaser.imageUrl,
     readMoreUrl: teaser.readMoreUrl,
     imageRemoteUrl: teaser.imageRemoteUrl ?? teaser.imageUrl,
   })

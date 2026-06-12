@@ -175,7 +175,18 @@ export async function resolveForumTeaserDisplay(teaser: ForumTeaser): Promise<Fo
 
   if (isLocalTeaserDisplayUrl(teaser.imageUrl)) {
     if (teaser.imageUrl.startsWith(`${TEASER_IMAGE_SCHEME}:`)) {
-      return { ...teaser, imageRemoteUrl: remoteUrl }
+      const basename = path.basename(
+        decodeURIComponent(new URL(teaser.imageUrl).pathname.replace(/^\//, '')),
+      )
+      const localPath = path.join(imageCacheDir(), basename)
+      const display = localDisplayUrlIfExists(localPath)
+      if (display) {
+        return {
+          imageUrl: display,
+          readMoreUrl: teaser.readMoreUrl,
+          imageRemoteUrl: remoteUrl,
+        }
+      }
     }
     try {
       const localPath = fileURLToPath(teaser.imageUrl)
