@@ -70,6 +70,8 @@ const APP_DISPLAY_NAME = 'Odyssey Companion'
 app.setName(APP_DISPLAY_NAME)
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID)
+  // Keep overlay CSS animations alive when a fullscreen game has focus on top.
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 }
 
 protocol.registerSchemesAsPrivileged([
@@ -121,6 +123,18 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 const preload = path.join(__dirname, '../preload/index.cjs')
+
+const BASE_WEB_PREFERENCES = {
+  preload,
+  contextIsolation: true,
+  sandbox: false,
+} as const
+
+/** Overlays sit above the game — don't throttle animations when unfocused/occluded. */
+const OVERLAY_WEB_PREFERENCES = {
+  ...BASE_WEB_PREFERENCES,
+  backgroundThrottling: false,
+} as const
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 const DUNGEONS_URL =
@@ -619,11 +633,7 @@ function createSettingsWindow(sectionRaw?: unknown) {
     transparent: false,
     frame: false,
     alwaysOnTop: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: BASE_WEB_PREFERENCES,
   })
   setSettingsAlwaysOnTop(settingsWin, true)
   const url = settingsLoadUrl(section)
@@ -704,11 +714,7 @@ function showOrFocusUpdateWindow() {
     show: false,
     resizable: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: BASE_WEB_PREFERENCES,
   })
   setWinAlwaysOnTop(updateWin, true)
   const url = updateLoadUrl()
@@ -761,9 +767,8 @@ function createDungeonWindow(options?: { show?: boolean }) {
     alwaysOnTop: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
+      ...BASE_WEB_PREFERENCES,
+      backgroundThrottling: false,
     },
   })
 
@@ -823,11 +828,7 @@ function createTimelineWindow() {
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: OVERLAY_WEB_PREFERENCES,
   })
 
   const url = timelineLoadUrl()
@@ -870,11 +871,7 @@ function createMeterWindow() {
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: OVERLAY_WEB_PREFERENCES,
   })
 
   const url = meterLoadUrl()
@@ -918,11 +915,7 @@ function createTimersWindow() {
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: OVERLAY_WEB_PREFERENCES,
   })
 
   const url = timersLoadUrl()
@@ -973,11 +966,7 @@ function createHudWindow() {
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: OVERLAY_WEB_PREFERENCES,
   })
 
   const url = hudLoadUrl()

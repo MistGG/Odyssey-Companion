@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.86",
+  "version": "0.1.87",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed Record Breaker theme showing an inflated Hall of Fame count"
+      "releaseNotes": "- Fixed meter bar theme animations freezing while playing"
     }
   }
 }
