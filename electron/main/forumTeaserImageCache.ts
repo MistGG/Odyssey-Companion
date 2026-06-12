@@ -5,7 +5,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
   imgurIdFromUrl,
+  isOdysseyCalcBundledTeaserUrl,
   isValidTeaserImageBytes,
+  odysseyCalcTeaserImageUrls,
   teaserImageDownloadUrls,
 } from '../../src/lib/teaserImageProxy'
 import type { ForumTeaser } from '../../src/lib/forumTeaser'
@@ -14,6 +16,17 @@ export const TEASER_IMAGE_SCHEME = 'odyssey-teaser'
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+const IMAGE_FETCH_TIMEOUT_MS = 20_000
+
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 function imageCacheDir(): string {
   return path.join(app.getPath('userData'), 'forum-teaser-images')
@@ -99,12 +112,16 @@ async function downloadTeaserImage(remoteUrl: string): Promise<string> {
   let lastError: unknown = null
   for (const url of teaserImageDownloadUrls(remoteUrl)) {
     try {
-      const res = await fetch(url, {
-        headers: {
-          Accept: 'image/*,*/*',
-          'User-Agent': USER_AGENT,
+      const res = await fetchWithTimeout(
+        url,
+        {
+          headers: {
+            Accept: 'image/*,*/*',
+            'User-Agent': USER_AGENT,
+          },
         },
-      })
+        IMAGE_FETCH_TIMEOUT_MS,
+      )
       if (!res.ok) {
         lastError = new Error(`Teaser image fetch returned ${res.status} for ${url}`)
         continue
@@ -127,9 +144,34 @@ async function downloadTeaserImage(remoteUrl: string): Promise<string> {
   throw lastError instanceof Error ? lastError : new Error('Could not download teaser image')
 }
 
-/** Resolve forum teaser image to a local file URL (Imgur fetched via proxy when needed). */
+function prefetchTeaserImage(remoteUrl: string): void {
+  void downloadTeaserImage(remoteUrl).catch(() => {
+    /* optional offline cache */
+  })
+}
+
+/** Resolve forum teaser image to a display URL (UK-safe HTTPS or local cache). */
 export async function resolveForumTeaserDisplay(teaser: ForumTeaser): Promise<ForumTeaser> {
   const remoteUrl = teaser.imageRemoteUrl ?? teaser.imageUrl
+
+  if (isOdysseyCalcBundledTeaserUrl(teaser.imageUrl)) {
+    prefetchTeaserImage(remoteUrl)
+    return {
+      imageUrl: teaser.imageUrl,
+      readMoreUrl: teaser.readMoreUrl,
+      imageRemoteUrl: remoteUrl,
+    }
+  }
+
+  const bundled = odysseyCalcTeaserImageUrls(remoteUrl)[0]
+  if (bundled) {
+    prefetchTeaserImage(remoteUrl)
+    return {
+      imageUrl: bundled,
+      readMoreUrl: teaser.readMoreUrl,
+      imageRemoteUrl: remoteUrl,
+    }
+  }
 
   if (isLocalTeaserDisplayUrl(teaser.imageUrl)) {
     if (teaser.imageUrl.startsWith(`${TEASER_IMAGE_SCHEME}:`)) {

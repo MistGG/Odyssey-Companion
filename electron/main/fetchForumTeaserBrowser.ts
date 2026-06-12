@@ -3,13 +3,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { parseForumTeaserHtml, type ForumTeaser } from '../../src/lib/forumTeaser'
-import { fetchTeaserManifest } from '../../src/lib/teaserManifest'
+import { odysseyCalcTeaserImageUrls } from '../../src/lib/teaserImageProxy'
+import { bundledTeaserUrlFromManifest, fetchTeaserManifest } from '../../src/lib/teaserManifest'
 import { resolveForumTeaserDisplay } from './forumTeaserImageCache'
 
 export const FORUM_HOME_URL = 'https://digitalodyssey.proboards.com/'
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+const FORUM_LOAD_TIMEOUT_MS = 45_000
 
 type TeaserCacheEntry = {
   teaser: ForumTeaser
@@ -93,8 +95,20 @@ async function fetchFromManifest(): Promise<ForumTeaser | null> {
   const manifest = await fetchTeaserManifest()
   if (!manifest) return null
   return {
-    imageUrl: manifest.teaser.imageRemoteUrl,
+    imageUrl: bundledTeaserUrlFromManifest(manifest),
     readMoreUrl: manifest.teaser.readMoreUrl,
+    imageRemoteUrl: manifest.teaser.imageRemoteUrl,
+  }
+}
+
+function withBundledImageUrl(teaser: ForumTeaser): ForumTeaser {
+  const remoteUrl = teaser.imageRemoteUrl ?? teaser.imageUrl
+  const bundled = odysseyCalcTeaserImageUrls(remoteUrl)[0]
+  if (!bundled) return teaser
+  return {
+    imageUrl: bundled,
+    readMoreUrl: teaser.readMoreUrl,
+    imageRemoteUrl: remoteUrl,
   }
 }
 
@@ -111,7 +125,12 @@ async function fetchViaHiddenWindow(): Promise<ForumTeaser> {
   })
 
   try {
-    await win.loadURL(FORUM_HOME_URL, { userAgent: USER_AGENT })
+    await Promise.race([
+      win.loadURL(FORUM_HOME_URL, { userAgent: USER_AGENT }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Forum homepage load timed out')), FORUM_LOAD_TIMEOUT_MS)
+      }),
+    ])
     const teaser = await waitForTeaser(win)
     if (teaser) return teaser
 
@@ -125,22 +144,37 @@ async function fetchViaHiddenWindow(): Promise<ForumTeaser> {
   }
 }
 
+async function fetchTeaserSource(): Promise<ForumTeaser> {
+  const fromManifest = await fetchFromManifest()
+  if (fromManifest) return fromManifest
+  return withBundledImageUrl(await fetchViaHiddenWindow())
+}
+
+async function refreshTeaserLive(): Promise<ForumTeaser> {
+  const raw = await fetchTeaserSource()
+  const teaser = await finalizeTeaser(raw)
+  const entry: TeaserCacheEntry = { teaser, fetchedAt: Date.now() }
+  memoryCache = entry
+  writeDiskCache(entry)
+  return teaser
+}
+
 /** Fetch the latest forum teaser; falls back to last good cache on failure. */
 export async function fetchForumTeaserLive(): Promise<ForumTeaser> {
+  const disk = readDiskCache()
+  if (disk) {
+    void refreshTeaserLive().catch(() => {
+      /* keep showing cached teaser */
+    })
+    return normalizeCachedTeaser(disk.teaser)
+  }
+
   if (fetchInFlight) return fetchInFlight
 
   fetchInFlight = (async () => {
-    const disk = readDiskCache()
-
     try {
-      const raw = (await fetchFromManifest()) ?? (await fetchViaHiddenWindow())
-      const teaser = await finalizeTeaser(raw)
-      const entry: TeaserCacheEntry = { teaser, fetchedAt: Date.now() }
-      memoryCache = entry
-      writeDiskCache(entry)
-      return teaser
+      return await refreshTeaserLive()
     } catch (e) {
-      if (disk) return normalizeCachedTeaser(disk.teaser)
       if (memoryCache) return normalizeCachedTeaser(memoryCache.teaser)
       throw e
     } finally {

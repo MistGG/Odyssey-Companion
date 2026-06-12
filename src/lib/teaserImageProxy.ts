@@ -21,7 +21,27 @@ export function isImgurUrl(url: string): boolean {
 export function odysseyCalcTeaserImageUrls(imageUrl: string): string[] {
   const id = imgurIdFromUrl(imageUrl)
   if (!id) return []
-  return ['jpg', 'png'].map((ext) => `${ODYSSEY_CALC_TEASER_ORIGIN}/${id}.${ext}`)
+  return odysseyCalcTeaserImageUrlsForId(id)
+}
+
+export function odysseyCalcTeaserImageUrlsForId(
+  imgurId: string,
+  preferredExt?: 'png' | 'jpg',
+): string[] {
+  const id = imgurId.trim()
+  if (!id) return []
+  const exts = preferredExt
+    ? [preferredExt, preferredExt === 'png' ? 'jpg' : 'png']
+    : (['jpg', 'png'] as const)
+  return exts.map((ext) => `${ODYSSEY_CALC_TEASER_ORIGIN}/${id}.${ext}`)
+}
+
+export function isOdysseyCalcBundledTeaserUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname === 'odyssey-calc.com' && url.includes('/teasers/')
+  } catch {
+    return false
+  }
 }
 
 /** Worker URL that fetches Imgur server-side (may still geo-block at UK edge PoPs). */
