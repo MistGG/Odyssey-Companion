@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.79",
+  "version": "0.1.80",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added themes page/support\n- Added Hall of Fame theme"
+      "releaseNotes": "- Fixed forum teaser not loading in the UK (hosts from odyssey-calc.com instead of Imgur)"
     }
   }
 }

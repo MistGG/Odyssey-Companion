@@ -3,7 +3,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { imgurIdFromUrl, teaserImageDownloadUrls } from '../../src/lib/teaserImageProxy'
+import {
+  imgurIdFromUrl,
+  isValidTeaserImageBytes,
+  teaserImageDownloadUrls,
+} from '../../src/lib/teaserImageProxy'
 import type { ForumTeaser } from '../../src/lib/forumTeaser'
 
 export const TEASER_IMAGE_SCHEME = 'odyssey-teaser'
@@ -46,17 +50,42 @@ export function registerForumTeaserImageProtocol(): void {
   })
 }
 
-function cachePathForRemoteUrl(remoteUrl: string): string {
+function imageExtFromBytes(buf: Buffer): string | null {
+  const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8
+  if (isJpeg) return 'jpg'
+  if (isPng) return 'png'
+  return null
+}
+
+function cachePathForRemoteUrl(remoteUrl: string, ext?: string): string {
   const id = imgurIdFromUrl(remoteUrl) ?? Buffer.from(remoteUrl).toString('base64url').slice(0, 32)
-  const ext = remoteUrl.match(/\.(png|jpe?g|webp|gif)(\?|$)/i)?.[1]?.toLowerCase() ?? 'png'
-  return path.join(imageCacheDir(), `${id}.${ext}`)
+  const resolvedExt =
+    ext ??
+    remoteUrl.match(/\.(png|jpe?g|webp|gif)(\?|$)/i)?.[1]?.toLowerCase().replace('jpeg', 'jpg') ??
+    'png'
+  return path.join(imageCacheDir(), `${id}.${resolvedExt}`)
+}
+
+function findCachedTeaserPath(remoteUrl: string): string | null {
+  const id = imgurIdFromUrl(remoteUrl) ?? Buffer.from(remoteUrl).toString('base64url').slice(0, 32)
+  for (const ext of ['jpg', 'png', 'jpeg', 'webp', 'gif']) {
+    const candidate = path.join(imageCacheDir(), `${id}.${ext}`)
+    const display = localDisplayUrlIfExists(candidate)
+    if (display) return candidate
+  }
+  return null
 }
 
 function localDisplayUrlIfExists(filePath: string): string | null {
   try {
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 100) {
-      return toTeaserDisplayUrl(filePath)
+    if (!fs.existsSync(filePath)) return null
+    const buf = fs.readFileSync(filePath)
+    if (!isValidTeaserImageBytes(buf)) {
+      fs.unlinkSync(filePath)
+      return null
     }
+    return toTeaserDisplayUrl(filePath)
   } catch {
     /* ignore */
   }
@@ -64,9 +93,8 @@ function localDisplayUrlIfExists(filePath: string): string | null {
 }
 
 async function downloadTeaserImage(remoteUrl: string): Promise<string> {
-  const cachePath = cachePathForRemoteUrl(remoteUrl)
-  const existing = localDisplayUrlIfExists(cachePath)
-  if (existing) return existing
+  const existingPath = findCachedTeaserPath(remoteUrl)
+  if (existingPath) return toTeaserDisplayUrl(existingPath)
 
   let lastError: unknown = null
   for (const url of teaserImageDownloadUrls(remoteUrl)) {
@@ -82,10 +110,12 @@ async function downloadTeaserImage(remoteUrl: string): Promise<string> {
         continue
       }
       const buf = Buffer.from(await res.arrayBuffer())
-      if (buf.length < 100) {
-        lastError = new Error('Teaser image response was empty')
+      if (!isValidTeaserImageBytes(buf)) {
+        lastError = new Error(`Teaser image response was invalid for ${url}`)
         continue
       }
+      const ext = imageExtFromBytes(buf) ?? 'png'
+      const cachePath = cachePathForRemoteUrl(remoteUrl, ext)
       fs.mkdirSync(path.dirname(cachePath), { recursive: true })
       fs.writeFileSync(cachePath, buf)
       return toTeaserDisplayUrl(cachePath)
@@ -119,11 +149,10 @@ export async function resolveForumTeaserDisplay(teaser: ForumTeaser): Promise<Fo
     }
   }
 
-  const cachePath = cachePathForRemoteUrl(remoteUrl)
-  const cached = localDisplayUrlIfExists(cachePath)
-  if (cached) {
+  const cachedPath = findCachedTeaserPath(remoteUrl)
+  if (cachedPath) {
     return {
-      imageUrl: cached,
+      imageUrl: toTeaserDisplayUrl(cachedPath),
       readMoreUrl: teaser.readMoreUrl,
       imageRemoteUrl: remoteUrl,
     }
