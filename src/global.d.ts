@@ -20,6 +20,22 @@ declare global {
       fetchWikiDigimon?: (id: string) => Promise<unknown>
       fetchWikiNpc: (id: string) => Promise<unknown>
       fetchWikiItem: (id: string) => Promise<unknown>
+      fetchForumTeaser?: () => Promise<{
+        imageUrl: string
+        readMoreUrl: string
+        imageRemoteUrl?: string
+      }>
+      fetchPatchNotes?: () => Promise<
+        Array<{ id: string; title: string; url: string; preview: string; bodyHtml: string }>
+      >
+      fetchPatchNote?: (url: string) => Promise<{
+        id: string
+        title: string
+        url: string
+        preview: string
+        bodyHtml: string
+      }>
+      openExternal?: (url: string) => Promise<void>
       openMarketLogin?: () => Promise<boolean>
       fetchMarketSearch?: (query: string) => Promise<unknown>
       fetchMarketListings?: (item: string, side?: 'sell' | 'buy', limit?: number) => Promise<unknown>
@@ -111,6 +127,7 @@ declare global {
         ) => void,
       ) => () => void
       onSettingsPatch: (handler: (patch: unknown) => void) => () => void
+      onHomeRefresh?: (handler: () => void) => () => void
       onFightLoaded: (handler: (payload: unknown) => void) => () => void
       getAppVersion: () => Promise<AppVersionInfo>
       checkForUpdates: () => Promise<UpdateCheckResult>

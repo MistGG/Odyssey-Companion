@@ -18,6 +18,7 @@ import {
 } from './meterLeaderboardEligibility'
 import type { MeterStreamSession } from './meterEventStream'
 import type { MeterEndedRunSnapshot } from './meterEndedRunSnapshot'
+import { meterClientClearForParse, type DungeonCompletePayload } from './meterDungeonComplete'
 import { isMeterDungeonRunHistoryCandidate } from './meterEndedRunSnapshot'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 
@@ -40,6 +41,11 @@ export type MeterRunHistoryEntry = {
   debugReport: string
   /** Set after auto-save to disk completes (Electron only). */
   combatLogSaved?: boolean
+  /** From `dungeon_complete` — stored for future UI / uploads. */
+  clientClearRank?: string | null
+  clientClearTimeSec?: number | null
+  clientClearDeaths?: number | null
+  clientClearPartySize?: number | null
 }
 
 const STORAGE_KEY = 'odyssey-meter-run-history-v1'
@@ -138,8 +144,20 @@ async function pruneMeterCombatLogFiles(keepRunIds: string[]): Promise<void> {
 }
 
 export function upsertMeterRunHistoryEntry(entry: MeterRunHistoryEntry) {
-  const existing = readMeterRunHistory().filter((e) => e.id !== entry.id)
-  writeMeterRunHistory([entry, ...existing].slice(0, MAX_ENTRIES))
+  const list = readMeterRunHistory()
+  const existing = list.find((e) => e.id === entry.id)
+  if (
+    existing &&
+    (existing.uploadStatus === 'uploaded_ranked' || existing.uploadStatus === 'uploaded_unranked')
+  ) {
+    entry = {
+      ...entry,
+      uploadStatus: existing.uploadStatus,
+      uploadDetail: existing.uploadDetail,
+    }
+  }
+  const rest = list.filter((e) => e.id !== entry.id)
+  writeMeterRunHistory([entry, ...rest].slice(0, MAX_ENTRIES))
 }
 
 export function updateMeterRunHistoryEntry(
@@ -161,6 +179,30 @@ export function updateMeterRunHistoryEntry(
 
 export function meterRunHistoryChangedEventName(): string {
   return HISTORY_CHANGED_EVENT
+}
+
+function clientClearFieldsFromPayload(
+  payload: DungeonCompletePayload | null | undefined,
+): Pick<
+  MeterRunHistoryEntry,
+  'clientClearRank' | 'clientClearTimeSec' | 'clientClearDeaths' | 'clientClearPartySize'
+> {
+  const clear = meterClientClearForParse(payload)
+  if (!clear) return {}
+  return {
+    clientClearRank: clear.rank,
+    clientClearTimeSec: clear.timeSec,
+    clientClearDeaths: clear.deaths,
+    clientClearPartySize: clear.partySize,
+  }
+}
+
+export function formatClientClearTimeSec(sec: number | null | undefined): string | null {
+  if (sec == null || !Number.isFinite(sec) || sec < 0) return null
+  const total = Math.round(sec)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 export function classifyMeterRunUploadFromSnapshot(
@@ -242,6 +284,7 @@ export function recordMeterRunHistoryEntry(
     outcome,
     uploadStatus,
     uploadDetail,
+    ...clientClearFieldsFromPayload(session.dungeonCompletePayload),
     debugReport: buildMeterRunReportFromSession(
       session,
       meta,
@@ -303,6 +346,7 @@ export function recordMeterRunHistoryFromSnapshot(
     outcome: snap.lastRunOutcome,
     uploadStatus,
     uploadDetail,
+    ...clientClearFieldsFromPayload(snap.dungeonCompletePayload),
     debugReport,
   }
 

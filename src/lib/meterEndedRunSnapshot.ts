@@ -1,5 +1,6 @@
 import { buildMeterDungeonPartyParse } from './buildMeterDungeonPartyParse'
 import { isDungeonParseUploadAllowed } from './dungeonDifficultyTags'
+import type { DungeonCompletePayload } from './meterDungeonComplete'
 import { meterRunLogCapture } from './meterRunLog'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 import type { MeterStreamSession } from './meterEventStream'
@@ -17,6 +18,9 @@ export type MeterEndedRunSnapshot = {
   dungeonFinalBossTarget: string | null
   dungeonFinalBossMonsterId: string | null
   dungeonKilledBossTargets: string[]
+  /** Set when the client sends `dungeon_complete`. */
+  clientDungeonComplete: boolean
+  dungeonCompletePayload: DungeonCompletePayload | null
   builtParse: ReturnType<typeof buildMeterDungeonPartyParse>
   runEventLog: string
 }
@@ -59,6 +63,8 @@ export function captureMeterEndedRunSnapshot(
     dungeonFinalBossTarget: session.dungeonFinalBossTarget,
     dungeonFinalBossMonsterId: session.dungeonFinalBossMonsterId,
     dungeonKilledBossTargets: [...session.dungeonKilledBossTargets],
+    clientDungeonComplete: session.clientDungeonComplete,
+    dungeonCompletePayload: session.dungeonCompletePayload,
     builtParse: buildMeterDungeonPartyParse(session),
     runEventLog: meterRunLogCapture(),
   }
@@ -80,5 +86,7 @@ export function applyMeterEndedRunSnapshotToSession(
   session.dungeonFinalBossTarget = snap.dungeonFinalBossTarget
   session.dungeonFinalBossMonsterId = snap.dungeonFinalBossMonsterId
   session.dungeonKilledBossTargets = [...snap.dungeonKilledBossTargets]
+  session.clientDungeonComplete = snap.clientDungeonComplete
+  session.dungeonCompletePayload = snap.dungeonCompletePayload
   session.dungeonRunActive = false
 }

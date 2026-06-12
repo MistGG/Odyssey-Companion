@@ -100,6 +100,7 @@ export function meterDebugIngestState(session: {
   dungeonFinalBossTarget?: string | null
   dungeonFinalBossMonsterId?: string | null
   lastRunOutcome?: string | null
+  clientDungeonComplete?: boolean
 }): string {
   return [
     `tamer=${session.selfTamerName ?? ''}`,
@@ -111,6 +112,7 @@ export function meterDebugIngestState(session: {
     `startMs=${session.sessionStartMs ?? 'null'}`,
     `endMs=${session.sessionEndMs ?? 'null'}`,
     `outcome=${session.lastRunOutcome ?? ''}`,
+    `clientComplete=${String(session.clientDungeonComplete ?? false)}`,
     `expectedSteps=[${(session.dungeonExpectedKillSteps ?? []).join(',')}]`,
     `completedSteps=[${(session.dungeonCompletedKillSteps ?? []).join(',')}]`,
     `finalBoss=${session.dungeonFinalBossTarget ?? ''}`,

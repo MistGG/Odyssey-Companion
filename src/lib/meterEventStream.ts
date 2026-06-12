@@ -22,14 +22,10 @@ import {
   leaveDungeonSession,
   markFinalKillStepComplete,
   markDungeonRunClear,
-  markDungeonRunFail,
   mergeDeathIntoObjectiveProgress,
   mergeDungeonObjectiveProgress,
   parsedObjectiveProgress,
   seedDungeonKillStepsFromWiki,
-  sessionAllKillObjectivesComplete,
-  sessionFinalKillStepComplete,
-  sessionObjectiveProgressIndicatesClear,
   shouldStartNewDungeonPull,
   syncDungeonBossTargets,
   syncExpectedKillStepsFromBossTargets,
@@ -41,6 +37,11 @@ import {
   bossNamesMatch,
   type MeterDungeonRunOutcome,
 } from './meterDungeonRun'
+import {
+  applyDungeonCompleteEvent,
+  applyDungeonCompleteToPendingRun,
+  type DungeonCompletePayload,
+} from './meterDungeonComplete'
 import {
   captureMeterEndedRunSnapshot,
   type MeterEndedRunSnapshot,
@@ -131,6 +132,10 @@ export type MeterStreamSession = {
   dungeonFinalBossMonsterId: string | null
   /** Latest `dungeon_progress` payload marked every kill objective complete. */
   clientReportedFullClear: boolean
+  /** Authoritative success from `dungeon_complete` (primary clear signal). */
+  clientDungeonComplete: boolean
+  /** Parsed `dungeon_complete` payload for parse metadata / debug. */
+  dungeonCompletePayload: DungeonCompletePayload | null
   /** Captured when leaving a dungeon so upload/history can run after session reset. */
   pendingEndedRun: MeterEndedRunSnapshot | null
   lastRunOutcome: MeterDungeonRunOutcome | null
@@ -170,6 +175,8 @@ export function createMeterStreamSession(): MeterStreamSession {
     dungeonFinalBossTarget: null,
     dungeonFinalBossMonsterId: null,
     clientReportedFullClear: false,
+    clientDungeonComplete: false,
+    dungeonCompletePayload: null,
     pendingEndedRun: null,
     lastRunOutcome: null,
     lastCombatMs: null,
@@ -1179,6 +1186,8 @@ function refreshMeterAfterLeavingDungeon(session: MeterStreamSession, eventMs: n
   ensureSelfPartyRowVisible(session)
   session.pendingEndedRun = pendingEndedRun
   session.clientReportedFullClear = false
+  session.clientDungeonComplete = false
+  session.dungeonCompletePayload = null
   if (isMeterDebugEnabled()) {
     meterDebugLog(
       `refresh meter after dungeon → map (${session.mapName ?? '?'}) pendingEndedRun=${pendingEndedRun ? pendingEndedRun.lastRunOutcome : 'none'}`,
@@ -1227,35 +1236,11 @@ function ensureDungeonObjectiveProgressSeeded(session: MeterStreamSession): void
 }
 
 function maybeMarkFullDungeonClear(
-  session: MeterStreamSession,
-  eventMs: number,
+  _session: MeterStreamSession,
+  _eventMs: number,
 ): MeterDungeonRunOutcome | null {
-  if (!session.dungeonId?.trim() || session.sessionEndMs != null || session.lastRunOutcome != null) {
-    return null
-  }
-  if (!sessionAllKillObjectivesComplete(session)) {
-    if (isMeterDebugEnabled()) {
-      logDungeonObjectiveProgress(session, 'clear blocked (objectives incomplete)')
-    }
-    return null
-  }
-  if (!sessionFinalKillStepComplete(session)) {
-    if (isMeterDebugEnabled()) {
-      logDungeonObjectiveProgress(session, 'clear blocked (final step incomplete)')
-    }
-    return null
-  }
-  if (!session.clientReportedFullClear && !dungeonBossPhaseComplete(session)) {
-    if (isMeterDebugEnabled()) {
-      logDungeonObjectiveProgress(session, 'clear blocked (boss phase incomplete)')
-    }
-    return null
-  }
-  markDungeonRunClear(session)
-  freezeMeterTimer(session, eventMs)
-  meterRunLogNote(session, 'run outcome: CLEAR (all objectives + final step)')
-  if (isMeterDebugEnabled()) meterDebugLog('dungeon run CLEAR (all objectives + final step)')
-  return 'clear'
+  // Authoritative clear/freeze comes from `dungeon_complete` only.
+  return null
 }
 
 export function applyDungeonProgress(
@@ -1296,6 +1281,8 @@ export function applyDungeonProgress(
     meterRunLogNote(session, `new dungeon pull | dungeon_id=${dungeonId}`)
     session.lastRunOutcome = null
     session.clientReportedFullClear = false
+    session.clientDungeonComplete = false
+    session.dungeonCompletePayload = null
     resetDungeonBossTargetTracking(session)
     clearDungeonCombat(session)
     reset = true
@@ -1318,28 +1305,15 @@ export function applyDungeonProgress(
 
 function freezeMeterTimer(session: MeterStreamSession, endMs: number) {
   if (session.sessionStartMs == null) return
+  // First freeze wins — do not extend on map leave after `dungeon_complete`.
+  if (session.sessionEndMs != null) return
   session.sessionEndMs = Math.max(session.sessionStartMs, endMs)
 }
 
 /** Stop the live clock when the player leaves the dungeon (map change, etc.). */
 function stopMeterTimerOnDungeonLeave(session: MeterStreamSession, eventMs: number) {
   if (session.sessionStartMs == null || session.sessionEndMs != null) return
-  if (session.lastRunOutcome == null) {
-    if (session.clientReportedFullClear || sessionObjectiveProgressIndicatesClear(session)) {
-      markDungeonRunClear(session)
-      meterRunLogNote(session, 'run outcome: CLEAR (inferred on dungeon leave)')
-      if (
-        isMeterDebugEnabled() &&
-        !session.clientReportedFullClear &&
-        sessionObjectiveProgressIndicatesClear(session)
-      ) {
-        meterDebugLog('dungeon run CLEAR (inferred from objectives on leave)')
-      }
-    } else if (session.dungeonId?.trim() || session.dungeonRunActive) {
-      markDungeonRunFail(session)
-      meterRunLogNote(session, 'run outcome: FAIL (left dungeon incomplete)')
-    }
-  }
+  // Clear/fail come only from `dungeon_complete` — not deaths or leaving mid-run.
   freezeMeterTimer(session, eventMs)
 }
 
@@ -1351,7 +1325,6 @@ function maybeMarkDungeonRunClear(
     return null
   }
 
-  const endMs = Number(ev.ts) || Date.now()
   const isDeath = String(ev.type ?? '') === 'death'
   const victim = isDeath ? deathEntityName(ev) : String(ev.target ?? '').trim()
   if (!victim.trim()) return null
@@ -1387,11 +1360,10 @@ function maybeMarkDungeonRunClear(
     return null
   }
 
-  markDungeonRunClear(session)
-  freezeMeterTimer(session, endMs)
-  meterRunLogNote(session, `run outcome: CLEAR (all bosses down, last=${victim})`)
-  if (isMeterDebugEnabled()) meterDebugLog(`dungeon run CLEAR (all bosses down, last=${victim})`)
-  return 'clear'
+  if (isMeterDebugEnabled()) {
+    logDungeonObjectiveProgress(session, `boss phase complete (${victim}) — awaiting dungeon_complete`)
+  }
+  return null
 }
 
 function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRecord): boolean {
@@ -1400,14 +1372,15 @@ function ingestQueryDungeonBlock(session: MeterStreamSession, ev: EventStreamRec
   const row = block as Record<string, unknown>
   const dungeonId = String(row.dungeon_id ?? '').trim()
   if (!dungeonId) {
-    // Open-world `all` queries often include `dungeon: { dungeon_id: "" }` — do not freeze mid-fight.
+    // Open-world `all` queries often include `dungeon: { dungeon_id: "" }`. Do not treat this
+    // as leaving the instance — it can fire on player death while still inside the dungeon.
     if (session.dungeonId?.trim() || session.dungeonRunActive) {
       if (isMeterDebugEnabled()) {
         meterDebugLog(
-          `query empty dungeon_id — leaving dungeon (was ${session.dungeonId ?? ''})`,
+          `query empty dungeon_id — ignored during active pull (was ${session.dungeonId ?? ''})`,
         )
       }
-      return refreshMeterAfterLeavingDungeon(session, Number(ev.ts) || Date.now())
+      return false
     }
     if (isMeterDebugEnabled()) {
       meterDebugLog('query empty dungeon_id on map — ignored (no active dungeon)')
@@ -1441,6 +1414,8 @@ export function ingestMeterEventStream(
   dungeonId: string | null
   dungeonReset: boolean
   runOutcome: MeterDungeonRunOutcome | null
+  /** Authoritative clear from `dungeon_complete` with success=true. */
+  dungeonCompleteClear: boolean
   /** First combat hit started the meter window (0s). */
   sessionStarted: boolean
   /** Wall/stream time when the meter window started (for timeline engage epoch). */
@@ -1452,6 +1427,7 @@ export function ingestMeterEventStream(
   let dungeonId: string | null = null
   let dungeonReset = false
   let runOutcome: MeterDungeonRunOutcome | null = null
+  let dungeonCompleteClear = false
   let sessionStarted = false
   let fightEngagedAtMs: number | null = null
   let requestPartySnapshot = false
@@ -1468,6 +1444,21 @@ export function ingestMeterEventStream(
     dungeonId = r.dungeonId
     dungeonReset = r.reset
     runOutcome = r.outcome
+  } else if (t === 'dungeon_complete') {
+    const inDungeon = Boolean(session.dungeonId?.trim()) || session.dungeonRunActive
+    if (inDungeon) {
+      const applied = applyDungeonCompleteEvent(session, ev)
+      if (applied) {
+        runOutcome = applied.outcome
+        dungeonCompleteClear = applied.parsed.success
+      }
+    } else {
+      const reconciled = applyDungeonCompleteToPendingRun(session, ev)
+      if (reconciled) {
+        runOutcome = reconciled.outcome
+        dungeonCompleteClear = reconciled.parsed.success
+      }
+    }
   } else if (t === 'digimon_change') {
     hydrateSelfFromEvent(session, ev)
     ingestHelloLike(session, ev)
@@ -1582,6 +1573,7 @@ export function ingestMeterEventStream(
         dungeonId,
         dungeonReset,
         runOutcome,
+        dungeonCompleteClear,
         sessionStarted,
         fightEngagedAtMs,
         requestPartySnapshot,
@@ -1662,6 +1654,7 @@ export function ingestMeterEventStream(
     dungeonId,
     dungeonReset,
     runOutcome,
+    dungeonCompleteClear,
     sessionStarted,
     fightEngagedAtMs,
     requestPartySnapshot,

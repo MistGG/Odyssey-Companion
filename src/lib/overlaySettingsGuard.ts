@@ -51,7 +51,6 @@ function isHotkeyShape(v: unknown): boolean {
   return (
     typeof h.toggle === 'string' &&
     typeof h.reset === 'string' &&
-    typeof h.meterReconnect === 'string' &&
     typeof h.meterResetSession === 'string' &&
     typeof h.meterUploadParse === 'string'
   )

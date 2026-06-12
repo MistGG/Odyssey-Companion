@@ -16,8 +16,17 @@ function formatPartyParseSection(parse: BuiltParse): string {
     `raid_total_damage=${parse.raidTotalDamage}`,
     `leaderboard_eligible=${parse.dungeon.leaderboardEligible}`,
     `boss_targets=${parse.dungeon.bossTargets.join(' | ') || '(none)'}`,
-    '',
   ]
+  const cc = parse.dungeon.clientComplete
+  if (cc) {
+    lines.push(
+      `client_clear_rank=${cc.rank ?? ''}`,
+      `client_clear_time_sec=${cc.timeSec ?? ''}`,
+      `client_clear_deaths=${cc.deaths ?? ''}`,
+      `client_clear_party_size=${cc.partySize ?? ''}`,
+    )
+  }
+  lines.push('')
 
   for (const m of parse.members) {
     lines.push(

@@ -15,6 +15,7 @@ import type {
   MeterDungeonPartyMemberParse,
   MeterParseDungeonContext,
 } from './supabaseMeter'
+import { meterClientClearForParse } from './meterDungeonComplete'
 
 function normKey(s: string): string {
   return s.trim().toLowerCase()
@@ -76,6 +77,7 @@ export function buildMeterDungeonPartyParse(
     bossTargets,
     runOutcome: session.lastRunOutcome,
     leaderboardEligible: isMeterSessionLeaderboardEligible(session),
+    clientComplete: meterClientClearForParse(session.dungeonCompletePayload),
   }
 
   const rows = meterPartyRows(session, nowMs)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   exportMeterRunCombatLog,
+  formatClientClearTimeSec,
   formatRunHistoryWhen,
   meterRunHistoryChangedEventName,
   readMeterRunHistory,
@@ -94,6 +95,10 @@ export function MeterRunHistorySection() {
                 <span className="meter-run-history__meta">
                   {formatRunHistoryWhen(entry.endedAt)} ·{' '}
                   {entry.outcome === 'clear' ? 'Clear' : 'Fail'}
+                  {entry.clientClearRank ? ` · ${entry.clientClearRank}` : ''}
+                  {entry.clientClearTimeSec != null
+                    ? ` · ${formatClientClearTimeSec(entry.clientClearTimeSec) ?? ''}`
+                    : ''}
                 </span>
                 <span className={`meter-run-history__status ${statusClassName(entry.uploadStatus)}`}>
                   {uploadStatusLabel(entry.uploadStatus)}

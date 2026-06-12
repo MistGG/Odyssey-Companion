@@ -49,6 +49,7 @@ import {
 } from './lib/meterDebugLog'
 import { buildMeterDebugReport } from './lib/meterDebugReport'
 import {
+  getMeterRunHistoryEntry,
   patchMeterRunHistoryUpload,
   recordMeterRunHistoryEntry,
   recordMeterRunHistoryFromSnapshot,
@@ -609,7 +610,7 @@ export default function MeterApp() {
       const t = String(ev.type ?? '')
       const session = streamRef.current
       const hadIdentity = !meterNeedsPartyIdentity(session)
-      const { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome, requestPartySnapshot } =
+      const { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome, dungeonCompleteClear, requestPartySnapshot } =
         ingestMeterEventStream(session, ev)
       if (requestPartySnapshot && eventStreamConnectedRef.current) {
         requestEventStreamQueries()
@@ -632,17 +633,35 @@ export default function MeterApp() {
         timelineAutoRef.current,
         session,
         ev,
-        { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome },
+        { dungeonReset, sessionStarted, fightEngagedAtMs, runOutcome, dungeonCompleteClear },
       )
 
       const pendingEndedRun = streamRef.current.pendingEndedRun
+      const deferPendingUntilComplete =
+        pendingEndedRun != null &&
+        !pendingEndedRun.clientDungeonComplete &&
+        t === 'map_change'
       const handledPendingRun =
+        !deferPendingUntilComplete &&
         pendingEndedRun != null &&
         runHistoryRecordedForEndMsRef.current !== pendingEndedRun.sessionEndMs
 
+      let processedPendingRun = false
       if (handledPendingRun && pendingEndedRun) {
         void processPendingEndedRunRef.current(pendingEndedRun)
         streamRef.current.pendingEndedRun = null
+        processedPendingRun = true
+      }
+
+      if (
+        t === 'dungeon_complete' &&
+        streamRef.current.pendingEndedRun?.clientDungeonComplete &&
+        runHistoryRecordedForEndMsRef.current !== streamRef.current.pendingEndedRun.sessionEndMs
+      ) {
+        const reconciledPending = streamRef.current.pendingEndedRun
+        void processPendingEndedRunRef.current(reconciledPending)
+        streamRef.current.pendingEndedRun = null
+        processedPendingRun = true
       }
 
       if (dungeonReset && !handledPendingRun) {
@@ -694,7 +713,7 @@ export default function MeterApp() {
 
       bumpStream()
 
-      if (handledPendingRun) return
+      if (processedPendingRun) return
 
       const endedSession = streamRef.current
       const newlyEnded =
@@ -706,20 +725,25 @@ export default function MeterApp() {
       if (newlyEnded) {
         if (isMeterDebugEnabled() && endedSession.lastRunOutcome === 'clear') {
           meterDebugLog(
-            `runOutcome=clear | uploadEligible=${isMeterSessionLeaderboardEligible(endedSession)} (${meterLeaderboardEligibilityDebugReason(endedSession)})`,
+            `runOutcome=clear | clientComplete=${endedSession.clientDungeonComplete} | uploadEligible=${isMeterSessionLeaderboardEligible(endedSession)} (${meterLeaderboardEligibilityDebugReason(endedSession)})`,
           )
         }
         void recordRunHistoryForSessionRef.current(endedSession).then(() => {
-          if (endedSession.lastRunOutcome === 'clear') {
+          if (endedSession.clientDungeonComplete && endedSession.lastRunOutcome === 'clear') {
             scheduleAutoUploadRef.current()
+          } else if (endedSession.lastRunOutcome === 'clear') {
+            setUploadToast({
+              text: 'Clear logged — ranked upload requires dungeon_complete',
+              kind: 'warn',
+            })
           } else {
             setUploadToast({ text: 'Run ended — not uploaded (incomplete or failed)', kind: 'warn' })
           }
         })
-      } else if (runOutcome === 'clear') {
+      } else if (dungeonCompleteClear) {
         if (isMeterDebugEnabled()) {
           meterDebugLog(
-            `runOutcome=clear | uploadEligible=${isMeterSessionLeaderboardEligible(streamRef.current)} (${meterLeaderboardEligibilityDebugReason(streamRef.current)})`,
+            `dungeon_complete clear | uploadEligible=${isMeterSessionLeaderboardEligible(streamRef.current)} (${meterLeaderboardEligibilityDebugReason(streamRef.current)})`,
           )
         }
         scheduleAutoUploadRef.current()
@@ -785,18 +809,37 @@ export default function MeterApp() {
 
   const processPendingEndedRun = useCallback(
     async (pending: MeterEndedRunSnapshot) => {
+      const entryId = String(pending.sessionEndMs)
+      const existing = getMeterRunHistoryEntry(entryId)
       const version = (await window.odysseyCompanion?.getAppVersion?.())?.version ?? 'unknown'
       const meta = {
         appVersion: version,
         eventStreamConnected: eventStreamConnectedRef.current,
         readerHint,
       }
-      recordMeterRunHistoryFromSnapshot(pending, meta, Boolean(supabase))
+      if (!existing) {
+        recordMeterRunHistoryFromSnapshot(pending, meta, Boolean(supabase))
+      }
       runHistoryRecordedForEndMsRef.current = pending.sessionEndMs
-      runHistoryActiveIdRef.current = String(pending.sessionEndMs)
+      runHistoryActiveIdRef.current = entryId
 
-      if (pending.lastRunOutcome !== 'clear') {
-        showUploadOutcomeToast('Run ended — not uploaded (incomplete or failed)', 'warn')
+      if (
+        existing &&
+        (existing.uploadStatus === 'uploaded_ranked' || existing.uploadStatus === 'uploaded_unranked')
+      ) {
+        return
+      }
+      if (autoUploadForEndMsRef.current === pending.sessionEndMs) {
+        return
+      }
+
+      if (pending.lastRunOutcome !== 'clear' || !pending.clientDungeonComplete) {
+        if (pending.lastRunOutcome === 'clear' && !pending.clientDungeonComplete) {
+          patchRunHistoryUpload('not_uploaded', 'Awaiting dungeon_complete for ranked upload')
+          showUploadOutcomeToast('Clear logged — ranked upload requires dungeon_complete', 'warn')
+        } else {
+          showUploadOutcomeToast('Run ended — not uploaded (incomplete or failed)', 'warn')
+        }
         return
       }
 

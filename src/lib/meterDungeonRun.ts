@@ -194,6 +194,10 @@ export function mergeDeathIntoObjectiveProgress(
   const victim = deathEntityName(ev)
   if (!victim) return null
   const victimId = deathEntityMonsterId(ev)
+  const targets = session.dungeonBossTargets.filter((t) => t.trim())
+  const matchesKnownBoss = targets.some((t) => bossNamesMatch(victim, t))
+  const matchesFinal = isFinalDungeonBossKill(victim, victimId, session)
+  if (!matchesKnownBoss && !matchesFinal) return null
   recordBossTargetKill(session, victim, session.dungeonBossTargets)
   if (isFinalDungeonBossKill(victim, victimId, session)) {
     markFinalKillStepComplete(session)

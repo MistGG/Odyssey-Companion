@@ -46,6 +46,16 @@ export type MeterDungeonPartyMemberParse = {
   digimons: DigimonSkillBreakdownForParse[]
 }
 
+export type MeterClientDungeonComplete = {
+  success: boolean
+  rank: string | null
+  timeSec: number | null
+  deaths: number | null
+  partySize: number | null
+  exp: number | null
+  money: number | null
+}
+
 export type MeterParseDungeonContext = {
   dungeonId: string
   dungeonName: string | null
@@ -57,6 +67,8 @@ export type MeterParseDungeonContext = {
   runOutcome: 'clear' | 'fail' | null
   /** False for manual mid-run uploads and post-refresh slices — still stored for the user. */
   leaderboardEligible: boolean
+  /** Authoritative clear stats from `dungeon_complete` when present. */
+  clientComplete?: MeterClientDungeonComplete | null
 }
 
 /** Stored in `meter_parses.payload`. Per-skill DPS and damage % are computed on the server/UI from `skills` + row `duration_sec`. */

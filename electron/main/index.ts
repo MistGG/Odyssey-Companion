@@ -6,6 +6,7 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  protocol,
   screen,
   session,
   shell,
@@ -22,6 +23,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { stripHtmlToPlainText } from '../../src/lib/releaseNotesText'
+import { fetchForumTeaserLive } from './fetchForumTeaserBrowser'
+import {
+  registerForumTeaserImageProtocol,
+  TEASER_IMAGE_SCHEME,
+} from './forumTeaserImageCache'
+import { fetchPatchNotesCached, fetchPatchNoteDetail } from './fetchPatchNotes'
 import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
 import { normalizeSettingsSection } from '../../src/lib/settingsSection'
 import type { OverlaySettings, StartupPanelKey } from '../../src/types'
@@ -64,6 +71,19 @@ app.setName(APP_DISPLAY_NAME)
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID)
 }
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: TEASER_IMAGE_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+])
 
 /** Set `ODYSSEY_START_PANEL=meter`, `=timers`, `=hud`, or `=settings` to launch only that window (UI dev). */
 const METER_ONLY_STARTUP = process.env.ODYSSEY_START_PANEL === 'meter'
@@ -234,11 +254,12 @@ type WindowLayoutFile = {
   settings?: Electron.Rectangle
 }
 
+/** Main companion window — sized for home teaser + patch notes layout. */
 const DEFAULT_DUNGEON_SIZE = {
-  width: 1120,
-  height: 740,
-  minWidth: 820,
-  minHeight: 580,
+  width: 1180,
+  height: 780,
+  minWidth: 1020,
+  minHeight: 720,
 } as const
 
 /**
@@ -446,7 +467,6 @@ function wireSettingsStaysAboveOnOverlayFocus(win: BrowserWindow) {
 type HotkeyPayload = {
   toggle: string
   reset: string
-  meterReconnect: string
   meterResetSession: string
   meterUploadParse: string
 }
@@ -485,7 +505,6 @@ function registerHotkeysDirect(cfg: HotkeyPayload) {
     }
   }
   const meterEntries: { acc: string; label: string; fn: () => void }[] = [
-    { acc: cfg.meterReconnect.trim(), label: 'meterReconnect', fn: triggerMeterReconnectFromHotkey },
     { acc: cfg.meterResetSession.trim(), label: 'meterResetSession', fn: triggerMeterResetFromHotkey },
     { acc: cfg.meterUploadParse.trim(), label: 'meterUploadParse', fn: triggerMeterUploadFromHotkey },
   ]
@@ -766,6 +785,15 @@ function createDungeonWindow(options?: { show?: boolean }) {
   wireHideInsteadOfClose(dungeonWin)
   attachWindowLayoutTracking(dungeonWin)
   wireSettingsStaysAboveOnOverlayFocus(dungeonWin)
+  dungeonWin.on('show', () => {
+    notifyHomeRefresh()
+  })
+}
+
+function notifyHomeRefresh() {
+  if (!dungeonWin || dungeonWin.isDestroyed() || dungeonWin.webContents.isDestroyed()) return
+  if (dungeonWin.webContents.isLoading()) return
+  dungeonWin.webContents.send('home:refresh')
 }
 
 function createTimelineWindow() {
@@ -1322,13 +1350,7 @@ function createTray() {
   })
 }
 
-function triggerMeterReconnectFromHotkey() {
-  stopDpsReader()
-  startDpsReader()
-}
-
 function triggerMeterResetFromHotkey() {
-  sendDpsReaderReset()
   if (meterWin && !meterWin.isDestroyed()) {
     meterWin.webContents.send('meter:clear-session-ui')
   }
@@ -1446,6 +1468,8 @@ registerMeterDebugReportIpc(() => meterWin, showMeterWindow)
 registerMeterCombatLogIpc()
 
 app.whenReady().then(() => {
+  registerForumTeaserImageProtocol()
+
   app.on('browser-window-focus', scheduleHotkeysFocusRefresh)
   app.on('browser-window-blur', scheduleHotkeysFocusRefresh)
 
@@ -1576,6 +1600,35 @@ ipcMain.handle('supabase-auth-storage:remove', async (_evt, key: unknown) => {
   await supabaseAuthStorageRemove(typeof key === 'string' ? key : '')
 })
 
+ipcMain.handle('forum:fetch-teaser', async () => {
+  return fetchForumTeaserLive()
+})
+
+ipcMain.handle('docs:fetch-patch-notes', async () => {
+  return fetchPatchNotesCached()
+})
+
+ipcMain.handle('docs:fetch-patch-note', async (_evt, url: unknown) => {
+  const safe = typeof url === 'string' ? url.trim() : ''
+  if (!safe) throw new Error('Missing patch note URL')
+  return fetchPatchNoteDetail(safe)
+})
+
+ipcMain.handle('shell:open-external', async (_evt, url: unknown) => {
+  const safe = typeof url === 'string' ? url.trim() : ''
+  if (!safe) throw new Error('Missing URL')
+  let parsed: URL
+  try {
+    parsed = new URL(safe)
+  } catch {
+    throw new Error('Invalid URL')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http(s) URLs are allowed')
+  }
+  await shell.openExternal(parsed.href)
+})
+
 ipcMain.handle('wiki:fetch-dungeons', async () => {
   markWikiApiRequest()
   wikiLog('GET', DUNGEONS_URL)
@@ -1693,7 +1746,6 @@ ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
     const normalized: HotkeyPayload = {
       toggle: typeof c.toggle === 'string' ? c.toggle : '',
       reset: typeof c.reset === 'string' ? c.reset : '',
-      meterReconnect: typeof c.meterReconnect === 'string' ? c.meterReconnect : 'None',
       meterResetSession: typeof c.meterResetSession === 'string' ? c.meterResetSession : 'None',
       meterUploadParse: typeof c.meterUploadParse === 'string' ? c.meterUploadParse : 'None',
     }

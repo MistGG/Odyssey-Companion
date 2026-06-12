@@ -8,6 +8,7 @@ const MAX_RUN_LOG_LINES = 1200
 const ALWAYS_LOG_TYPES = new Set([
   'map_change',
   'dungeon_progress',
+  'dungeon_complete',
   'death',
   'hello',
   'digimon_change',
@@ -63,10 +64,13 @@ export function meterRunLogRecordEvent(
   ev: EventStreamRecord,
   notes?: string[],
 ): void {
-  if (!runLogActive(session)) return
   const t = String(ev.type ?? '')
-  if (!shouldLogEventType(t, ev)) return
-  const summary = meterDebugEventSummary(ev)
+  if (t !== 'dungeon_complete') {
+    if (!runLogActive(session)) return
+    if (!shouldLogEventType(t, ev)) return
+  }
+  const summary =
+    t === 'dungeon_complete' ? `dungeon_complete ${JSON.stringify(ev)}` : meterDebugEventSummary(ev)
   const ts = new Date().toISOString().slice(11, 23)
   const extra = notes?.filter(Boolean).join(' | ')
   pushLine(extra ? `[${ts}] ${summary} | ${extra}` : `[${ts}] ${summary}`)

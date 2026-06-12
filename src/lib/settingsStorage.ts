@@ -38,10 +38,6 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
         : DEFAULT_SETTINGS.hotkeys.toggle
   const reset =
     typeof raw.reset === 'string' ? raw.reset : DEFAULT_SETTINGS.hotkeys.reset
-  const meterReconnect =
-    typeof raw.meterReconnect === 'string'
-      ? raw.meterReconnect
-      : DEFAULT_SETTINGS.hotkeys.meterReconnect
   const meterResetSession =
     typeof raw.meterResetSession === 'string'
       ? raw.meterResetSession
@@ -50,7 +46,7 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
     typeof raw.meterUploadParse === 'string'
       ? raw.meterUploadParse
       : DEFAULT_SETTINGS.hotkeys.meterUploadParse
-  return { toggle, reset, meterReconnect, meterResetSession, meterUploadParse }
+  return { toggle, reset, meterResetSession, meterUploadParse }
 }
 
 function normalizeStartupPanels(raw: unknown): StartupPanelKey[] {

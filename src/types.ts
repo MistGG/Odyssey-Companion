@@ -234,9 +234,7 @@ export type HotkeyConfig = {
   /** Same accelerator toggles Start ↔ Pause (clock pause only; Reset restores reference timeline). */
   toggle: string
   reset: string
-  /** Global: restart the Python DPS reader (`None` to disable). */
-  meterReconnect: string
-  /** Global: reset meter session / reader cursor (`None` to disable). */
+  /** Global: reset meter session (`None` to disable). */
   meterResetSession: string
   /** Global: upload current meter session to Parse cloud (`None` to disable). */
   meterUploadParse: string
@@ -341,7 +339,6 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   hotkeys: {
     toggle: 'F9',
     reset: 'F11',
-    meterReconnect: 'None',
     meterResetSession: 'None',
     meterUploadParse: 'None',
   },

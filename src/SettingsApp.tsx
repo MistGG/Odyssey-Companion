@@ -41,11 +41,8 @@ const HOTKEY_TIMELINE: { label: string; slot: 'toggle' | 'reset' }[] = [
 
 const HOTKEY_METER: {
   label: string
-  slot: 'meterReconnect' | 'meterResetSession'
-}[] = [
-  { label: 'Reconnect reader', slot: 'meterReconnect' },
-  { label: 'Reset session', slot: 'meterResetSession' },
-]
+  slot: 'meterResetSession'
+}[] = [{ label: 'Reset session', slot: 'meterResetSession' }]
 
 const STARTUP_PANEL_LABELS: Record<StartupPanelKey, string> = {
   main: 'Main (dungeons)',

@@ -156,6 +156,7 @@ export type TimelineAutoStreamIngest = {
   sessionStarted: boolean
   fightEngagedAtMs: number | null
   runOutcome: MeterDungeonRunOutcome | null
+  dungeonCompleteClear?: boolean
 }
 
 /** Meter / timeline / HUD event handlers — auto-load fight + engage clock. */
@@ -198,7 +199,7 @@ export function processTimelineAutoStreamEvent(
     }
   }
 
-  if (ingest.runOutcome === 'clear') {
+  if (ingest.dungeonCompleteClear) {
     onTimelineBossCleared(api, state)
   }
 }

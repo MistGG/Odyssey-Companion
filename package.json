@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.77",
+  "version": "0.1.78",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added better support for logging"
+      "releaseNotes": "- Added a home page for patch notes and teasers (UK users should be able to view this)\n- Fixed various companion issues and updated it for new Client API functionality"
     }
   }
 }

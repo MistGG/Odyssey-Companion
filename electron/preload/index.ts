@@ -3,7 +3,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 export type HotkeyConfig = {
   toggle: string
   reset: string
-  meterReconnect: string
   meterResetSession: string
   meterUploadParse: string
 }
@@ -24,6 +23,29 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   fetchWikiNpc: (id: string) => ipcRenderer.invoke('wiki:fetch-npc', id),
 
   fetchWikiItem: (id: string) => ipcRenderer.invoke('wiki:fetch-item', id),
+
+  fetchForumTeaser: () =>
+    ipcRenderer.invoke('forum:fetch-teaser') as Promise<{
+      imageUrl: string
+      readMoreUrl: string
+      imageRemoteUrl?: string
+    }>,
+
+  fetchPatchNotes: () =>
+    ipcRenderer.invoke('docs:fetch-patch-notes') as Promise<
+      Array<{ id: string; title: string; url: string; preview: string; bodyHtml: string }>
+    >,
+
+  fetchPatchNote: (url: string) =>
+    ipcRenderer.invoke('docs:fetch-patch-note', url) as Promise<{
+      id: string
+      title: string
+      url: string
+      preview: string
+      bodyHtml: string
+    }>,
+
+  openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url) as Promise<void>,
 
   openMarketLogin: () => ipcRenderer.invoke('market:open-login') as Promise<boolean>,
 
@@ -279,6 +301,12 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     const wrapped = (_evt: unknown, patch: unknown) => handler(patch)
     ipcRenderer.on('settings:patch', wrapped)
     return () => ipcRenderer.removeListener('settings:patch', wrapped)
+  },
+
+  onHomeRefresh: (handler: () => void) => {
+    const wrapped = () => handler()
+    ipcRenderer.on('home:refresh', wrapped)
+    return () => ipcRenderer.removeListener('home:refresh', wrapped)
   },
 
   onFightLoaded: (handler: (payload: unknown) => void) => {

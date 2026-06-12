@@ -53,6 +53,11 @@ export function formatEventStreamLine(ev: EventStreamRecord): string {
     }
     return lines.join('\n')
   }
+  if (t === 'dungeon_complete') {
+    const diffLabel =
+      normalizeEventStreamDifficulty(ev.difficulty) ?? String(ev.difficulty ?? '')
+    return `[${ts}] complete    id=${String(ev.dungeon_id ?? '')} success=${String(ev.success ?? '')} rank=${String(ev.rank ?? '')} time=${String(ev.time_sec ?? '')}s deaths=${String(ev.deaths ?? '')} difficulty=${diffLabel}`
+  }
   if (t === 'skill_use') {
     const crit = ev.crit ? ' CRIT' : ''
     const last = ev.last ? '' : ' (mid-AoE)'
@@ -310,6 +315,7 @@ export const EVENT_STREAM_TYPES = [
   'map_change',
   'digimon_change',
   'dungeon_progress',
+  'dungeon_complete',
   'skill_use',
   'party_skill',
   'party_change',

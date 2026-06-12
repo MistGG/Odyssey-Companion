@@ -10,6 +10,7 @@ import { fetchDungeonDetail, findDifficultyRow, readCachedDungeonDetails } from 
 import { fetchMonsterDetail } from './lib/monsterDetailApi'
 import { buildTimelineFightPayload } from './lib/buildTimelineFightPayload'
 import { DungeonDifficultyDetail } from './components/DungeonDifficultyDetail'
+import { HomePanel } from './components/HomePanel'
 import { MarketLookup } from './components/MarketLookup'
 import ServerStatusTitlebar from './components/ServerStatusTitlebar'
 
@@ -37,7 +38,7 @@ export default function DungeonApp() {
   const [prefetchLoading, setPrefetchLoading] = useState(false)
   /** Dungeon list was served from localStorage cache (wiki unreachable). */
   const [listFromCache, setListFromCache] = useState(false)
-  const [toolView, setToolView] = useState<'dungeons' | 'market'>('dungeons')
+  const [toolView, setToolView] = useState<'home' | 'dungeons' | 'market'>('home')
 
   const pickedDungeon = useMemo(
     () => dungeons.find((d) => d.id === pickedDungeonId) ?? null,
@@ -63,6 +64,7 @@ export default function DungeonApp() {
   }, [])
 
   useEffect(() => {
+    if (toolView !== 'dungeons') return
     ;(async () => {
       try {
         setLoading(true)
@@ -77,7 +79,7 @@ export default function DungeonApp() {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [toolView])
 
   /**
    * List API has no boss names — only `?id=` detail does. Prefetch details in the background
@@ -86,14 +88,14 @@ export default function DungeonApp() {
    * from that cache on load so boss lines and reward search survive rate limits / offline starts.
    */
   useEffect(() => {
-    if (dungeons.length === 0) return
+    if (toolView !== 'dungeons' || dungeons.length === 0) return
     const cached = readCachedDungeonDetails(dungeons.map((d) => d.id))
     if (Object.keys(cached).length === 0) return
     setDetailById((prev) => ({ ...cached, ...prev }))
-  }, [dungeons])
+  }, [dungeons, toolView])
 
   useEffect(() => {
-    if (loading || loadError || dungeons.length === 0) return
+    if (toolView !== 'dungeons' || loading || loadError || dungeons.length === 0) return
     let cancelled = false
     const ids = dungeons.map((d) => d.id)
     const concurrency = 3
@@ -114,7 +116,7 @@ export default function DungeonApp() {
     return () => {
       cancelled = true
     }
-  }, [dungeons, loading, loadError])
+  }, [dungeons, loading, loadError, toolView])
 
   /** When opening a dungeon: load wiki detail, prefetch every monster timeline, push first difficulty to overlay. */
   useEffect(() => {
@@ -237,6 +239,7 @@ export default function DungeonApp() {
     [pickedDungeonId, pickedDungeon, detailById, monsterById],
   )
 
+  const homeMode = toolView === 'home'
   const browseMode = toolView === 'dungeons' && !pickedDungeonId
   const marketMode = toolView === 'market'
 
@@ -247,10 +250,18 @@ export default function DungeonApp() {
           <span className="logo-dot" aria-hidden />
           <div className="title-text">
             <strong>
-              {marketMode ? 'Market lookup' : browseMode ? 'Odyssey Companion' : pickedDungeon?.name ?? 'Dungeon'}
+              {homeMode
+                ? 'Odyssey Companion'
+                : marketMode
+                ? 'Market lookup'
+                : browseMode
+                ? 'Odyssey Companion'
+                : pickedDungeon?.name ?? 'Dungeon'}
             </strong>
             <span className="subtitle">
-              {marketMode
+              {homeMode
+                ? 'News, teasers & official patch notes'
+                : marketMode
                 ? 'Search listings · compare unit prices'
                 : browseMode
                 ? 'Pick a dungeon · search and select a fight'
@@ -276,8 +287,21 @@ export default function DungeonApp() {
             <button
               type="button"
               role="tab"
-              aria-selected={!marketMode}
-              className={`main-tool-tab${marketMode ? '' : ' main-tool-tab--active'}`}
+              aria-selected={homeMode}
+              className={`main-tool-tab${homeMode ? ' main-tool-tab--active' : ''}`}
+              onClick={() => {
+                setToolView('home')
+                setPickedDungeonId(null)
+                setFightPanelError(null)
+              }}
+            >
+              Home
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={toolView === 'dungeons'}
+              className={`main-tool-tab${toolView === 'dungeons' ? ' main-tool-tab--active' : ''}`}
               onClick={() => {
                 setToolView('dungeons')
                 setPickedDungeonId(null)
@@ -365,7 +389,9 @@ export default function DungeonApp() {
         </div>
       </header>
 
-      {marketMode ? (
+      {homeMode ? (
+        <HomePanel />
+      ) : marketMode ? (
         <MarketLookup />
       ) : browseMode ? (
         <main className="main main--dungeon">
