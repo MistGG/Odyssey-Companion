@@ -1,7 +1,7 @@
-import { odysseyCalcTeaserImageUrlsForId } from './teaserImageProxy'
-
-/** Published by Odyssey Calc GHA (`teaser-sync.yml`). */
-export const TEASER_MANIFEST_URL = 'https://odyssey-calc.com/data/teaser-manifest.json'
+import {
+  odysseyCalcTeaserImageUrlsForId,
+  teaserManifestFetchUrls,
+} from './teaserImageProxy'
 
 const MANIFEST_TIMEOUT_MS = 12_000
 
@@ -31,22 +31,25 @@ export function bundledTeaserUrlFromManifest(manifest: TeaserManifest): string {
 }
 
 export async function fetchTeaserManifest(): Promise<TeaserManifest | null> {
-  try {
-    const res = await fetchWithTimeout(
-      TEASER_MANIFEST_URL,
-      {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      },
-      MANIFEST_TIMEOUT_MS,
-    )
-    if (!res.ok) return null
-    const raw = (await res.json()) as TeaserManifest
-    if (!raw?.teaser?.imgurId || !raw.teaser.imageRemoteUrl || !raw.teaser.readMoreUrl) {
-      return null
+  for (const url of teaserManifestFetchUrls()) {
+    try {
+      const res = await fetchWithTimeout(
+        url,
+        {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        },
+        MANIFEST_TIMEOUT_MS,
+      )
+      if (!res.ok) continue
+      const raw = (await res.json()) as TeaserManifest
+      if (!raw?.teaser?.imgurId || !raw.teaser.imageRemoteUrl || !raw.teaser.readMoreUrl) {
+        continue
+      }
+      return raw
+    } catch {
+      /* try next origin */
     }
-    return raw
-  } catch {
-    return null
   }
+  return null
 }
