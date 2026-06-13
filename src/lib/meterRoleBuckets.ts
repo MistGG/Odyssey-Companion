@@ -22,3 +22,9 @@ export function digimonIdToBucket(
   const role = roleByDigimonId.get(digimonId.trim())
   return wikiRoleToBucket(role)
 }
+
+const DPS_ROLE_BUCKETS: MeterRoleBucket[] = ['melee', 'ranged', 'caster', 'hybrid']
+
+export function isDpsRoleBucket(bucket: MeterRoleBucket | null | undefined): boolean {
+  return bucket != null && DPS_ROLE_BUCKETS.includes(bucket)
+}

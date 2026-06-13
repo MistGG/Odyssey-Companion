@@ -5,7 +5,7 @@ import {
   meterSessionDurationSec,
   streamIconIdForDigimon,
 } from './meterEventStream'
-import { digimonIdToBucket, type MeterRoleBucket } from './meterRoleBuckets'
+import { digimonIdToBucket, isDpsRoleBucket, type MeterRoleBucket } from './meterRoleBuckets'
 import type { MeterDungeonPartyMemberParse, MeterParseDungeonContext } from './supabaseMeter'
 
 export type LeaderboardSummaryMember = {
@@ -30,18 +30,83 @@ function normalizePlayerKey(tamerName: string, displayLabel: string): string {
   return (tamerName.trim() || displayLabel.trim()).toLowerCase()
 }
 
+function memberHasDpsAndNonDpsDamage(
+  totals: Map<string, number>,
+  roleByDigimonId: Map<string, string>,
+): boolean {
+  let hasDps = false
+  let hasNonDps = false
+  for (const [id, damage] of totals) {
+    if (damage <= 0) continue
+    const bucket = digimonIdToBucket(id, roleByDigimonId)
+    if (!bucket) continue
+    if (isDpsRoleBucket(bucket)) hasDps = true
+    else hasNonDps = true
+    if (hasDps && hasNonDps) return true
+  }
+  return false
+}
+
 /** Digimon with the highest damage this run (any end-of-run swap, same role or not). */
-function memberPrimaryDigimonFromUpload(member: MeterDungeonPartyMemberParse) {
-  let best = member.digimons[0]
-  let bestDamage = -1
+function memberPrimaryDigimonFromUpload(
+  member: MeterDungeonPartyMemberParse,
+  roleByDigimonId?: Map<string, string>,
+) {
+  const totals = new Map<string, number>()
+  const rowsById = new Map<string, (typeof member.digimons)[number]>()
   for (const dg of member.digimons) {
+    const id = dg.digimonId.trim()
+    if (!id) continue
     const damage = Math.max(0, dg.totalDamage)
+    totals.set(id, (totals.get(id) ?? 0) + damage)
+    const prev = rowsById.get(id)
+    if (!prev || damage > Math.max(0, prev.totalDamage)) rowsById.set(id, dg)
+  }
+
+  if (roleByDigimonId && memberHasDpsAndNonDpsDamage(totals, roleByDigimonId)) {
+    let bestDpsId: string | null = null
+    let bestDpsDamage = -1
+    for (const [id, damage] of totals) {
+      if (!isDpsRoleBucket(digimonIdToBucket(id, roleByDigimonId))) continue
+      if (damage > bestDpsDamage) {
+        bestDpsDamage = damage
+        bestDpsId = id
+      }
+    }
+    if (bestDpsId) return rowsById.get(bestDpsId)
+  }
+
+  let bestId: string | null = null
+  let bestDamage = -1
+  for (const [id, damage] of totals) {
     if (damage > bestDamage) {
       bestDamage = damage
-      best = dg
+      bestId = id
     }
   }
-  return best
+  return bestId ? rowsById.get(bestId) : undefined
+}
+
+function memberLeaderboardDamageFromUpload(
+  member: MeterDungeonPartyMemberParse,
+  roleByDigimonId?: Map<string, string>,
+): number {
+  if (member.digimons.length <= 1) return Math.max(0, member.totalDamage)
+  const totals = new Map<string, number>()
+  for (const dg of member.digimons) {
+    const id = dg.digimonId.trim()
+    if (!id) continue
+    totals.set(id, (totals.get(id) ?? 0) + Math.max(0, dg.totalDamage))
+  }
+  if (totals.size <= 1) {
+    return member.digimons.reduce((sum, dg) => sum + Math.max(0, dg.totalDamage), 0)
+  }
+  if (roleByDigimonId && memberHasDpsAndNonDpsDamage(totals, roleByDigimonId)) {
+    return member.digimons.reduce((sum, dg) => sum + Math.max(0, dg.totalDamage), 0)
+  }
+  const primary = memberPrimaryDigimonFromUpload(member, roleByDigimonId)
+  if (!primary) return Math.max(0, member.totalDamage)
+  return Math.max(0, totals.get(primary.digimonId.trim()) ?? 0)
 }
 
 export function buildMeterLeaderboardSummary(
@@ -63,7 +128,7 @@ export function buildMeterLeaderboardSummary(
   const out: LeaderboardSummaryMember[] = []
 
   for (const member of members) {
-    const primary = memberPrimaryDigimonFromUpload(member)
+    const primary = memberPrimaryDigimonFromUpload(member, roleByDigimonId)
     const digimonId = primary?.digimonId?.trim() || member.currentDigimonId?.trim() || ''
     const iconId =
       primary?.iconId?.trim() ||
@@ -73,10 +138,7 @@ export function buildMeterLeaderboardSummary(
 
     const roleBucket = digimonId ? digimonIdToBucket(digimonId, roleByDigimonId) : null
     const memberDur = Math.max(member.durationSec, sessionDur, 1e-6)
-    const attributedDamage =
-      member.digimons.length > 1
-        ? Math.max(0, primary?.totalDamage ?? 0)
-        : member.totalDamage
+    const attributedDamage = memberLeaderboardDamageFromUpload(member, roleByDigimonId)
     const dps = attributedDamage / memberDur
     const wikiName = digimonId ? session.wikiByDigimonId.get(digimonId)?.digimonName?.trim() : ''
     const storedName =
