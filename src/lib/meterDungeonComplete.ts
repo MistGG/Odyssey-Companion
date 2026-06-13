@@ -149,6 +149,12 @@ export function applyDungeonCompleteEvent(
   ev: EventStreamRecord,
   nowMs = Date.now(),
 ): { outcome: MeterDungeonRunOutcome; parsed: DungeonCompletePayload } | null {
+  if (session.runInvalidatedByReset) {
+    meterDebugLog('dungeon_complete ignored — run invalidated by manual reset')
+    meterRunLogNote(session, 'dungeon_complete ignored — run invalidated by manual reset')
+    return null
+  }
+
   const parsed = parseDungeonCompleteEvent(ev)
   if (!parsed) return null
 
@@ -177,6 +183,12 @@ export function applyDungeonCompleteToPendingRun(
   ev: EventStreamRecord,
   nowMs = Date.now(),
 ): { outcome: MeterDungeonRunOutcome; parsed: DungeonCompletePayload } | null {
+  if (session.runInvalidatedByReset) {
+    meterDebugLog('dungeon_complete ignored — run invalidated by manual reset (pending reconcile)')
+    meterRunLogNote(session, 'dungeon_complete ignored — run invalidated by manual reset')
+    return null
+  }
+
   const parsed = parseDungeonCompleteEvent(ev)
   if (!parsed) return null
 

@@ -662,6 +662,7 @@ export function leaveDungeonSession(session: {
   dungeonDifficulty: string | null
   dungeonDifficultyTier: number | null
   dungeonRunActive: boolean
+  runInvalidatedByReset?: boolean
 } & DungeonObjectiveProgressFields &
   DungeonBossTargetTracking) {
   session.dungeonId = null
@@ -670,6 +671,7 @@ export function leaveDungeonSession(session: {
   session.dungeonDifficulty = null
   session.dungeonDifficultyTier = null
   session.dungeonRunActive = false
+  session.runInvalidatedByReset = false
   resetDungeonBossTargetTracking(session)
   resetDungeonObjectiveProgress(session)
 }

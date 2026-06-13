@@ -65,6 +65,7 @@ import {
   applyWikiOfficialDigimonName,
   createMeterStreamSession,
   ingestMeterEventStream,
+  resetMeterCombatForManualReset,
   meterMemberSkillBreakdownByDigimon,
   meterNeedsPartyIdentity,
   meterPartyRows,
@@ -119,14 +120,7 @@ function requestEventStreamQueries() {
 }
 
 function clearStreamCombat(session: MeterStreamSession) {
-  session.sessionStartMs = null
-  session.sessionEndMs = null
-  session.lastRunOutcome = null
-  for (const row of session.members.values()) {
-    row.totalDamage = 0
-    row.firstHitMs = null
-    row.skills.clear()
-  }
+  resetMeterCombatForManualReset(session)
   requestPartyRosterSync()
 }
 
@@ -267,6 +261,10 @@ export default function MeterApp() {
   const clearLocalSessionState = useCallback(() => {
     setPartyDetailKey(null)
     clearStreamCombat(streamRef.current)
+    autoUploadForEndMsRef.current = null
+    runHistoryRecordedForEndMsRef.current = null
+    runHistoryActiveIdRef.current = null
+    pendingAutoUploadBuiltRef.current = null
     resetTimelineAutoState(timelineAutoRef.current)
     bumpStream()
     void window.odysseyCompanion?.resetMeterSession?.()

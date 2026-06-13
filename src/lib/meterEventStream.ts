@@ -138,6 +138,8 @@ export type MeterStreamSession = {
   dungeonCompletePayload: DungeonCompletePayload | null
   /** Captured when leaving a dungeon so upload/history can run after session reset. */
   pendingEndedRun: MeterEndedRunSnapshot | null
+  /** Manual meter reset during an active dungeon pull — blocks clear/submit for this run. */
+  runInvalidatedByReset: boolean
   lastRunOutcome: MeterDungeonRunOutcome | null
   lastCombatMs: number | null
   selfTamerName: string | null
@@ -178,6 +180,7 @@ export function createMeterStreamSession(): MeterStreamSession {
     clientDungeonComplete: false,
     dungeonCompletePayload: null,
     pendingEndedRun: null,
+    runInvalidatedByReset: false,
     lastRunOutcome: null,
     lastCombatMs: null,
     selfTamerName: null,
@@ -1131,6 +1134,42 @@ export function resetMeterStreamSession(session: MeterStreamSession): MeterStrea
   return createMeterStreamSession()
 }
 
+function meterSessionInActiveDungeonRun(session: MeterStreamSession): boolean {
+  return Boolean(session.dungeonId?.trim()) || session.dungeonRunActive
+}
+
+/**
+ * User-initiated meter reset (UI button / hotkey). Clears combat totals and, when still
+ * inside an active dungeon pull, invalidates the run so a later `dungeon_complete` cannot
+ * mark a clear or trigger ranked upload.
+ */
+export function resetMeterCombatForManualReset(session: MeterStreamSession): boolean {
+  const invalidated = meterSessionInActiveDungeonRun(session)
+
+  if (invalidated) {
+    session.runInvalidatedByReset = true
+    session.clientDungeonComplete = false
+    session.dungeonCompletePayload = null
+    session.clientReportedFullClear = false
+    session.pendingEndedRun = null
+    meterRunLogNote(session, 'run invalidated — manual meter reset during active dungeon')
+    if (isMeterDebugEnabled()) {
+      meterDebugLog('manual meter reset — active dungeon run invalidated')
+    }
+  }
+
+  session.sessionStartMs = null
+  session.sessionEndMs = null
+  session.lastRunOutcome = null
+  for (const row of session.members.values()) {
+    row.totalDamage = 0
+    row.firstHitMs = null
+    row.skills.clear()
+  }
+
+  return invalidated
+}
+
 /**
  * Before upload: merge stray self damage rows (nickname / duplicate keys) into the canonical tamer row.
  */
@@ -1188,6 +1227,7 @@ function refreshMeterAfterLeavingDungeon(session: MeterStreamSession, eventMs: n
   session.clientReportedFullClear = false
   session.clientDungeonComplete = false
   session.dungeonCompletePayload = null
+  session.runInvalidatedByReset = false
   if (isMeterDebugEnabled()) {
     meterDebugLog(
       `refresh meter after dungeon → map (${session.mapName ?? '?'}) pendingEndedRun=${pendingEndedRun ? pendingEndedRun.lastRunOutcome : 'none'}`,
@@ -1279,6 +1319,7 @@ export function applyDungeonProgress(
     meterRunLogClear()
     meterCombatLogClear()
     meterRunLogNote(session, `new dungeon pull | dungeon_id=${dungeonId}`)
+    session.runInvalidatedByReset = false
     session.lastRunOutcome = null
     session.clientReportedFullClear = false
     session.clientDungeonComplete = false
