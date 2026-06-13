@@ -46,12 +46,14 @@ import {
   captureMeterEndedRunSnapshot,
   type MeterEndedRunSnapshot,
 } from './meterEndedRunSnapshot'
+import { resolveDigimonIdForSkillHit } from './meterSkillDigimonAttribution'
 import type { DigimonWikiSkillCache, MeterSkillRow } from './meterWikiSkills'
 import {
   digimonIdFromStorage,
   iconIdFromStorage,
   digimonPortraitUrl,
   recordMeterSkillHit,
+  resolveMeterSkillFromEvent,
   syncMemberLatestDigimonPresentation,
 } from './meterWikiSkills'
 import {
@@ -1661,10 +1663,18 @@ export function ingestMeterEventStream(
       const credited = Boolean(who.tamerName && !isMeterBasicSkillUseEvent(ev))
       if (credited) {
         creditRow.totalDamage += dmg
-        const cache = wikiCacheForDigimon(session, who.digimonId)
+        const previewCache = wikiCacheForDigimon(session, who.digimonId)
+        const previewSkill = resolveMeterSkillFromEvent(ev, previewCache)
+        const attributedDigimonId = resolveDigimonIdForSkillHit(
+          session,
+          previewSkill.skillKey,
+          previewSkill.skillName,
+          who.digimonId,
+        )
+        const cache = wikiCacheForDigimon(session, attributedDigimonId) ?? previewCache
         const hitIconId =
           String(ev.digimon_icon_id ?? ev.icon_id ?? '').trim() || who.iconId
-        recordMeterSkillHit(creditRow, ev, cache, dmg, who.digimonId, hitIconId)
+        recordMeterSkillHit(creditRow, ev, cache, dmg, attributedDigimonId, hitIconId)
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
       }

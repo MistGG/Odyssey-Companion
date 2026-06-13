@@ -10,6 +10,7 @@ import {
   type MeterStreamSession,
 } from './meterEventStream'
 import { gameSkillIconUrl } from './meterSkillIcon'
+import { reconcileDigimonGroupsFromWikiCaches } from './meterSkillDigimonAttribution'
 import { digimonPortraitUrl } from './meterWikiSkills'
 import type {
   MeterDungeonPartyMemberParse,
@@ -81,9 +82,23 @@ export function buildMeterDungeonPartyParse(
   }
 
   const rows = meterPartyRows(session, nowMs)
+  const candidateDigimonIds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        meterMemberSkillBreakdownByDigimon(session, row.key)
+          .map((g) => g.digimonId.trim())
+          .filter(Boolean),
+      ),
+    ),
+  ]
+  const getCache = (digimonId: string) => session.wikiByDigimonId.get(digimonId.trim())
   let raidTotalDamage = 0
   const members: MeterDungeonPartyMemberParse[] = rows.map((row) => {
-    const digimonGroups = meterMemberSkillBreakdownByDigimon(session, row.key)
+    const digimonGroups = reconcileDigimonGroupsFromWikiCaches(
+      meterMemberSkillBreakdownByDigimon(session, row.key),
+      getCache,
+      candidateDigimonIds,
+    )
     const totalDamage = Math.round(row.totalDamage)
     raidTotalDamage += totalDamage
     return {

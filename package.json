@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.90",
+  "version": "0.1.91",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Leaderboard attributes combined damage to DPS digimon when swapping from support (e.g. Salamon to Ophanimon Falldown)\n- Manual meter reset during an active dungeon run now invalidates that pull (no clear, no ranked upload)\n- Fixed meter bar themes appearing static when Windows animation effects are disabled"
+      "releaseNotes": "- Fix damage credited to wrong digimon when skills belong to another species (e.g. Justimon skills under Toy Agumon id)\n- Leaderboard attributes combined damage to DPS digimon when swapping from support (e.g. Salamon to Ophanimon Falldown)\n- Manual meter reset during an active dungeon run now invalidates that pull (no clear, no ranked upload)\n- Fixed meter bar themes appearing static when Windows animation effects are disabled"
     }
   }
 }
