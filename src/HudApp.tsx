@@ -14,6 +14,7 @@ import {
   computeHudBossAlerts,
   createHudBossAlertsState,
   ingestHudBossAlertsEvent,
+  isBossAlertPullActive,
   type HudBossAlertRow,
   type HudBossAlertsState,
 } from './lib/hudBossAlerts'
@@ -743,8 +744,14 @@ export default function HudApp() {
             ref={(el) => registerWidgetRef(widget.id, el)}
             alerts={alerts}
             fightLoading={demoActive ? false : bossAlertsState.fightLoading}
-            inDungeon={demoActive || Boolean(bossAlertsState.dungeonId?.trim())}
-            bossEngaged={demoActive || bossAlertsState.bossEngagedAtMs != null}
+            inDungeon={
+              demoActive ||
+              (Boolean(bossAlertsState.dungeonId?.trim()) && isBossAlertPullActive(bossAlertsState))
+            }
+            bossEngaged={
+              demoActive ||
+              (isBossAlertPullActive(bossAlertsState) && bossAlertsState.bossEngagedAtMs != null)
+            }
             testMode={demoActive}
             testLabel={demoActive ? bossAlertsDemo.label : bossAlertsState.testLabel}
             config={cfg}

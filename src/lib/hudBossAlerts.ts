@@ -10,9 +10,11 @@ import {
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
   markDungeonRunClear,
+  markDungeonRunFail,
   shouldStartNewDungeonPull,
   syncDungeonBossTargets,
 } from './meterDungeonRun'
+import { parseDungeonCompleteEvent } from './meterDungeonComplete'
 import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
 import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
 
@@ -60,6 +62,15 @@ function markHudDungeonRunClear(state: HudBossAlertsState) {
   markDungeonRunClear(state)
 }
 
+function markHudDungeonRunFail(state: HudBossAlertsState) {
+  markDungeonRunFail(state)
+}
+
+/** Boss alerts only run during an active pull (cleared/failed runs stay idle until next pull). */
+export function isBossAlertPullActive(state: HudBossAlertsState): boolean {
+  return state.dungeonRunActive && state.lastRunOutcome == null
+}
+
 export function bossAlertsFightKey(dungeonId: string, difficulty: string): string {
   return `${dungeonId.trim()}|${difficulty.trim()}`
 }
@@ -68,13 +79,17 @@ function resetBossPull(state: HudBossAlertsState) {
   state.bossEngagedAtMs = null
 }
 
+function clearBossAlertsFight(state: HudBossAlertsState) {
+  state.fight = null
+  state.fightKey = null
+  state.fightLoading = false
+}
+
 function clearDungeon(state: HudBossAlertsState) {
   state.dungeonId = null
   state.dungeonDifficulty = null
   state.dungeonBossTargets = []
-  state.fight = null
-  state.fightKey = null
-  state.fightLoading = false
+  clearBossAlertsFight(state)
   state.testMode = false
   state.testLabel = null
   state.dungeonRunActive = false
@@ -111,6 +126,8 @@ export function computeHudBossAlerts(
   nowMs: number,
   config: BossAlertsWidgetConfig,
 ): HudBossAlertRow[] {
+  if (!isBossAlertPullActive(state)) return []
+
   const fight = state.fight
   const engagedAt = state.bossEngagedAtMs
   if (!fight || engagedAt == null) return []
@@ -183,6 +200,21 @@ export function ingestHudBossAlertsEvent(
     return { state: next, requestFightLoad: null, dungeonReset: false, fightJustEngaged: null }
   }
 
+  if (t === 'dungeon_complete') {
+    const parsed = parseDungeonCompleteEvent(ev)
+    const activeId = next.dungeonId?.trim() || null
+    if (parsed && (!activeId || activeId === parsed.dungeonId)) {
+      if (!activeId) next.dungeonId = parsed.dungeonId
+      if (parsed.difficulty) next.dungeonDifficulty = parsed.difficulty
+      if (parsed.success) markHudDungeonRunClear(next)
+      else markHudDungeonRunFail(next)
+      resetBossPull(next)
+      clearBossAlertsFight(next)
+      dungeonReset = true
+    }
+    return { state: next, requestFightLoad: null, dungeonReset, fightJustEngaged: null }
+  }
+
   if (t === 'dungeon_progress') {
     const dungeonId = String(ev.dungeon_id ?? '').trim() || null
     if (!dungeonId) {
@@ -204,12 +236,14 @@ export function ingestHudBossAlertsEvent(
     ) {
       markHudDungeonRunClear(next)
       resetBossPull(next)
+      clearBossAlertsFight(next)
       dungeonReset = true
       next.dungeonId = dungeonId
       if (difficulty) next.dungeonDifficulty = difficulty
       return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
     }
 
+    const prevDungeonId = next.dungeonId?.trim() || null
     const prevKey = next.fightKey
     const newKey = difficulty ? bossAlertsFightKey(dungeonId, difficulty) : null
     const newPull =
@@ -223,15 +257,24 @@ export function ingestHudBossAlertsEvent(
       next.dungeonRunActive = true
       dungeonReset = true
       resetBossPull(next)
+      clearBossAlertsFight(next)
       if (newKey) {
         next.fightKey = newKey
-        next.fight = null
+        next.fightLoading = true
+        requestFightLoad = { dungeonId, difficulty }
+      }
+    } else if (prevDungeonId && prevDungeonId !== dungeonId) {
+      dungeonReset = true
+      resetBossPull(next)
+      clearBossAlertsFight(next)
+      if (newKey) {
+        next.fightKey = newKey
         next.fightLoading = true
         requestFightLoad = { dungeonId, difficulty }
       }
     } else if (newKey && prevKey !== newKey && difficulty) {
+      clearBossAlertsFight(next)
       next.fightKey = newKey
-      next.fight = null
       next.fightLoading = true
       requestFightLoad = { dungeonId, difficulty }
     } else if (newKey && difficulty && !next.fight && !requestFightLoad) {
@@ -260,6 +303,10 @@ export function ingestHudBossAlertsEvent(
     return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
   }
 
+  if (!isBossAlertPullActive(next)) {
+    return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
+  }
+
   const combatTypes = new Set(['skill_use', 'party_skill', 'hit_taken', 'enemy_skill'])
   if (!combatTypes.has(t)) {
     return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
@@ -271,7 +318,13 @@ export function ingestHudBossAlertsEvent(
       dungeonId: next.dungeonId,
       dungeonBossTargets: next.dungeonBossTargets,
     }
-    if (combatHitStartsMeterTimer(sessionLike, ev) && next.bossEngagedAtMs == null) {
+    if (
+      combatHitStartsMeterTimer(sessionLike, ev) &&
+      next.bossEngagedAtMs == null &&
+      !next.fightLoading &&
+      next.fight != null &&
+      next.fightKey != null
+    ) {
       const engagedAtMs = eventStreamTimeMs(ev)
       next.bossEngagedAtMs = engagedAtMs
       const diff = next.dungeonDifficulty?.trim()
