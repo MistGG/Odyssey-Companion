@@ -208,8 +208,8 @@ function partyLabelTamers(session: MeterStreamSession, label: string): Set<strin
   for (const snap of session.rosterMembers.values()) {
     const t = snap.tamerName.trim()
     if (!t) continue
-    if (normKey(snap.digimonNickname) === key) tamers.add(normKey(t))
-    if (snap.digimonName.trim() && normKey(snap.digimonName) === key) tamers.add(normKey(t))
+    if (normKey(snap.digimonNickname) === key) tamers.add(t)
+    if (snap.digimonName.trim() && normKey(snap.digimonName) === key) tamers.add(t)
   }
   const selfTamer = session.selfTamerName?.trim()
   if (selfTamer) {
@@ -220,8 +220,8 @@ function partyLabelTamers(session: MeterStreamSession, label: string): Set<strin
     if (!inRoster) {
       const nick = session.selfDigimonNickname?.trim()
       const official = session.selfDigimonName?.trim()
-      if (nick && normKey(nick) === key) tamers.add(tKey)
-      if (official && normKey(official) === key) tamers.add(tKey)
+      if (nick && normKey(nick) === key) tamers.add(selfTamer)
+      if (official && normKey(official) === key) tamers.add(selfTamer)
     }
   }
   return tamers
@@ -302,6 +302,18 @@ function keepTamerOnlyAliases(session: MeterStreamSession) {
 }
 
 function rebuildPartyDigimonIdAliases(session: MeterStreamSession) {
+  for (const [alias] of [...session.rosterByAlias]) {
+    for (const snap of session.rosterMembers.values()) {
+      const id = snap.digimonId.trim()
+      if (id && normKey(id) === alias) {
+        session.rosterByAlias.delete(alias)
+        break
+      }
+    }
+    const selfId = session.selfDigimonId?.trim()
+    if (selfId && normKey(selfId) === alias) session.rosterByAlias.delete(alias)
+  }
+
   const idCounts = new Map<string, number>()
   for (const snap of session.rosterMembers.values()) {
     const id = snap.digimonId.trim()
