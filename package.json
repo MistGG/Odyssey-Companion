@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.95",
+  "version": "0.1.96",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Treat Raidwide and Random AoE mechanics as 4-target in timeline and boss alerts (wiki lists them as single-target)"
+      "releaseNotes": "- Treat Stack Damage mechanics as 4-target in timeline and boss alerts (with Raidwide and Random AoE)"
     }
   }
 }

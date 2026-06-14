@@ -12,7 +12,7 @@ const EFFECT_TYPE_LABELS: Record<string, string> = {
 type SkillEffectFields = Pick<MonsterSkill, 'effect_type' | 'target_count' | 'effect_max'>
 
 /** Wiki lists these as single-target but they hit the full party (4). */
-const SINGLE_TARGET_AS_MULTI_EFFECT_TYPES = new Set(['Raidwide', 'Random AoE'])
+const SINGLE_TARGET_AS_MULTI_EFFECT_TYPES = new Set(['Raidwide', 'Random AoE', 'Stack Damage'])
 
 export const PARTY_WIDE_TARGET_COUNT = 4
 

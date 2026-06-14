@@ -103,7 +103,7 @@ async function fetchMonsterDetailLive(safe: string): Promise<MonsterDetail> {
 export async function fetchMonsterDetail(id: string): Promise<MonsterDetail> {
   const safe = id.trim()
   if (!safe) throw new Error('Missing monster id')
-  const key = `monster:v4:${safe}`
+  const key = `monster:v5:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchMonsterDetailLive(safe))
   return value
 }
