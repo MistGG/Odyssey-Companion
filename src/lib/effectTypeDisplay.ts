@@ -11,6 +11,19 @@ const EFFECT_TYPE_LABELS: Record<string, string> = {
 
 type SkillEffectFields = Pick<MonsterSkill, 'effect_type' | 'target_count' | 'effect_max'>
 
+/** Wiki lists these as single-target but they hit the full party (4). */
+const SINGLE_TARGET_AS_MULTI_EFFECT_TYPES = new Set(['Raidwide', 'Random AoE'])
+
+export const PARTY_WIDE_TARGET_COUNT = 4
+
+/** Correct wiki target_count for timeline + boss alerts. */
+export function normalizeSkillTargetCount(effectType: string, targetCount: number): number {
+  if (targetCount === 1 && SINGLE_TARGET_AS_MULTI_EFFECT_TYPES.has(effectType.trim())) {
+    return PARTY_WIDE_TARGET_COUNT
+  }
+  return targetCount
+}
+
 /** All monster skills on a fight — shared context for Tank Buster detection. */
 export function fightSkillsForLabeling(
   fight: Pick<TimelineFightPayload, 'monsterSkills'>,

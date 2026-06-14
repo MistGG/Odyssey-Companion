@@ -1,5 +1,5 @@
-/** Monster timeline — matches `GET …/api/wiki/monsters?id={id}` (`skills` → timeline rows). */
 import type { MonsterDetail, MonsterDrop, MonsterLocation, MonsterSkill } from '../types'
+import { normalizeSkillTargetCount } from './effectTypeDisplay'
 import { fetchWithWikiCache } from './wikiCache'
 import { parseWikiRaidRankings } from './wikiRaidRankingsParse'
 
@@ -47,14 +47,15 @@ function parseMonsterDetail(raw: unknown): MonsterDetail {
       if (!s || typeof s !== 'object') continue
       const x = s as Record<string, unknown>
       const maxUses = x.max_uses
+      const effectType = String(x.effect_type ?? '')
       skills.push({
         skill_id: Number(x.skill_id ?? 0),
         cool_time: Number(x.cool_time ?? 0),
         cast_time: Number(x.cast_time ?? 0),
-        effect_type: String(x.effect_type ?? ''),
+        effect_type: effectType,
         effect_min: Number(x.effect_min ?? 0),
         effect_max: Number(x.effect_max ?? 0),
-        target_count: Number(x.target_count ?? 0),
+        target_count: normalizeSkillTargetCount(effectType, Number(x.target_count ?? 0)),
         condition: String(x.condition ?? ''),
         condition_val: Number(x.condition_val ?? 0),
         ...(typeof maxUses === 'number' ? { max_uses: maxUses } : {}),
@@ -102,7 +103,7 @@ async function fetchMonsterDetailLive(safe: string): Promise<MonsterDetail> {
 export async function fetchMonsterDetail(id: string): Promise<MonsterDetail> {
   const safe = id.trim()
   if (!safe) throw new Error('Missing monster id')
-  const key = `monster:v3:${safe}`
+  const key = `monster:v4:${safe}`
   const { value } = await fetchWithWikiCache(key, () => fetchMonsterDetailLive(safe))
   return value
 }
