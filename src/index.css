@@ -5902,6 +5902,13 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   color: rgba(230, 242, 255, 0.92);
 }
 
+.hud-widget-add-menu__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .hud-widget-add-menu__action {
   display: inline-flex;
   align-items: center;

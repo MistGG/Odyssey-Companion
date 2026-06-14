@@ -2,10 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import type { BuffTrackerSavedBuff, BuffTrackerWidgetConfig } from '../../types'
 import {
+  addAllowedBuff,
   addBlacklistedBuff,
   addShownIconlessBuff,
   buffHasDisplayIcon,
   DEFAULT_BUFF_TRACKER_WIDGET_CONFIG,
+  isBuffOnAllowList,
+  removeAllowedBuff,
   removeBlacklistedBuff,
   removeShownIconlessBuff,
 } from '../../lib/hudBuffTrackerWidget'
@@ -36,6 +39,7 @@ type Props = {
   history: HudBuffHistoryEntry[]
   onChange: (patch: BuffTrackerWidgetConfig) => void
   onClose: () => void
+  onRemoveWidget?: () => void
 }
 
 function BuffSettingsRow({
@@ -87,11 +91,15 @@ export default function BuffTrackerWidgetSettingsMenu({
   history,
   onChange,
   onClose,
+  onRemoveWidget,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
 
   const recentBuffs = useMemo(() => {
+    if (config.displayMode === 'whitelist') {
+      return history.filter((h) => !isBuffOnAllowList(h.buffId, h.buffName, config))
+    }
     return history.filter(
       (h) =>
         !config.blacklistedBuffs.some(
@@ -100,7 +108,22 @@ export default function BuffTrackerWidgetSettingsMenu({
             b.buffName.trim().toLowerCase() === h.buffName.trim().toLowerCase(),
         ),
     )
-  }, [history, config.blacklistedBuffs])
+  }, [history, config])
+
+  const allowedDisplay = useMemo(() => {
+    return config.allowedBuffs.map((entry) => {
+      const fromHistory = history.find(
+        (h) =>
+          (entry.buffId && h.buffId === entry.buffId) ||
+          h.buffName.trim().toLowerCase() === entry.buffName.trim().toLowerCase(),
+      )
+      return {
+        buffId: entry.buffId,
+        buffName: entry.buffName,
+        skillIcon: entry.skillIcon ?? fromHistory?.skillIcon ?? null,
+      }
+    })
+  }, [config.allowedBuffs, history])
 
   const blacklistDisplay = useMemo(() => {
     return config.blacklistedBuffs.map((entry) => {
@@ -125,7 +148,7 @@ export default function BuffTrackerWidgetSettingsMenu({
     }
     const { width, height } = el.getBoundingClientRect()
     setPosition(clampMenuToViewport(x, y, width, height))
-  }, [x, y, config, history.length, recentBuffs.length, blacklistDisplay.length])
+  }, [x, y, config, history.length, recentBuffs.length, blacklistDisplay.length, allowedDisplay.length])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -183,6 +206,26 @@ export default function BuffTrackerWidgetSettingsMenu({
     [config.blacklistedBuffs, config.shownIconlessBuffs, patch],
   )
 
+  const addToAllowList = useCallback(
+    (entry: HudBuffHistoryEntry) => {
+      patch({
+        allowedBuffs: addAllowedBuff(config.allowedBuffs, {
+          buffId: entry.buffId,
+          buffName: entry.buffName,
+          skillIcon: entry.skillIcon,
+        }),
+      })
+    },
+    [config.allowedBuffs, patch],
+  )
+
+  const removeFromAllowList = useCallback(
+    (entry: BuffTrackerSavedBuff) => {
+      patch({ allowedBuffs: removeAllowedBuff(config.allowedBuffs, entry) })
+    },
+    [config.allowedBuffs, patch],
+  )
+
   const menu = (
     <div
       ref={panelRef}
@@ -193,6 +236,31 @@ export default function BuffTrackerWidgetSettingsMenu({
       onContextMenu={(e) => e.preventDefault()}
     >
       <header className="hud-widget-settings-menu__title">Buff tracker</header>
+
+      <label className="hud-widget-settings-menu__field">
+        <span className="hud-widget-settings-menu__label">Widget title</span>
+        <input
+          type="text"
+          className="hud-widget-settings-menu__input"
+          placeholder="Buffs"
+          value={config.widgetLabel}
+          onChange={(e) => patch({ widgetLabel: e.target.value })}
+        />
+      </label>
+
+      <label className="hud-widget-settings-menu__field">
+        <span className="hud-widget-settings-menu__label">Display rule</span>
+        <select
+          className="hud-widget-settings-menu__input"
+          value={config.displayMode}
+          onChange={(e) =>
+            patch({ displayMode: e.target.value === 'whitelist' ? 'whitelist' : 'all' })
+          }
+        >
+          <option value="all">All active buffs (hide via blacklist)</option>
+          <option value="whitelist">Allow list only</option>
+        </select>
+      </label>
 
       <label className="hud-widget-settings-menu__field">
         <span className="hud-widget-settings-menu__label">
@@ -302,12 +370,18 @@ export default function BuffTrackerWidgetSettingsMenu({
 
       <div className="hud-buff-tracker-settings__history">
         <span className="hud-widget-settings-menu__label">Recent buffs</span>
-        <span className="hud-widget-settings-menu__hint">Hide moves a buff to the blacklist below</span>
+        <span className="hud-widget-settings-menu__hint">
+          {config.displayMode === 'whitelist'
+            ? 'Add moves a buff to this widget’s allow list'
+            : 'Hide moves a buff to the blacklist below'}
+        </span>
         {recentBuffs.length === 0 ? (
           <p className="hud-buff-tracker-settings__empty">
             {history.length === 0
               ? 'No buffs seen yet this session.'
-              : 'All recent buffs are blacklisted.'}
+              : config.displayMode === 'whitelist'
+                ? 'All recent buffs are on the allow list.'
+                : 'All recent buffs are blacklisted.'}
           </p>
         ) : (
           <ul className="hud-buff-tracker-settings__list">
@@ -315,33 +389,74 @@ export default function BuffTrackerWidgetSettingsMenu({
               <BuffSettingsRow
                 key={entry.buffId}
                 entry={entry}
-                actionLabel="Hide"
-                onAction={() => hideFromWidget(entry)}
+                actionLabel={config.displayMode === 'whitelist' ? 'Add' : 'Hide'}
+                onAction={() =>
+                  config.displayMode === 'whitelist'
+                    ? addToAllowList(entry)
+                    : hideFromWidget(entry)
+                }
               />
             ))}
           </ul>
         )}
       </div>
 
-      <div className="hud-buff-tracker-settings__history hud-buff-tracker-settings__blacklist">
-        <span className="hud-widget-settings-menu__label">Blacklist</span>
-        <span className="hud-widget-settings-menu__hint">Saved with your layout — hidden from the widget</span>
-        {blacklistDisplay.length === 0 ? (
-          <p className="hud-buff-tracker-settings__empty">No blacklisted buffs.</p>
-        ) : (
-          <ul className="hud-buff-tracker-settings__list">
-            {blacklistDisplay.map((entry) => (
-              <BuffSettingsRow
-                key={entry.buffId}
-                entry={entry}
-                actionLabel="Show"
-                actionActive
-                onAction={() => showOnWidget(entry)}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
+      {config.displayMode === 'whitelist' ? (
+        <div className="hud-buff-tracker-settings__history hud-buff-tracker-settings__blacklist">
+          <span className="hud-widget-settings-menu__label">Allow list</span>
+          <span className="hud-widget-settings-menu__hint">
+            Only these buffs appear on this widget
+          </span>
+          {allowedDisplay.length === 0 ? (
+            <p className="hud-buff-tracker-settings__empty">No buffs on the allow list yet.</p>
+          ) : (
+            <ul className="hud-buff-tracker-settings__list">
+              {allowedDisplay.map((entry) => (
+                <BuffSettingsRow
+                  key={entry.buffId}
+                  entry={entry}
+                  actionLabel="Remove"
+                  actionActive
+                  onAction={() => removeFromAllowList(entry)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <div className="hud-buff-tracker-settings__history hud-buff-tracker-settings__blacklist">
+          <span className="hud-widget-settings-menu__label">Blacklist</span>
+          <span className="hud-widget-settings-menu__hint">Saved with your layout — hidden from the widget</span>
+          {blacklistDisplay.length === 0 ? (
+            <p className="hud-buff-tracker-settings__empty">No blacklisted buffs.</p>
+          ) : (
+            <ul className="hud-buff-tracker-settings__list">
+              {blacklistDisplay.map((entry) => (
+                <BuffSettingsRow
+                  key={entry.buffId}
+                  entry={entry}
+                  actionLabel="Show"
+                  actionActive
+                  onAction={() => showOnWidget(entry)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {onRemoveWidget ? (
+        <button
+          type="button"
+          className="btn hud-widget-settings-menu__reset hud-widget-settings-menu__remove-widget"
+          onClick={() => {
+            onRemoveWidget()
+            onClose()
+          }}
+        >
+          Remove this widget
+        </button>
+      ) : null}
 
       <button
         type="button"

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.96",
+  "version": "0.1.97",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Treat Stack Damage mechanics as 4-target in timeline and boss alerts (with Raidwide and Random AoE)"
+      "releaseNotes": "- Manually adjusted some boss mechanics to be considered as 4p\n- Buff widget in Digi Aura now supports multiple copies"
     }
   }
 }

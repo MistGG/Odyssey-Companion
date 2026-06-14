@@ -29,6 +29,7 @@ type Props = {
   x: number
   y: number
   presentTypes: Set<HudWidgetType>
+  buffTrackerCount: number
   anchorRef: RefObject<HTMLElement | null>
   onAdd: (type: HudWidgetType) => void
   onRemove: (type: HudWidgetType) => void
@@ -39,6 +40,7 @@ export default function HudWidgetAddMenu({
   x,
   y,
   presentTypes,
+  buffTrackerCount,
   anchorRef,
   onAdd,
   onRemove,
@@ -89,38 +91,53 @@ export default function HudWidgetAddMenu({
       <header className="hud-widget-settings-menu__title">HUD widgets</header>
       <ul className="hud-widget-add-menu__list">
         {HUD_WIDGET_CATALOG.map(({ type, label }) => {
-          const present = presentTypes.has(type)
+          const isBuffTracker = type === 'buff_tracker'
+          const present = isBuffTracker ? buffTrackerCount > 0 : presentTypes.has(type)
+          const rowLabel =
+            isBuffTracker && buffTrackerCount > 0
+              ? `${label} (${buffTrackerCount})`
+              : label
           return (
             <li key={type} className="hud-widget-add-menu__item">
-              <span className="hud-widget-add-menu__label">{label}</span>
-              {present ? (
-                <button
-                  type="button"
-                  className="hud-widget-add-menu__action hud-widget-add-menu__action--remove"
-                  title={`Remove ${label} widget`}
-                  aria-label={`Remove ${label} widget`}
-                  onClick={() => onRemove(type)}
-                >
-                  <svg className="hud-inline-svg" viewBox="0 0 24 24" aria-hidden>
-                    <path
-                      fill="currentColor"
-                      d="M19 13H5v-2h14v2z"
-                    />
-                  </svg>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="hud-widget-add-menu__action hud-widget-add-menu__action--add"
-                  title={`Add ${label} widget`}
-                  aria-label={`Add ${label} widget`}
-                  onClick={() => onAdd(type)}
-                >
-                  <svg className="hud-inline-svg" viewBox="0 0 24 24" aria-hidden>
-                    <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                  </svg>
-                </button>
-              )}
+              <span className="hud-widget-add-menu__label">{rowLabel}</span>
+              <div className="hud-widget-add-menu__actions">
+                {present ? (
+                  <button
+                    type="button"
+                    className="hud-widget-add-menu__action hud-widget-add-menu__action--remove"
+                    title={
+                      isBuffTracker
+                        ? 'Remove one buff tracker widget'
+                        : `Remove ${label} widget`
+                    }
+                    aria-label={
+                      isBuffTracker
+                        ? 'Remove one buff tracker widget'
+                        : `Remove ${label} widget`
+                    }
+                    onClick={() => onRemove(type)}
+                  >
+                    <svg className="hud-inline-svg" viewBox="0 0 24 24" aria-hidden>
+                      <path fill="currentColor" d="M19 13H5v-2h14v2z" />
+                    </svg>
+                  </button>
+                ) : null}
+                {isBuffTracker || !present ? (
+                  <button
+                    type="button"
+                    className="hud-widget-add-menu__action hud-widget-add-menu__action--add"
+                    title={isBuffTracker ? 'Add another buff tracker widget' : `Add ${label} widget`}
+                    aria-label={
+                      isBuffTracker ? 'Add another buff tracker widget' : `Add ${label} widget`
+                    }
+                    onClick={() => onAdd(type)}
+                  >
+                    <svg className="hud-inline-svg" viewBox="0 0 24 24" aria-hidden>
+                      <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                  </button>
+                ) : null}
+              </div>
             </li>
           )
         })}

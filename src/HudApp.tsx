@@ -340,6 +340,7 @@ export default function HudApp() {
       const hudWidgets = s.hudWidgets.map((w) => {
         if (w.type !== 'buff_tracker') return w
         const base = w.buffTracker ?? DEFAULT_BUFF_TRACKER_WIDGET_CONFIG
+        if (base.displayMode === 'whitelist') return w
         const next = applyAutoBlacklistIconlessBuffs(base, candidates)
         if (next === base) return w
         changed = true
@@ -441,7 +442,7 @@ export default function HudApp() {
 
   const addHudWidget = useCallback((type: HudWidgetType) => {
     setSettings((s) => {
-      if (s.hudWidgets.some((w) => w.type === type)) return s
+      if (type !== 'buff_tracker' && s.hudWidgets.some((w) => w.type === type)) return s
       let widget: HudWidget
       if (type === 'attack_speed') {
         widget = {
@@ -452,11 +453,12 @@ export default function HudApp() {
           attackSpeed: { ...DEFAULT_ATTACK_SPEED_WIDGET_CONFIG },
         }
       } else if (type === 'buff_tracker') {
+        const buffCount = s.hudWidgets.filter((w) => w.type === 'buff_tracker').length
         widget = {
           id: newWidgetId(),
           type: 'buff_tracker',
           x: 16,
-          y: HUD_WIDGET_DEFAULT_Y + 72,
+          y: HUD_WIDGET_DEFAULT_Y + 72 + buffCount * 80,
           buffTracker: { ...DEFAULT_BUFF_TRACKER_WIDGET_CONFIG },
         }
       } else {
@@ -473,9 +475,24 @@ export default function HudApp() {
   }, [])
 
   const removeHudWidget = useCallback((type: HudWidgetType) => {
+    setSettings((s) => {
+      if (type === 'buff_tracker') {
+        const trackers = s.hudWidgets.filter((w) => w.type === 'buff_tracker')
+        if (trackers.length === 0) return s
+        const removeId = trackers[trackers.length - 1]!.id
+        return { ...s, hudWidgets: s.hudWidgets.filter((w) => w.id !== removeId) }
+      }
+      return {
+        ...s,
+        hudWidgets: s.hudWidgets.filter((w) => w.type !== type),
+      }
+    })
+  }, [])
+
+  const removeHudWidgetById = useCallback((widgetId: string) => {
     setSettings((s) => ({
       ...s,
-      hudWidgets: s.hudWidgets.filter((w) => w.type !== type),
+      hudWidgets: s.hudWidgets.filter((w) => w.id !== widgetId),
     }))
   }, [])
 
@@ -659,6 +676,10 @@ export default function HudApp() {
   const { shellModifiers } = useOverlayPerformanceShell(settings)
   const hudWidgetPresentTypes = useMemo(
     () => new Set(settings.hudWidgets.map((w) => w.type)),
+    [settings.hudWidgets],
+  )
+  const buffTrackerWidgetCount = useMemo(
+    () => settings.hudWidgets.filter((w) => w.type === 'buff_tracker').length,
     [settings.hudWidgets],
   )
 
@@ -868,6 +889,7 @@ export default function HudApp() {
           x={widgetAddMenu.x}
           y={widgetAddMenu.y}
           presentTypes={hudWidgetPresentTypes}
+          buffTrackerCount={buffTrackerWidgetCount}
           anchorRef={addBtnRef}
           onAdd={addHudWidget}
           onRemove={removeHudWidget}
@@ -907,6 +929,9 @@ export default function HudApp() {
             updateBuffTrackerWidgetConfig(buffTrackerSettingsMenu.widgetId, cfg)
           }
           onClose={closeBuffTrackerSettingsMenu}
+          onRemoveWidget={() =>
+            removeHudWidgetById(buffTrackerSettingsMenu.widgetId)
+          }
         />
       ) : null}
       {bossAlertsSettingsMenu && editMode ? (

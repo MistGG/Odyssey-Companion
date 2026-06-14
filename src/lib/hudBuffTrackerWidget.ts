@@ -1,4 +1,4 @@
-import type { BuffTrackerSavedBuff, BuffTrackerWidgetConfig } from '../types'
+import type { BuffTrackerDisplayMode, BuffTrackerSavedBuff, BuffTrackerWidgetConfig } from '../types'
 import { gameSkillIconUrl } from './meterSkillIcon'
 import {
   clampHudWidgetBackgroundOpacity,
@@ -8,6 +8,9 @@ import {
 export const BLACKLISTED_BUFFS_MAX = 64
 
 export const DEFAULT_BUFF_TRACKER_WIDGET_CONFIG: BuffTrackerWidgetConfig = {
+  displayMode: 'all',
+  allowedBuffs: [],
+  widgetLabel: '',
   blacklistedBuffs: [],
   shownIconlessBuffs: [],
   hideBuffsLabel: false,
@@ -200,6 +203,9 @@ export function normalizeBuffTrackerWidgetConfig(
   const legacyNames = normalizeStringList(o.blacklistedBuffNames)
   const blacklistedBuffs = normalizeBlacklistedBuffs(o.blacklistedBuffs, legacyIds, legacyNames)
   const shownIconlessBuffs = normalizeBlacklistedBuffs(o.shownIconlessBuffs, [], [])
+  const allowedBuffs = normalizeBlacklistedBuffs(o.allowedBuffs, [], [])
+  const displayMode = normalizeDisplayMode(o.displayMode)
+  const widgetLabel = normalizeWidgetLabel(o.widgetLabel)
 
   const hideBuffsLabel =
     typeof o.hideBuffsLabel === 'boolean' ? o.hideBuffsLabel : base.hideBuffsLabel
@@ -235,6 +241,9 @@ export function normalizeBuffTrackerWidgetConfig(
   const widgetScale = clampWidgetScale(o.widgetScale, base.widgetScale)
 
   return {
+    displayMode,
+    allowedBuffs,
+    widgetLabel,
     blacklistedBuffs,
     shownIconlessBuffs,
     hideBuffsLabel,
@@ -268,4 +277,53 @@ export function isBuffBlacklisted(
 ): boolean {
   const probe = { buffId: buffId.trim(), buffName: buffName.trim() }
   return config.blacklistedBuffs.some((e) => blacklistEntryMatches(e, probe))
+}
+
+export function isBuffOnAllowList(
+  buffId: string,
+  buffName: string,
+  config: BuffTrackerWidgetConfig,
+): boolean {
+  const probe = { buffId: buffId.trim(), buffName: buffName.trim() }
+  return config.allowedBuffs.some((e) => blacklistEntryMatches(e, probe))
+}
+
+/** Whether an active buff row should render on this widget. */
+export function shouldShowBuffInWidget(
+  buffId: string,
+  buffName: string,
+  config: BuffTrackerWidgetConfig,
+): boolean {
+  if (config.displayMode === 'whitelist') {
+    return isBuffOnAllowList(buffId, buffName, config)
+  }
+  return !isBuffBlacklisted(buffId, buffName, config)
+}
+
+export function addAllowedBuff(
+  list: BuffTrackerSavedBuff[],
+  entry: BuffTrackerSavedBuff,
+): BuffTrackerSavedBuff[] {
+  const next = list.filter((e) => !blacklistEntryMatches(e, entry))
+  next.push({
+    buffId: entry.buffId.trim(),
+    buffName: entry.buffName.trim() || entry.buffId.trim(),
+    skillIcon: entry.skillIcon,
+  })
+  return next.slice(-BLACKLISTED_BUFFS_MAX)
+}
+
+export function removeAllowedBuff(
+  list: BuffTrackerSavedBuff[],
+  entry: { buffId: string; buffName: string },
+): BuffTrackerSavedBuff[] {
+  return list.filter((e) => !blacklistEntryMatches(e, entry))
+}
+
+function normalizeDisplayMode(raw: unknown): BuffTrackerDisplayMode {
+  return raw === 'whitelist' ? 'whitelist' : 'all'
+}
+
+function normalizeWidgetLabel(raw: unknown): string {
+  return typeof raw === 'string' ? raw.trim().slice(0, 48) : ''
 }

@@ -171,7 +171,15 @@ export type BuffTrackerSavedBuff = {
 }
 
 /** Per-widget options for the buff tracker HUD element. */
+export type BuffTrackerDisplayMode = 'all' | 'whitelist'
+
 export type BuffTrackerWidgetConfig = {
+  /** Show every active buff except blacklisted, or only buffs on the allow list. */
+  displayMode: BuffTrackerDisplayMode
+  /** When `displayMode` is `whitelist`, only these buffs are shown. */
+  allowedBuffs: BuffTrackerSavedBuff[]
+  /** Custom widget title; empty uses “Buffs”. */
+  widgetLabel: string
   /** Buffs hidden from the widget; persisted across sessions. */
   blacklistedBuffs: BuffTrackerSavedBuff[]
   /** Iconless buffs the user explicitly restored to the widget (opt-out of auto-blacklist). */

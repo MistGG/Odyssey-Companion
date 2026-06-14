@@ -11,7 +11,7 @@ import {
 import {
   DEFAULT_BUFF_TRACKER_WIDGET_CONFIG,
   buffHasDisplayIcon,
-  isBuffBlacklisted,
+  shouldShowBuffInWidget,
 } from '../../lib/hudBuffTrackerWidget'
 import { gameSkillIconUrl } from '../../lib/meterSkillIcon'
 
@@ -138,10 +138,12 @@ const BuffTrackerWidget = forwardRef<HTMLDivElement, Props>(function BuffTracker
   }, [])
 
   const activeBuffs = useMemo(() => {
-    return getActiveBuffsList(buffState, nowSec).filter(
-      (b) => !isBuffBlacklisted(b.buffId, b.buffName, config),
+    return getActiveBuffsList(buffState, nowSec).filter((b) =>
+      shouldShowBuffInWidget(b.buffId, b.buffName, config),
     )
   }, [buffState, config, nowSec])
+
+  const widgetLabel = config.widgetLabel.trim() || 'Buffs'
 
   const style = useMemo(
     () =>
@@ -183,7 +185,7 @@ const BuffTrackerWidget = forwardRef<HTMLDivElement, Props>(function BuffTracker
         onOpenSettings(e.clientX, e.clientY)
       }}
     >
-      {!config.hideBuffsLabel ? <span className="hud-widget__label">Buffs</span> : null}
+      {!config.hideBuffsLabel ? <span className="hud-widget__label">{widgetLabel}</span> : null}
       {empty ? (
         config.hideEmptyMessage ? null : (
           <span className="hud-buff-tracker__empty">No active buffs</span>
