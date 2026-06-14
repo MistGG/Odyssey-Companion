@@ -296,25 +296,89 @@ function clampSkill(s: SkillBreakdownForParse): SkillBreakdownForParse {
   }
 }
 
-async function notifyLeaderboardProcessor(
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+type LeaderboardProcessorResponse = {
+  ok?: boolean
+  error?: string
+  inserted?: number
+  skipped?: string | null
+}
+
+async function invokeLeaderboardProcessorOnce(
   supabaseUrl: string,
-  anonKey: string,
+  bearerToken: string,
   parseId: string,
-): Promise<void> {
+): Promise<{ ok: true; inserted?: number; skipped?: string | null } | { ok: false; error: string }> {
   const base = supabaseUrl.replace(/\/$/, '')
   try {
-    await fetch(`${base}/functions/v1/process-meter-leaderboard`, {
+    const res = await fetch(`${base}/functions/v1/process-meter-leaderboard`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${anonKey}`,
+        Authorization: `Bearer ${bearerToken}`,
         'x-odyssey-client': 'odyssey-companion',
       },
       body: JSON.stringify({ parse_id: parseId }),
     })
-  } catch {
-    /* best effort; edge function also backfills via webhook if configured */
+    let body: LeaderboardProcessorResponse | null = null
+    try {
+      body = (await res.json()) as LeaderboardProcessorResponse
+    } catch {
+      body = null
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: body?.error?.trim() || `HTTP ${res.status}`,
+      }
+    }
+    if (body?.ok === false) {
+      return { ok: false, error: body.error?.trim() || 'Leaderboard processor rejected the parse.' }
+    }
+    return { ok: true, inserted: body?.inserted, skipped: body?.skipped ?? null }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
+}
+
+/** Retry ranked ingest after upload — cold starts / transient 5xx were leaving parses off the leaderboard. */
+async function scheduleLeaderboardProcessor(
+  client: SupabaseClient,
+  supabaseUrl: string,
+  anonKey: string,
+  parseId: string,
+): Promise<void> {
+  const session = (await client.auth.getSession()).data.session
+  const bearerToken = session?.access_token?.trim() || anonKey
+  const retryDelaysMs = [0, 1500, 4000, 10_000]
+
+  for (let attempt = 0; attempt < retryDelaysMs.length; attempt += 1) {
+    const delayMs = retryDelaysMs[attempt] ?? 0
+    if (delayMs > 0) await sleep(delayMs)
+
+    const result = await invokeLeaderboardProcessorOnce(supabaseUrl, bearerToken, parseId)
+    if (result.ok) return
+
+    console.warn(
+      `[meter upload] leaderboard processor attempt ${attempt + 1}/${retryDelaysMs.length} failed for ${parseId}: ${result.error}`,
+    )
+  }
+
+  console.error(`[meter upload] leaderboard processor gave up for parse ${parseId}`)
+}
+
+async function maybeScheduleLeaderboardProcessor(
+  client: SupabaseClient,
+  supabaseUrl: string,
+  anonKey: string,
+  parseId: string,
+  leaderboardEligible: boolean,
+): Promise<void> {
+  if (!leaderboardEligible) return
+  void scheduleLeaderboardProcessor(client, supabaseUrl, anonKey, parseId)
 }
 
 export async function insertMeterParse(
@@ -405,6 +469,15 @@ export async function insertMeterParse(
     const existingParseId =
       !dupError && typeof duplicateId === 'string' && duplicateId.trim() ? duplicateId.trim() : null
     if (existingParseId) {
+      if (cachedClient?.url && cachedClient?.key) {
+        void maybeScheduleLeaderboardProcessor(
+          client,
+          cachedClient.url,
+          cachedClient.key,
+          existingParseId,
+          dungeon.leaderboardEligible,
+        )
+      }
       return { error: null, parseId: existingParseId, deduped: true }
     }
 
@@ -425,7 +498,13 @@ export async function insertMeterParse(
     if (error) return { error: error.message }
     const parseId = (data as { id?: string } | null)?.id
     if (parseId && cachedClient?.url && cachedClient?.key) {
-      void notifyLeaderboardProcessor(cachedClient.url, cachedClient.key, parseId)
+      void maybeScheduleLeaderboardProcessor(
+        client,
+        cachedClient.url,
+        cachedClient.key,
+        parseId,
+        dungeon.leaderboardEligible,
+      )
     }
     return { error: null, parseId }
   }
