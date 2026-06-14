@@ -41,6 +41,7 @@ import HudWidgetAddMenu from './components/hud/HudWidgetAddMenu'
 import { loadSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { persistOverlaySettings } from './lib/persistOverlaySettings'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import {
   parseAttackSpeedFromQueryResult,
   parseDigimonAttackSpeed,
@@ -655,6 +656,7 @@ export default function HudApp() {
   )
 
   const ghostChrome = settings.hudBackdropOpacity < 0.04
+  const { shellModifiers } = useOverlayPerformanceShell(settings)
   const hudWidgetPresentTypes = useMemo(
     () => new Set(settings.hudWidgets.map((w) => w.type)),
     [settings.hudWidgets],
@@ -665,6 +667,7 @@ export default function HudApp() {
     'shell--hud',
     layoutLocked ? 'hud-layout-locked' : 'hud-layout-unlocked',
     ghostChrome && editMode ? 'hud-shell--ghost' : '',
+    ...shellModifiers,
   ]
     .filter(Boolean)
     .join(' ')

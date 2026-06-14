@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import BossTimersView from './components/BossTimersView'
 
 export default function TimersApp() {
@@ -137,12 +138,15 @@ export default function TimersApp() {
 
   const ghostChrome = settings.timersBackdropOpacity < 0.04
 
+  const { shellModifiers } = useOverlayPerformanceShell(settings)
+
   const shellCls = [
     'shell',
     'shell--timers',
     ghostChrome ? 'timers-shell--ghost' : '',
     positionLocked ? 'timers-position-locked' : 'timers-position-unlocked',
     timersLootExpanded ? 'shell--timers-loot-expanded' : '',
+    ...shellModifiers,
   ]
     .filter(Boolean)
     .join(' ')

@@ -666,6 +666,42 @@ export default function SettingsApp() {
               Leave off so hotkeys work while the game is focused. Turn on if you need the same keys for typing in
               other apps when a Companion window is not active.
             </p>
+
+            <h3 className="settings-app-subhead">Performance</h3>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={settings.overlayPerformanceMode}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    overlayPerformanceMode: e.target.checked,
+                  }))
+                }
+              />
+              Performance mode
+            </label>
+            <p className="hint muted" style={{ marginTop: 6 }}>
+              Disables panel blur, pauses overlay animations while the game is focused, and throttles unfocused overlay
+              windows.
+            </p>
+            <label className="check" style={{ marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={settings.overlayOpaqueWindows}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    overlayOpaqueWindows: e.target.checked,
+                  }))
+                }
+              />
+              Opaque overlay windows
+            </label>
+            <p className="hint muted" style={{ marginTop: 6 }}>
+              Uses solid window backgrounds instead of transparent OS compositing. Overlays briefly reload when toggled.
+              Can help on GPUs where transparent overlays stutter.
+            </p>
           </section>
 
           <section id={sectionScrollId('timeline')} className="settings-app-section">

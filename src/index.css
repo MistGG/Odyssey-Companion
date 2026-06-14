@@ -65,6 +65,17 @@ body.body--hud #root {
   background: transparent;
 }
 
+body.body--opaque-windows.body--timeline,
+body.body--opaque-windows.body--timeline #root,
+body.body--opaque-windows.body--meter,
+body.body--opaque-windows.body--meter #root,
+body.body--opaque-windows.body--timers,
+body.body--opaque-windows.body--timers #root,
+body.body--opaque-windows.body--hud,
+body.body--opaque-windows.body--hud #root {
+  background: #070a12;
+}
+
 body.body--settings {
   background: #0a0e16;
 }
@@ -11148,4 +11159,26 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   display: block;
   margin-top: 6px;
   font-size: 11px;
+}
+
+/* Overlay performance mode — disable expensive backdrop blur on game overlays. */
+.shell--performance .timeline-backdrop,
+.shell--performance .meter-backdrop,
+.shell--performance .timers-backdrop,
+.shell--performance .hud-backdrop,
+.shell--performance .hud-backdrop--stage,
+.shell--performance .hud-widget::before,
+.shell--performance .hud-widget-settings-menu {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Pause decorative CSS animations while the game has focus (performance mode only). */
+.shell--performance.shell--game-focused,
+.shell--performance.shell--game-focused * {
+  animation-play-state: paused !important;
+}
+
+.shell--opaque-windows {
+  background: #070a12;
 }

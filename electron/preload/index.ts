@@ -303,6 +303,19 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
     return () => ipcRenderer.removeListener('settings:patch', wrapped)
   },
 
+  getOverlayGameFocused: () =>
+    ipcRenderer.invoke('overlay:get-game-focused') as Promise<{ gameFocused: boolean }>,
+
+  onOverlayGameFocused: (handler: (payload: { gameFocused: boolean }) => void) => {
+    const wrapped = (_evt: unknown, payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return
+      const gameFocused = Boolean((payload as { gameFocused?: boolean }).gameFocused)
+      handler({ gameFocused })
+    }
+    ipcRenderer.on('overlay:game-focused', wrapped)
+    return () => ipcRenderer.removeListener('overlay:game-focused', wrapped)
+  },
+
   onHomeRefresh: (handler: () => void) => {
     const wrapped = () => handler()
     ipcRenderer.on('home:refresh', wrapped)

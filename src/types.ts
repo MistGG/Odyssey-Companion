@@ -332,6 +332,16 @@ export type OverlaySettings = {
   hudLayoutLocked: boolean
   /** Placed HUD widgets (positions persisted while editing layout). */
   hudWidgets: HudWidget[]
+  /**
+   * When true: disable backdrop blur, pause overlay CSS animations while the game
+   * has focus, and throttle unfocused overlay renderers for lower GPU use.
+   */
+  overlayPerformanceMode: boolean
+  /**
+   * When true: meter/timeline/hud/timers windows use opaque Electron surfaces
+   * (`#070a12`) instead of OS alpha compositing.
+   */
+  overlayOpaqueWindows: boolean
 }
 
 export const DEFAULT_SETTINGS: OverlaySettings = {
@@ -371,6 +381,8 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   hudAlwaysOnTop: true,
   hudLayoutLocked: false,
   hudWidgets: [],
+  overlayPerformanceMode: false,
+  overlayOpaqueWindows: false,
 }
 
 /** Sent to the timeline window when a difficulty is chosen. */

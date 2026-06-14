@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
 import { buildMeterDungeonPartyParse } from './lib/buildMeterDungeonPartyParse'
@@ -1242,6 +1243,8 @@ export default function MeterApp() {
 
   const ghostChrome = settings.meterBackdropOpacity < 0.04
 
+  const { shellModifiers } = useOverlayPerformanceShell(settings)
+
   const showUploadSignInBanner = Boolean(supabase) && !sbUser
 
   const shellCls = [
@@ -1249,6 +1252,7 @@ export default function MeterApp() {
     'shell--meter',
     ghostChrome ? 'meter-shell--ghost' : '',
     positionLocked ? 'meter-position-locked' : 'meter-position-unlocked',
+    ...shellModifiers,
   ]
     .filter(Boolean)
     .join(' ')

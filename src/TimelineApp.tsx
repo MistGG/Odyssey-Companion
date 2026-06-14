@@ -13,6 +13,7 @@ import { useStopwatch } from './lib/useStopwatch'
 import { SkillTimelineList } from './components/SkillTimelineList'
 import { TimelineRunQueue } from './components/TimelineRunQueue'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import { normalizeFightPayloadDetailed } from './lib/fightPayload'
 import { fightSkillsForLabeling } from './lib/effectTypeDisplay'
 import { flattenFightSkills } from './lib/timelineSchedule'
@@ -208,10 +209,13 @@ export default function TimelineApp() {
   /** Near-zero backdrop: fully transparent shell so the game shows through (including behind each entry). */
   const ghostChrome = settings.timelineBackdropOpacity < 0.04
 
+  const { shellModifiers } = useOverlayPerformanceShell(settings)
+
   const shellCls = [
     'shell',
     'shell--timeline',
     positionLocked ? 'timeline-position-locked' : 'timeline-position-unlocked',
+    ...shellModifiers,
   ].join(' ')
 
   const flatSkills = useMemo(

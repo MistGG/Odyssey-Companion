@@ -130,11 +130,190 @@ const BASE_WEB_PREFERENCES = {
   sandbox: false,
 } as const
 
-/** Overlays sit above the game — don't throttle animations when unfocused/occluded. */
+/** Solid background for opaque overlay windows (matches app shell CSS). */
+const OVERLAY_WINDOW_BG_OPAQUE = '#070a12'
+
+/** Overlays sit above the game — runtime throttling policy applied per-window. */
 const OVERLAY_WEB_PREFERENCES = {
   ...BASE_WEB_PREFERENCES,
   backgroundThrottling: false,
 } as const
+
+function overlayWindowChromeOptions(): Pick<
+  Electron.BrowserWindowConstructorOptions,
+  'transparent' | 'backgroundColor'
+> {
+  if (lastOverlaySettings?.overlayOpaqueWindows === true) {
+    return { transparent: false, backgroundColor: OVERLAY_WINDOW_BG_OPAQUE }
+  }
+  return { transparent: true, backgroundColor: '#00000000' }
+}
+
+function overlayRendererWindows(): BrowserWindow[] {
+  return [timelineWin, meterWin, timersWin, hudWin].filter(
+    (w): w is BrowserWindow => !!(w && !w.isDestroyed()),
+  )
+}
+
+function companionGameFocused(): boolean {
+  const w = BrowserWindow.getFocusedWindow()
+  if (!w || w.isDestroyed()) return true
+  const id = w.id
+  if (timelineWin && !timelineWin.isDestroyed() && timelineWin.id === id) return false
+  if (meterWin && !meterWin.isDestroyed() && meterWin.id === id) return false
+  if (timersWin && !timersWin.isDestroyed() && timersWin.id === id) return false
+  if (hudWin && !hudWin.isDestroyed() && hudWin.id === id) return false
+  return true
+}
+
+let lastBroadcastGameFocused: boolean | null = null
+
+function sendOverlayGameFocusTo(contents: WebContents) {
+  if (contents.isDestroyed()) return
+  contents.send('overlay:game-focused', { gameFocused: companionGameFocused() })
+}
+
+function broadcastGameFocusState(force = false) {
+  const gameFocused = companionGameFocused()
+  if (!force && lastBroadcastGameFocused === gameFocused) return
+  lastBroadcastGameFocused = gameFocused
+  const payload = { gameFocused }
+  for (const w of overlayRendererWindows()) {
+    if (!w.webContents.isDestroyed()) {
+      w.webContents.send('overlay:game-focused', payload)
+    }
+  }
+}
+
+function applyOverlayWebContentsPolicy(win: BrowserWindow) {
+  if (win.isDestroyed() || win.webContents.isDestroyed()) return
+  const perfMode = lastOverlaySettings?.overlayPerformanceMode === true
+  if (!perfMode) {
+    win.webContents.setBackgroundThrottling(false)
+    return
+  }
+  const focusedWin = BrowserWindow.getFocusedWindow()
+  const focused =
+    !!focusedWin && !focusedWin.isDestroyed() && focusedWin.id === win.id
+  win.webContents.setBackgroundThrottling(!focused)
+}
+
+function syncAllOverlayBackgroundThrottling() {
+  for (const w of overlayRendererWindows()) {
+    applyOverlayWebContentsPolicy(w)
+  }
+}
+
+function wireOverlayWebContentsLifecycle(win: BrowserWindow) {
+  win.webContents.on('did-finish-load', () => {
+    sendOverlayGameFocusTo(win.webContents)
+    applyOverlayWebContentsPolicy(win)
+  })
+  win.on('focus', () => {
+    applyOverlayWebContentsPolicy(win)
+  })
+  win.on('blur', () => {
+    applyOverlayWebContentsPolicy(win)
+  })
+}
+
+type OverlayWindowSnapshot = {
+  bounds: Rectangle
+  visible: boolean
+  minimized: boolean
+}
+
+function snapshotOverlayWindow(win: BrowserWindow): OverlayWindowSnapshot {
+  return {
+    bounds: win.getBounds(),
+    visible: win.isVisible(),
+    minimized: win.isMinimized(),
+  }
+}
+
+function restoreOverlayWindow(win: BrowserWindow, snap: OverlayWindowSnapshot) {
+  win.setBounds(snap.bounds)
+  if (snap.minimized) {
+    win.minimize()
+    return
+  }
+  if (snap.visible) {
+    win.show()
+    win.setSkipTaskbar(false)
+  } else {
+    win.hide()
+    win.setSkipTaskbar(true)
+  }
+}
+
+function replayTimelineFightIfAny() {
+  if (lastFightPayload == null || !timelineWin || timelineWin.isDestroyed()) return
+  const wc = timelineWin.webContents
+  const replay = () => {
+    if (!wc.isDestroyed()) wc.send('fight:loaded', lastFightPayload)
+  }
+  if (wc.isLoading()) wc.once('did-finish-load', replay)
+  else replay()
+}
+
+function recreateTimelineWindowForOpaqueToggle() {
+  if (!timelineWin || timelineWin.isDestroyed()) return
+  const snap = snapshotOverlayWindow(timelineWin)
+  const top = lastOverlaySettings?.timelineAlwaysOnTop ?? true
+  timelineWin.destroy()
+  timelineWin = null
+  createTimelineWindow()
+  if (!timelineWin) return
+  restoreOverlayWindow(timelineWin, snap)
+  setWinAlwaysOnTop(timelineWin, top)
+  replayTimelineFightIfAny()
+}
+
+function recreateMeterWindowForOpaqueToggle() {
+  if (!meterWin || meterWin.isDestroyed()) return
+  const snap = snapshotOverlayWindow(meterWin)
+  const top = lastOverlaySettings?.meterAlwaysOnTop ?? true
+  meterWin.destroy()
+  meterWin = null
+  createMeterWindow()
+  if (!meterWin) return
+  restoreOverlayWindow(meterWin, snap)
+  setWinAlwaysOnTop(meterWin, top)
+}
+
+function recreateTimersWindowForOpaqueToggle() {
+  if (!timersWin || timersWin.isDestroyed()) return
+  const snap = snapshotOverlayWindow(timersWin)
+  const top = lastOverlaySettings?.timersAlwaysOnTop ?? true
+  const savedLootBounds = timersLootDetailSavedBounds
+  timersWin.destroy()
+  timersWin = null
+  createTimersWindow()
+  timersLootDetailSavedBounds = savedLootBounds
+  if (!timersWin) return
+  restoreOverlayWindow(timersWin, snap)
+  setWinAlwaysOnTop(timersWin, top)
+}
+
+function recreateHudWindowForOpaqueToggle() {
+  if (!hudWin || hudWin.isDestroyed()) return
+  const snap = snapshotOverlayWindow(hudWin)
+  const top = lastOverlaySettings?.hudAlwaysOnTop ?? true
+  hudWin.destroy()
+  hudWin = null
+  createHudWindow()
+  if (!hudWin) return
+  restoreOverlayWindow(hudWin, snap)
+  setWinAlwaysOnTop(hudWin, top)
+}
+
+function recreateOverlayWindowsForOpaqueToggle() {
+  recreateTimelineWindowForOpaqueToggle()
+  recreateMeterWindowForOpaqueToggle()
+  recreateTimersWindowForOpaqueToggle()
+  recreateHudWindowForOpaqueToggle()
+}
+
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 const DUNGEONS_URL =
@@ -547,11 +726,14 @@ function setHotkeysFromRenderer(cfg: HotkeyPayload, whenCompanionFocusedOnly: bo
 }
 
 function scheduleHotkeysFocusRefresh() {
-  if (!storedHotkeys || !hotkeysWhenCompanionFocused) return
   if (hotkeyFocusDebounce != null) clearTimeout(hotkeyFocusDebounce)
   hotkeyFocusDebounce = setTimeout(() => {
     hotkeyFocusDebounce = null
-    applyHotkeysForCurrentPolicy()
+    if (storedHotkeys && hotkeysWhenCompanionFocused) {
+      applyHotkeysForCurrentPolicy()
+    }
+    broadcastGameFocusState()
+    syncAllOverlayBackgroundThrottling()
   }, 40)
 }
 
@@ -823,8 +1005,7 @@ function createTimelineWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    backgroundColor: '#00000000',
-    transparent: true,
+    ...overlayWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -849,6 +1030,7 @@ function createTimelineWindow() {
   wireHideInsteadOfClose(timelineWin)
   attachWindowLayoutTracking(timelineWin)
   wireSettingsStaysAboveOnOverlayFocus(timelineWin)
+  wireOverlayWebContentsLifecycle(timelineWin)
 }
 
 function createMeterWindow() {
@@ -866,8 +1048,7 @@ function createMeterWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    backgroundColor: '#00000000',
-    transparent: true,
+    ...overlayWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -892,6 +1073,7 @@ function createMeterWindow() {
   wireHideInsteadOfClose(meterWin)
   attachWindowLayoutTracking(meterWin)
   wireSettingsStaysAboveOnOverlayFocus(meterWin)
+  wireOverlayWebContentsLifecycle(meterWin)
 }
 
 function createTimersWindow() {
@@ -910,8 +1092,7 @@ function createTimersWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    backgroundColor: '#00000000',
-    transparent: true,
+    ...overlayWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -943,6 +1124,7 @@ function createTimersWindow() {
   })
   attachWindowLayoutTracking(timersWin)
   wireSettingsStaysAboveOnOverlayFocus(timersWin)
+  wireOverlayWebContentsLifecycle(timersWin)
 }
 
 function createHudWindow() {
@@ -961,8 +1143,7 @@ function createHudWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    backgroundColor: '#00000000',
-    transparent: true,
+    ...overlayWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -987,6 +1168,7 @@ function createHudWindow() {
   wireHideInsteadOfClose(hudWin)
   attachWindowLayoutTracking(hudWin)
   wireSettingsStaysAboveOnOverlayFocus(hudWin)
+  wireOverlayWebContentsLifecycle(hudWin)
 }
 
 function showDungeonWindow() {
@@ -2012,7 +2194,13 @@ ipcMain.on('timeline:apply-options', (_e, opts: TimelineOptionsPayload) => {
   setWinAlwaysOnTop(timelineWin, !!opts.alwaysOnTop)
 })
 
+ipcMain.handle('overlay:get-game-focused', () => ({
+  gameFocused: companionGameFocused(),
+}))
+
 ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
+  const prevOpaque = lastOverlaySettings?.overlayOpaqueWindows ?? false
+  const prevPerformance = lastOverlaySettings?.overlayPerformanceMode ?? false
   if (isOverlaySettings(payload)) {
     lastOverlaySettings = payload
     writeOverlaySettingsToDisk(payload)
@@ -2044,6 +2232,15 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   }
   if (payload && typeof payload === 'object' && 'hudLayoutLocked' in payload) {
     refreshTrayMenu()
+  }
+  const nextOpaque = lastOverlaySettings?.overlayOpaqueWindows ?? false
+  const nextPerformance = lastOverlaySettings?.overlayPerformanceMode ?? false
+  if (prevOpaque !== nextOpaque) {
+    recreateOverlayWindowsForOpaqueToggle()
+  }
+  if (prevPerformance !== nextPerformance) {
+    syncAllOverlayBackgroundThrottling()
+    broadcastGameFocusState(true)
   }
   // Never echo `settings:patch` back to the sender — causes an infinite loop in renderers
   // (useEffect → pushSettings → patch → setSettings → useEffect …) and freezes the UI.

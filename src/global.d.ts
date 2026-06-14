@@ -127,6 +127,8 @@ declare global {
         ) => void,
       ) => () => void
       onSettingsPatch: (handler: (patch: unknown) => void) => () => void
+      getOverlayGameFocused?: () => Promise<{ gameFocused: boolean }>
+      onOverlayGameFocused?: (handler: (payload: { gameFocused: boolean }) => void) => () => void
       onHomeRefresh?: (handler: () => void) => () => void
       onFightLoaded: (handler: (payload: unknown) => void) => () => void
       getAppVersion: () => Promise<AppVersionInfo>

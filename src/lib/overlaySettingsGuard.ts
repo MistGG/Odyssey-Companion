@@ -141,6 +141,8 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     o.hudBackdropOpacity > 1 ||
     typeof o.hudAlwaysOnTop !== 'boolean' ||
     typeof o.hudLayoutLocked !== 'boolean' ||
+    typeof o.overlayPerformanceMode !== 'boolean' ||
+    typeof o.overlayOpaqueWindows !== 'boolean' ||
     !isHudWidgets(o.hudWidgets) ||
     !isHotkeyShape(o.hotkeys)
   ) {

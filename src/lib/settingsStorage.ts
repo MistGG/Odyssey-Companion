@@ -264,6 +264,11 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
   const hudWidgets = normalizeHudWidgets(raw.hudWidgets, legacyHudWidgetOpacity)
   const startupPanels = normalizeStartupPanels(raw.startupPanels)
 
+  let overlayPerformanceMode =
+    typeof raw.overlayPerformanceMode === 'boolean' ? raw.overlayPerformanceMode : undefined
+  let overlayOpaqueWindows =
+    typeof raw.overlayOpaqueWindows === 'boolean' ? raw.overlayOpaqueWindows : undefined
+
   return {
     ...DEFAULT_SETTINGS,
     startupPanels,
@@ -353,6 +358,14 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
     hudLayoutLocked:
       typeof hudLocked === 'boolean' ? hudLocked : DEFAULT_SETTINGS.hudLayoutLocked,
     hudWidgets,
+    overlayPerformanceMode:
+      typeof overlayPerformanceMode === 'boolean'
+        ? overlayPerformanceMode
+        : DEFAULT_SETTINGS.overlayPerformanceMode,
+    overlayOpaqueWindows:
+      typeof overlayOpaqueWindows === 'boolean'
+        ? overlayOpaqueWindows
+        : DEFAULT_SETTINGS.overlayOpaqueWindows,
   }
 }
 
