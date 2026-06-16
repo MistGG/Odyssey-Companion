@@ -2,29 +2,41 @@ import { useId } from 'react'
 
 type MeterHallOfFameCountFxProps = {
   className?: string
+  variant?: 'olympus' | 'magia'
 }
 
-/** Outer gold filigree — paths only outside the central plaque. */
-export function MeterHallOfFameCountFx({ className = '' }: MeterHallOfFameCountFxProps) {
+/** Outer filigree — paths only outside the central plaque. */
+export function MeterHallOfFameCountFx({
+  className = '',
+  variant = 'olympus',
+}: MeterHallOfFameCountFxProps) {
   const uid = useId().replace(/:/g, '')
-  const gold = `hof-gold-${uid}`
+  const gradId = variant === 'magia' ? `hof-magia-${uid}` : `hof-gold-${uid}`
 
   return (
     <svg
-      className={`meter-party-hof-count-fx${className ? ` ${className}` : ''}`}
+      className={`meter-party-hof-count-fx${variant === 'magia' ? ' meter-party-hof-count-fx--magia' : ''}${className ? ` ${className}` : ''}`}
       viewBox="0 0 120 36"
       preserveAspectRatio="xMidYMid meet"
       aria-hidden
     >
       <defs>
-        <linearGradient id={gold} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#fff6d0" />
-          <stop offset="40%" stopColor="#e8c872" />
-          <stop offset="100%" stopColor="#9a7209" />
-        </linearGradient>
+        {variant === 'magia' ? (
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#e9d5ff" />
+            <stop offset="40%" stopColor="#a78bfa" />
+            <stop offset="100%" stopColor="#5b21b6" />
+          </linearGradient>
+        ) : (
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fff6d0" />
+            <stop offset="40%" stopColor="#e8c872" />
+            <stop offset="100%" stopColor="#9a7209" />
+          </linearGradient>
+        )}
       </defs>
 
-      <g className="meter-party-hof-count-fx__arches" fill="none" stroke={`url(#${gold})`} strokeLinecap="round">
+      <g className="meter-party-hof-count-fx__arches" fill="none" stroke={`url(#${gradId})`} strokeLinecap="round">
         <path
           className="meter-party-hof-count-fx__arch meter-party-hof-count-fx__arch--wing-left"
           pathLength={100}

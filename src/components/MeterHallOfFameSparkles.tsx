@@ -7,10 +7,13 @@ const SPARKLE_SLOTS = [
   'meter-party-hof-sparkle--6',
 ] as const
 
-/** Gold star-burst sparkles at filigree anchor points. */
-export function MeterHallOfFameSparkles() {
+/** Star-burst sparkles at filigree anchor points. */
+export function MeterHallOfFameSparkles({ variant = 'olympus' }: { variant?: 'olympus' | 'magia' }) {
   return (
-    <div className="meter-party-hof-sparkles" aria-hidden>
+    <div
+      className={`meter-party-hof-sparkles${variant === 'magia' ? ' meter-party-hof-sparkles--magia' : ''}`}
+      aria-hidden
+    >
       {SPARKLE_SLOTS.map((slot) => (
         <span key={slot} className={`meter-party-hof-sparkle ${slot}`}>
           <span className="meter-party-hof-sparkle-ray" />

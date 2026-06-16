@@ -5,6 +5,8 @@ import {
   meterPartyBarThemeStyle,
 
   HALL_OF_FAME_THEME_ID,
+  hofOverlayVariantForTheme,
+  MAGIA_HALL_OF_FAME_THEME_ID,
   MIST_DEV_REWARD_THEME_ID,
   type MeterPartyBarTheme,
 
@@ -60,7 +62,8 @@ export function MeterPartyThemedBar({
   const themeStyle = meterPartyBarThemeStyle(theme)
 
   const isIliad = theme.id === MIST_DEV_REWARD_THEME_ID
-  const isHallOfFame = theme.id === HALL_OF_FAME_THEME_ID
+  const isHallOfFame =
+    theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID
   const isLegendary = theme.variant === 'legendary'
 
   const fillWidth = { width: `${widthPct}%` }
@@ -106,7 +109,10 @@ export function MeterPartyThemedBar({
         aria-hidden
       >
         {bar}
-        <MeterHallOfFameBarOverlay recordCount={hofRecordCount} />
+        <MeterHallOfFameBarOverlay
+          recordCount={hofRecordCount}
+          variant={hofOverlayVariantForTheme(theme)}
+        />
       </div>
     )
   }
@@ -326,6 +332,7 @@ export function meterPartyMemberRareClass(theme: MeterPartyBarTheme | null | und
 export function meterPartyMemberThemeClass(theme: MeterPartyBarTheme | null | undefined): string {
   if (theme?.id === MIST_DEV_REWARD_THEME_ID) return ' meter-party-member--iliad-core'
   if (theme?.id === HALL_OF_FAME_THEME_ID) return ' meter-party-member--hall-of-fame'
+  if (theme?.id === MAGIA_HALL_OF_FAME_THEME_ID) return ' meter-party-member--magia-hall-of-fame'
   return meterPartyMemberRareClass(theme)
 }
 

@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import {
-  fetchMeterPlayerHofRecordCount,
+  fetchMeterPlayerHofRecordCountForTheme,
   readHofThemeAutoEquipDone,
   resolveMeterPlayerKeyForHof,
   userQualifiesForHallOfFameTheme,
   writeHofThemeAutoEquipDone,
 } from './meterHallOfFameTheme'
+import { getDefaultMeterLeaderboardCycle } from './meterLeaderboardCycles'
 import {
   clearEquippedMeterPartyBarThemeId,
   DEV_METER_TAMER_NAME,
@@ -14,6 +15,7 @@ import {
   getMeterPartyBarTheme,
   HALL_OF_FAME_THEME_ID,
   isMistTamer,
+  MAGIA_HALL_OF_FAME_THEME_ID,
   METER_PARTY_BAR_THEMES,
   MIST_DEV_REWARD_THEME_ID,
   type MeterPartyBarTheme,
@@ -26,24 +28,31 @@ export type CompanionRewardTheme = MeterPartyBarTheme & {
   hofRecordCount?: number
 }
 
-async function grantHallOfFameThemeIfEligible(
+async function grantHallOfFameThemesIfEligible(
   client: SupabaseClient,
   profileDisplayName: string | null,
   themes: CompanionRewardTheme[],
 ): Promise<void> {
   const playerKey = await resolveMeterPlayerKeyForHof(client, profileDisplayName)
   if (!playerKey) return
-  const { count } = await fetchMeterPlayerHofRecordCount(client, playerKey)
-  if (!userQualifiesForHallOfFameTheme(count)) return
-  const hof = getMeterPartyBarTheme(HALL_OF_FAME_THEME_ID)
-  if (hof && !themes.some((t) => t.id === hof.id)) {
-    themes.push({ ...hof, owned: true, hofRecordCount: count })
+  for (const themeId of [HALL_OF_FAME_THEME_ID, MAGIA_HALL_OF_FAME_THEME_ID] as const) {
+    const { count } = await fetchMeterPlayerHofRecordCountForTheme(client, playerKey, themeId)
+    if (!userQualifiesForHallOfFameTheme(count)) continue
+    const theme = getMeterPartyBarTheme(themeId)
+    if (!theme) continue
+    const existing = themes.find((t) => t.id === theme.id)
+    if (existing) {
+      existing.hofRecordCount = count
+      existing.owned = true
+    } else {
+      themes.push({ ...theme, owned: true, hofRecordCount: count })
+    }
   }
 }
 
 /**
- * First time a record breaker has no bar theme equipped, auto-apply Record Breaker once.
- * Never runs again after that (even if they unequip later).
+ * First time a record breaker has no bar theme equipped, auto-apply the live-cycle
+ * breaker theme once. Never runs again after that (even if they unequip later).
  */
 export async function maybeAutoEquipHallOfFameTheme(
   client: SupabaseClient,
@@ -60,10 +69,15 @@ export async function maybeAutoEquipHallOfFameTheme(
   const playerKey = await resolveMeterPlayerKeyForHof(client, profileDisplayName)
   if (!playerKey) return { equipped: false, error: null }
 
-  const { count } = await fetchMeterPlayerHofRecordCount(client, playerKey)
+  const liveThemeId = getDefaultMeterLeaderboardCycle().hofThemeId
+  const { count } = await fetchMeterPlayerHofRecordCountForTheme(
+    client,
+    playerKey,
+    liveThemeId,
+  )
   if (!userQualifiesForHallOfFameTheme(count)) return { equipped: false, error: null }
 
-  const res = await equipCompanionMeterTheme(client, HALL_OF_FAME_THEME_ID, profileDisplayName)
+  const res = await equipCompanionMeterTheme(client, liveThemeId, profileDisplayName)
   if (!res.ok) return { equipped: false, error: res.error }
 
   writeHofThemeAutoEquipDone(userId)
@@ -87,7 +101,7 @@ export async function fetchCompanionRewardThemes(
     const iliad = getMeterPartyBarTheme('iliad-core')
     if (iliad) themes.push({ ...iliad, owned: true })
   }
-  await grantHallOfFameThemeIfEligible(client, profileDisplayName, themes)
+  await grantHallOfFameThemesIfEligible(client, profileDisplayName, themes)
   for (const theme of EARNABLE_METER_PARTY_BAR_THEMES) {
     if (owned.has(theme.id)) themes.push({ ...theme, owned: true })
   }
@@ -136,16 +150,25 @@ export async function equipCompanionMeterTheme(
     return { ok: true, error: null }
   }
 
-  if (data?.error === 'not_owned' && themeId === HALL_OF_FAME_THEME_ID) {
+  if (
+    data?.error === 'not_owned' &&
+    (themeId === HALL_OF_FAME_THEME_ID || themeId === MAGIA_HALL_OF_FAME_THEME_ID)
+  ) {
     const playerKey = await resolveMeterPlayerKeyForHof(client, profileDisplayName)
     if (playerKey) {
-      const { count } = await fetchMeterPlayerHofRecordCount(client, playerKey)
+      const { count } = await fetchMeterPlayerHofRecordCountForTheme(client, playerKey, themeId)
       if (userQualifiesForHallOfFameTheme(count)) {
         await upsertEquippedTheme(client, themeId)
         return { ok: true, error: null }
       }
     }
-    return { ok: false, error: 'Earn a Hall of Fame record break to unlock this theme.' }
+    return {
+      ok: false,
+      error:
+        themeId === MAGIA_HALL_OF_FAME_THEME_ID
+          ? 'Earn a Magia cycle record break to unlock this theme.'
+          : 'Earn an Olympus cycle record break to unlock this theme.',
+    }
   }
 
   if (data?.error === 'not_owned') {
@@ -186,9 +209,9 @@ export async function unequipCompanionMeterTheme(
 
 export function companionThemeLabel(theme: CompanionRewardTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return `${theme.label} (Unique)`
-  if (theme.id === HALL_OF_FAME_THEME_ID) {
+  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
     const n = theme.hofRecordCount ?? 0
-    return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : `${theme.label} (Hall of Fame)`
+    return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : theme.label
   }
   return theme.label
 }

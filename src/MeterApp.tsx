@@ -36,7 +36,8 @@ import {
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
 } from './lib/meterPartyBarThemes'
-import { fetchMeterPlayerHofRecordCount, resolveMeterPlayerKeyForHof } from './lib/meterHallOfFameTheme'
+import { fetchMeterPlayerHofRecordCountsByCycle, hofRecordCountForTheme, resolveMeterPlayerKeyForHof } from './lib/meterHallOfFameTheme'
+import { getDefaultMeterLeaderboardCycle } from './lib/meterLeaderboardCycles'
 import { maybeAutoEquipHallOfFameTheme } from './lib/meterRewardsCompanion'
 import { normalizeRoutePlayerKey } from './lib/meterPlayerProfileGrant'
 import { MeterPartyThemeBadge } from './components/MeterPartyThemeBadge'
@@ -151,7 +152,7 @@ export default function MeterApp() {
     (pending: MeterEndedRunSnapshot) => Promise<void>
   >(async () => {})
   const [streamRev, setStreamRev] = useState(0)
-  const [hofRecordCount, setHofRecordCount] = useState(0)
+  const [hofRecordCounts, setHofRecordCounts] = useState<Record<string, number>>({})
   const clearBarPreviewRef = useRef<(() => void) | null>(null)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
 
@@ -921,7 +922,7 @@ export default function MeterApp() {
 
   useEffect(() => {
     if (!supabase) {
-      setHofRecordCount(0)
+      setHofRecordCounts({})
       return
     }
     let cancelled = false
@@ -936,13 +937,15 @@ export default function MeterApp() {
         }
       }
       if (!playerKey) {
-        if (!cancelled) setHofRecordCount(0)
+        if (!cancelled) setHofRecordCounts({})
         return
       }
-      const res = await fetchMeterPlayerHofRecordCount(supabase, playerKey)
+      const res = await fetchMeterPlayerHofRecordCountsByCycle(supabase, playerKey)
       if (cancelled) return
-      setHofRecordCount(res.count)
-      if (res.count > 0 && sbUser?.id) {
+      setHofRecordCounts(res.counts)
+      const liveCycleId = getDefaultMeterLeaderboardCycle().id
+      const liveCycleCount = res.counts[liveCycleId] ?? 0
+      if (liveCycleCount > 0 && sbUser?.id) {
         const equippedId = await fetchEquippedMeterPartyBarThemeIdFromAccount(supabase, sbUser.id)
         if (cancelled) return
         const profileName =
@@ -952,7 +955,8 @@ export default function MeterApp() {
         const auto = await maybeAutoEquipHallOfFameTheme(supabase, profileName, equippedId)
         if (cancelled) return
         if (auto.equipped) {
-          if (syncEquippedThemeToMeterSession(streamRef.current, 'hall-of-fame')) {
+          const liveThemeId = getDefaultMeterLeaderboardCycle().hofThemeId
+          if (syncEquippedThemeToMeterSession(streamRef.current, liveThemeId)) {
             bumpStream()
           }
         }
@@ -1643,7 +1647,7 @@ export default function MeterApp() {
                             <MeterPartyThemedBar
                               theme={barTheme}
                               sharePct={sharePct}
-                              hofRecordCount={hofRecordCount}
+                              hofRecordCount={hofRecordCountForTheme(barTheme, hofRecordCounts)}
                             />
                           ) : (
                             <div

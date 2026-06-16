@@ -13,23 +13,38 @@ export function olympusThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
 
 export const MIST_DEV_REWARD_THEME_ID: MeterPartyBarThemeId = 'iliad-core'
 export const HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'hall-of-fame'
+export const MAGIA_HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'magia-hall-of-fame'
 
-export function meterThemeRewardsCardTitle(theme: MeterPartyBarTheme): string {
+export function meterThemeRewardsCardTitle(
+  theme: MeterPartyBarTheme,
+  hofRecordCount?: number,
+): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.label
-  if (theme.id === HALL_OF_FAME_THEME_ID) return theme.label
+  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
+    const n = hofRecordCount ?? 0
+    return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : theme.label
+  }
   return olympusThemeShopDigimonLine(theme)
 }
 
 export function meterThemePreviewDigimonLine(theme: MeterPartyBarTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.subtitle
-  if (theme.id === HALL_OF_FAME_THEME_ID) return theme.subtitle
+  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
+    return theme.subtitle
+  }
   return olympusThemeShopDigimonLine(theme)
 }
 
 export function isHallOfFameMeterTheme(
   theme: MeterPartyBarTheme | null | undefined,
 ): theme is MeterPartyBarTheme {
-  return theme?.id === HALL_OF_FAME_THEME_ID
+  return theme?.id === HALL_OF_FAME_THEME_ID || theme?.id === MAGIA_HALL_OF_FAME_THEME_ID
+}
+
+export function hofOverlayVariantForTheme(
+  theme: MeterPartyBarTheme | null | undefined,
+): 'olympus' | 'magia' {
+  return theme?.id === MAGIA_HALL_OF_FAME_THEME_ID ? 'magia' : 'olympus'
 }
 
 const EQUIPPED_THEME_STORAGE_KEY = 'odyssey-meter-bar-theme'
@@ -51,6 +66,7 @@ export type OlymposXiiBaseThemeId =
 export type MeterPartyBarThemeId =
   | 'iliad-core'
   | 'hall-of-fame'
+  | 'magia-hall-of-fame'
   | OlymposXiiBaseThemeId
   | `${OlymposXiiBaseThemeId}-rare`
   | `${OlymposXiiBaseThemeId}-legendary`
@@ -97,16 +113,32 @@ const ILIAD_CORE_THEME: MeterPartyBarTheme = {
 const HALL_OF_FAME_THEME: MeterPartyBarTheme = {
   id: 'hall-of-fame',
   barStyleId: 'hall-of-fame',
-  label: 'Record Breaker',
+  label: 'Olympus Breaker',
   badge: '',
-  domain: 'Hall of Fame — gold record breaks',
+  domain: 'Olympus cycle — gold record breaks',
   earnable: false,
-  subtitle: 'Hall of Fame · Record breaker',
+  subtitle: 'Olympus Cycle · Olympus breaker',
   style: {
     accent: '#d4af37',
     c1: 'rgba(26, 12, 18, 0.97)',
     c2: 'rgba(74, 52, 22, 0.94)',
     grid: 'rgba(212, 175, 55, 0.08)',
+  },
+}
+
+const MAGIA_HALL_OF_FAME_THEME: MeterPartyBarTheme = {
+  id: 'magia-hall-of-fame',
+  barStyleId: 'magia-hall-of-fame',
+  label: 'Magia Breaker',
+  badge: '',
+  domain: 'Magia cycle — record breaks',
+  earnable: false,
+  subtitle: 'Magia Cycle · Magia breaker',
+  style: {
+    accent: '#a78bfa',
+    c1: 'rgba(18, 10, 36, 0.97)',
+    c2: 'rgba(46, 16, 72, 0.94)',
+    grid: 'rgba(167, 139, 250, 0.1)',
   },
 }
 
@@ -336,6 +368,7 @@ export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] 
 export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ILIAD_CORE_THEME,
   HALL_OF_FAME_THEME,
+  MAGIA_HALL_OF_FAME_THEME,
   ...OLYMPOS_XII_COMMON_THEMES,
   ...OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
   ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
@@ -396,7 +429,7 @@ export function shouldShowMeterThemeBadge(
 ): theme is MeterPartyBarTheme {
   if (!theme) return false
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return false
-  if (theme.id === HALL_OF_FAME_THEME_ID) return false
+  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) return false
   if (theme.variant === 'legendary') return false
   return theme.badge.trim().length > 0
 }

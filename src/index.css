@@ -8214,6 +8214,76 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   filter: drop-shadow(0 1px 0 rgba(255, 236, 179, 0.2)) drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.95));
 }
 
+.meter-party-member--magia-hall-of-fame {
+  background: linear-gradient(90deg, rgba(14, 8, 28, 0.9) 0%, rgba(24, 12, 44, 0.84) 100%);
+  box-shadow:
+    inset 3px 0 0 #a78bfa,
+    inset 0 0 0 1px rgba(167, 139, 250, 0.24),
+    0 0 14px rgba(91, 33, 182, 0.35);
+}
+
+.meter-party-member-bar.meter-party-bar-theme--magia-hall-of-fame {
+  background:
+    repeating-linear-gradient(
+      125deg,
+      transparent 0,
+      transparent 7px,
+      rgba(167, 139, 250, 0.05) 7px,
+      rgba(167, 139, 250, 0.05) 8px
+    ),
+    linear-gradient(
+      92deg,
+      #120818 0%,
+      #1a0e32 22%,
+      #2e1065 48%,
+      #4c1d95 58%,
+      #2a1450 78%,
+      #120818 100%
+    );
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(233, 213, 255, 0.14);
+}
+
+.meter-party-hof-count-fx--magia .meter-party-hof-count-fx__arch {
+  filter: drop-shadow(0 0 4px rgba(167, 139, 250, 0.5));
+}
+
+.meter-party-hof-sparkles--magia .meter-party-hof-sparkle-ray {
+  background: linear-gradient(
+    180deg,
+    rgba(233, 213, 255, 1) 0%,
+    rgba(196, 181, 253, 0.95) 45%,
+    rgba(124, 58, 237, 0.85) 100%
+  );
+}
+
+.meter-party-hof-count-hero--magia .meter-party-hof-plaque {
+  background: linear-gradient(180deg, #3b0764 0%, #2e1065 38%, #1e1b4b 72%, #120818 100%);
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(233, 213, 255, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.65),
+    0 1px 4px rgba(91, 33, 182, 0.45);
+}
+
+.meter-party-hof-count-hero--magia .meter-party-hof-plaque__value {
+  color: #ddd6fe;
+  background: linear-gradient(
+    180deg,
+    #c4b5fd 0%,
+    #ddd6fe 22%,
+    #f5f3ff 46%,
+    #ffffff 50%,
+    #e9d5ff 54%,
+    #c4b5fd 72%,
+    #a78bfa 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35)) drop-shadow(0 0 8px rgba(196, 181, 253, 0.45));
+}
+
 @keyframes meter-hof-count-arch-shimmer {
   0%,
   100% {
