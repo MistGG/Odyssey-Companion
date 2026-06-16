@@ -179,17 +179,25 @@ function memberDps(
 
 function memberPrimaryDigimon(member: StoredMember) {
   const digimons = memberDigimons(member)
-  const dur = Math.max(Number(member.durationSec) || 0, 1e-6)
-  let best = digimons[0]
-  let bestDps = -1
+  const totals = new Map<string, number>()
+  const rowsById = new Map<string, (typeof digimons)[number]>()
   for (const dg of digimons) {
-    const dps = (Number(dg.totalDamage) || 0) / dur
-    if (dps > bestDps) {
-      bestDps = dps
-      best = dg
+    const id = dg.digimonId?.trim() ?? ''
+    if (!id) continue
+    const damage = Math.max(0, Number(dg.totalDamage) || 0)
+    totals.set(id, (totals.get(id) ?? 0) + damage)
+    const prev = rowsById.get(id)
+    if (!prev || damage > Math.max(0, Number(prev.totalDamage) || 0)) rowsById.set(id, dg)
+  }
+  let bestId: string | null = null
+  let bestDamage = -1
+  for (const [id, damage] of totals) {
+    if (damage > bestDamage) {
+      bestDamage = damage
+      bestId = id
     }
   }
-  return best
+  return bestId ? rowsById.get(bestId) : undefined
 }
 
 function isBrokenPartyParse(payload: DungeonPayload, members: StoredMember[]): boolean {

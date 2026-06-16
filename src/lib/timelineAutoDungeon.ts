@@ -148,7 +148,11 @@ export function onTimelineBossCleared(
 ) {
   if (!api) return
   state.pendingBossStart = false
-  void api.sendTimelineAction('stop')
+  void (async () => {
+    await api.clearFightEngageEpoch?.()
+    await api.sendTimelineAction('stop')
+    await api.sendTimelineAction('reset')
+  })()
 }
 
 export type TimelineAutoStreamIngest = {
@@ -199,7 +203,7 @@ export function processTimelineAutoStreamEvent(
     }
   }
 
-  if (ingest.dungeonCompleteClear) {
+  if (ingest.dungeonCompleteClear || (t === 'dungeon_complete' && ingest.runOutcome != null)) {
     onTimelineBossCleared(api, state)
   }
 }

@@ -1,0 +1,382 @@
+﻿{
+    "id":  "u1f1esve",
+    "name":  "The Puppet Master",
+    "map_name":  "",
+    "image":  "_pino.png",
+    "difficulties":  [
+                         {
+                             "difficulty":  "Story",
+                             "user_limit":  4,
+                             "weekly_limit":  0,
+                             "objectives":  [
+                                                {
+                                                    "step":  1,
+                                                    "monster_id":  "mb3db7",
+                                                    "monster_name":  "Pinocchimon",
+                                                    "pen_name":  "\u003cThe Dark Master\u003e",
+                                                    "level":  90,
+                                                    "model_id":  "o47b49z",
+                                                    "count":  1
+                                                }
+                                            ],
+                             "time_limit_sec":  1800,
+                             "death_limit":  99
+                         },
+                         {
+                             "difficulty":  "Normal",
+                             "user_limit":  4,
+                             "weekly_limit":  0,
+                             "enter_conditions":  [
+                                                      {
+                                                          "type":  "Quest",
+                                                          "description":  "Requires quest completion"
+                                                      }
+                                                  ],
+                             "objectives":  [
+                                                {
+                                                    "step":  1,
+                                                    "monster_id":  "mxtlqsx",
+                                                    "monster_name":  "Pinocchimon",
+                                                    "pen_name":  "\u003cThe Dark Master\u003e",
+                                                    "level":  95,
+                                                    "model_id":  "o47b49z",
+                                                    "count":  1,
+                                                    "raid_rankings":  [
+                                                                          {
+                                                                              "start":  1,
+                                                                              "end":  1000,
+                                                                              "rewards":  [
+                                                                                              {
+                                                                                                  "item_id":  "i1rduvxy",
+                                                                                                  "item_name":  "Necklace Data: Cursed Puppet",
+                                                                                                  "item_icon_id":  "n1xyxgll",
+                                                                                                  "rate_permil":  1000,
+                                                                                                  "min":  1,
+                                                                                                  "max":  1
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "iz3j5gs",
+                                                                                                  "item_name":  "Option Change Stone",
+                                                                                                  "item_icon_id":  "ni4zzsx",
+                                                                                                  "rate_permil":  7000,
+                                                                                                  "min":  2,
+                                                                                                  "max":  5
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "i1gmeekl",
+                                                                                                  "item_name":  "Number Change Stone",
+                                                                                                  "item_icon_id":  "n12bvxqh",
+                                                                                                  "rate_permil":  7000,
+                                                                                                  "min":  2,
+                                                                                                  "max":  5
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "i1m8n4jz",
+                                                                                                  "item_name":  "Seal Exchange Ticket",
+                                                                                                  "item_icon_id":  "n1atzb1t",
+                                                                                                  "rate_permil":  1000,
+                                                                                                  "min":  1,
+                                                                                                  "max":  1
+                                                                                              }
+                                                                                          ]
+                                                                          }
+                                                                      ]
+                                                }
+                                            ],
+                             "time_limit_sec":  600,
+                             "death_limit":  99,
+                             "rewards":  [
+                                             {
+                                                 "rank":  0,
+                                                 "item_id":  "i1tbze8b",
+                                                 "item_name":  "Olympian Token",
+                                                 "item_icon_id":  "n1nzxq4v",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  1,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  2,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  3,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  4,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  5,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  6,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  4
+                                             },
+                                             {
+                                                 "rank":  7,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  5
+                                             },
+                                             {
+                                                 "rank":  0,
+                                                 "item_id":  "i1tbze8b",
+                                                 "item_name":  "Olympian Token",
+                                                 "item_icon_id":  "n1nzxq4v",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  1,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  2,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  3,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  4,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  5,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  6,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  4
+                                             },
+                                             {
+                                                 "rank":  7,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  5
+                                             }
+                                         ]
+                         },
+                         {
+                             "difficulty":  "Hard",
+                             "user_limit":  4,
+                             "weekly_limit":  0,
+                             "enter_conditions":  [
+                                                      {
+                                                          "type":  "Prerequisite",
+                                                          "description":  "Requires previous dungeon clear"
+                                                      }
+                                                  ],
+                             "objectives":  [
+                                                {
+                                                    "step":  1,
+                                                    "monster_id":  "m1xqxa7m",
+                                                    "monster_name":  "Pinocchimon",
+                                                    "pen_name":  "\u003cThe Dark Master\u003e",
+                                                    "level":  95,
+                                                    "model_id":  "o47b49z",
+                                                    "count":  1,
+                                                    "raid_rankings":  [
+                                                                          {
+                                                                              "start":  1,
+                                                                              "end":  1000,
+                                                                              "rewards":  [
+                                                                                              {
+                                                                                                  "item_id":  "i1361pdh",
+                                                                                                  "item_name":  "Necklace Data: Cursed Puppet",
+                                                                                                  "item_icon_id":  "n1xyxgll",
+                                                                                                  "rate_permil":  500,
+                                                                                                  "min":  1,
+                                                                                                  "max":  1
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "iz3j5gs",
+                                                                                                  "item_name":  "Option Change Stone",
+                                                                                                  "item_icon_id":  "ni4zzsx",
+                                                                                                  "rate_permil":  7000,
+                                                                                                  "min":  3,
+                                                                                                  "max":  7
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "i1gmeekl",
+                                                                                                  "item_name":  "Number Change Stone",
+                                                                                                  "item_icon_id":  "n12bvxqh",
+                                                                                                  "rate_permil":  7000,
+                                                                                                  "min":  3,
+                                                                                                  "max":  7
+                                                                                              },
+                                                                                              {
+                                                                                                  "item_id":  "i1m8n4jz",
+                                                                                                  "item_name":  "Seal Exchange Ticket",
+                                                                                                  "item_icon_id":  "n1atzb1t",
+                                                                                                  "rate_permil":  1000,
+                                                                                                  "min":  2,
+                                                                                                  "max":  3
+                                                                                              }
+                                                                                          ]
+                                                                          }
+                                                                      ]
+                                                }
+                                            ],
+                             "time_limit_sec":  600,
+                             "death_limit":  99,
+                             "rewards":  [
+                                             {
+                                                 "rank":  0,
+                                                 "item_id":  "i1tbze8b",
+                                                 "item_name":  "Olympian Token",
+                                                 "item_icon_id":  "n1nzxq4v",
+                                                 "item_count":  3
+                                             },
+                                             {
+                                                 "rank":  1,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  2,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  2
+                                             },
+                                             {
+                                                 "rank":  3,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  3
+                                             },
+                                             {
+                                                 "rank":  4,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  4
+                                             },
+                                             {
+                                                 "rank":  5,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  5
+                                             },
+                                             {
+                                                 "rank":  6,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  7
+                                             },
+                                             {
+                                                 "rank":  7,
+                                                 "item_id":  "i1gmeekl",
+                                                 "item_name":  "Number Change Stone",
+                                                 "item_icon_id":  "n12bvxqh",
+                                                 "item_count":  10
+                                             },
+                                             {
+                                                 "rank":  0,
+                                                 "item_id":  "i1tbze8b",
+                                                 "item_name":  "Olympian Token",
+                                                 "item_icon_id":  "n1nzxq4v",
+                                                 "item_count":  3
+                                             },
+                                             {
+                                                 "rank":  1,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  1
+                                             },
+                                             {
+                                                 "rank":  2,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  2
+                                             },
+                                             {
+                                                 "rank":  3,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  3
+                                             },
+                                             {
+                                                 "rank":  4,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  4
+                                             },
+                                             {
+                                                 "rank":  5,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  5
+                                             },
+                                             {
+                                                 "rank":  6,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  7
+                                             },
+                                             {
+                                                 "rank":  7,
+                                                 "item_id":  "iz3j5gs",
+                                                 "item_name":  "Option Change Stone",
+                                                 "item_icon_id":  "ni4zzsx",
+                                                 "item_count":  10
+                                             }
+                                         ]
+                         }
+                     ]
+}
