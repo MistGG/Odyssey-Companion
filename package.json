@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.98",
+  "version": "0.1.99",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Resolved an issue where damage attribution was given incorrectly when multiple users had non-unique Digimon nicknames"
+      "releaseNotes": "- Added support for the new Magia Cycle Breaker theme"
     }
   }
 }
