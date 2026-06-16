@@ -170,3 +170,19 @@ export function mapHofGoldRpcRow(row: HofGoldRpcRow): HofGoldRow | null {
     dps,
   }
 }
+
+type PlayerHofGoldRpcRow = HofGoldRpcRow & {
+  dungeon_id?: string | null
+  difficulty_id?: number | null
+}
+
+export function mapPlayerHofGoldRpcRow(
+  row: PlayerHofGoldRpcRow,
+): (HofGoldRow & { dungeonId: string; difficultyId: number }) | null {
+  const base = mapHofGoldRpcRow(row)
+  if (!base) return null
+  const dungeonId = row.dungeon_id?.trim() ?? ''
+  const difficultyId = row.difficulty_id ?? 0
+  if (!dungeonId || difficultyId < 2) return null
+  return { ...base, dungeonId, difficultyId }
+}

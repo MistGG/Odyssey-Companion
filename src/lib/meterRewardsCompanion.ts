@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import {
+  fetchMeterPlayerHofRecordCountsByCycle,
   fetchMeterPlayerHofRecordCountForTheme,
+  hofRecordCountForTheme,
   readHofThemeAutoEquipDone,
   resolveMeterPlayerKeyForHof,
   userQualifiesForHallOfFameTheme,
@@ -35,11 +37,13 @@ async function grantHallOfFameThemesIfEligible(
 ): Promise<void> {
   const playerKey = await resolveMeterPlayerKeyForHof(client, profileDisplayName)
   if (!playerKey) return
+  const { counts, error } = await fetchMeterPlayerHofRecordCountsByCycle(client, playerKey)
+  if (error) return
   for (const themeId of [HALL_OF_FAME_THEME_ID, MAGIA_HALL_OF_FAME_THEME_ID] as const) {
-    const { count } = await fetchMeterPlayerHofRecordCountForTheme(client, playerKey, themeId)
-    if (!userQualifiesForHallOfFameTheme(count)) continue
     const theme = getMeterPartyBarTheme(themeId)
     if (!theme) continue
+    const count = hofRecordCountForTheme(theme, counts)
+    if (!userQualifiesForHallOfFameTheme(count)) continue
     const existing = themes.find((t) => t.id === theme.id)
     if (existing) {
       existing.hofRecordCount = count
@@ -58,6 +62,7 @@ export async function maybeAutoEquipHallOfFameTheme(
   client: SupabaseClient,
   profileDisplayName: string | null,
   equippedThemeId: string | null,
+  options?: { liveCycleHofCount?: number },
 ): Promise<{ equipped: boolean; error: string | null }> {
   const { data: auth } = await client.auth.getUser()
   const userId = auth.user?.id
@@ -70,11 +75,11 @@ export async function maybeAutoEquipHallOfFameTheme(
   if (!playerKey) return { equipped: false, error: null }
 
   const liveThemeId = getDefaultMeterLeaderboardCycle().hofThemeId
-  const { count } = await fetchMeterPlayerHofRecordCountForTheme(
-    client,
-    playerKey,
-    liveThemeId,
-  )
+  const count =
+    options?.liveCycleHofCount ??
+    (
+      await fetchMeterPlayerHofRecordCountForTheme(client, playerKey, liveThemeId)
+    ).count
   if (!userQualifiesForHallOfFameTheme(count)) return { equipped: false, error: null }
 
   const res = await equipCompanionMeterTheme(client, liveThemeId, profileDisplayName)

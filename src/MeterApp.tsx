@@ -36,7 +36,7 @@ import {
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
 } from './lib/meterPartyBarThemes'
-import { fetchMeterPlayerHofRecordCountsByCycle, hofRecordCountForTheme, resolveMeterPlayerKeyForHof } from './lib/meterHallOfFameTheme'
+import { fetchMeterPlayerHofRecordCountsByCycle, bumpMeterHofRecordCountCache, hofRecordCountForTheme, resolveMeterPlayerKeyForHof } from './lib/meterHallOfFameTheme'
 import { getDefaultMeterLeaderboardCycle } from './lib/meterLeaderboardCycles'
 import { maybeAutoEquipHallOfFameTheme } from './lib/meterRewardsCompanion'
 import { normalizeRoutePlayerKey } from './lib/meterPlayerProfileGrant'
@@ -153,6 +153,8 @@ export default function MeterApp() {
   >(async () => {})
   const [streamRev, setStreamRev] = useState(0)
   const [hofRecordCounts, setHofRecordCounts] = useState<Record<string, number>>({})
+  const [hofPlayerKey, setHofPlayerKey] = useState<string | null>(null)
+  const [hofRefreshToken, setHofRefreshToken] = useState(0)
   const clearBarPreviewRef = useRef<(() => void) | null>(null)
   const bumpStream = useCallback(() => setStreamRev((v) => v + 1), [])
 
@@ -922,7 +924,7 @@ export default function MeterApp() {
 
   useEffect(() => {
     if (!supabase) {
-      setHofRecordCounts({})
+      setHofPlayerKey(null)
       return
     }
     let cancelled = false
@@ -936,12 +938,27 @@ export default function MeterApp() {
           }
         }
       }
-      if (!playerKey) {
-        if (!cancelled) setHofRecordCounts({})
-        return
-      }
-      const res = await fetchMeterPlayerHofRecordCountsByCycle(supabase, playerKey)
+      if (!cancelled) setHofPlayerKey(playerKey)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [supabase, sbUser?.id, streamRev])
+
+  useEffect(() => {
+    if (!supabase) {
+      setHofRecordCounts({})
+      return
+    }
+    if (!hofPlayerKey) {
+      setHofRecordCounts({})
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const res = await fetchMeterPlayerHofRecordCountsByCycle(supabase, hofPlayerKey)
       if (cancelled) return
+      if (res.error) return
       setHofRecordCounts(res.counts)
       const liveCycleId = getDefaultMeterLeaderboardCycle().id
       const liveCycleCount = res.counts[liveCycleId] ?? 0
@@ -952,7 +969,9 @@ export default function MeterApp() {
           streamRef.current.selfTamerName?.trim() ||
           readRememberedSelfTamerName()?.trim() ||
           null
-        const auto = await maybeAutoEquipHallOfFameTheme(supabase, profileName, equippedId)
+        const auto = await maybeAutoEquipHallOfFameTheme(supabase, profileName, equippedId, {
+          liveCycleHofCount: liveCycleCount,
+        })
         if (cancelled) return
         if (auto.equipped) {
           const liveThemeId = getDefaultMeterLeaderboardCycle().hofThemeId
@@ -965,7 +984,7 @@ export default function MeterApp() {
     return () => {
       cancelled = true
     }
-  }, [supabase, sbUser?.id, streamRev, bumpStream])
+  }, [supabase, hofPlayerKey, hofRefreshToken, sbUser?.id, bumpStream])
 
   const claimParsesForSelfTamer = useCallback(
     async (tamerName: string | null | undefined) => {
@@ -1143,6 +1162,8 @@ export default function MeterApp() {
           text: ranked ? 'Clear uploaded — ranked' : 'Uploaded — not ranked',
           kind: 'success',
         })
+        bumpMeterHofRecordCountCache()
+        setHofRefreshToken((token) => token + 1)
       }
     } finally {
       uploadInFlightRef.current = false

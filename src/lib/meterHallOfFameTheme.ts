@@ -1,10 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-import { filterGoldRecordBreaks, mapHofGoldRpcRow, type HofGoldRow } from './meterHallOfFameGold'
+import {
+  filterGoldRecordBreaks,
+  mapHofGoldRpcRow,
+  mapPlayerHofGoldRpcRow,
+  type HofGoldRow,
+} from './meterHallOfFameGold'
 import {
   getMeterLeaderboardCycle,
   meterLeaderboardCycleWindow,
 } from './meterLeaderboardCycles'
+import {
+  invalidateMeterHofRecordCountCache,
+  readMeterHofRecordCountCache,
+  writeMeterHofRecordCountCache,
+} from './meterHofRecordCountCache'
 import { normalizeRoutePlayerKey } from './meterPlayerProfileGrant'
 import { fetchStoredConfirmedPlayerKey } from './meterPointGrants'
 import {
@@ -14,14 +24,16 @@ import {
   type MeterPartyBarThemeId,
 } from './meterPartyBarThemes'
 
-/** Matches `get_meter_player_scopes` RPC cap (50). */
-const HOF_SCOPE_LIMIT = 50
+/** Matches server `get_meter_player_scopes` cap; keep aligned with profile HoF limits. */
+const HOF_PLAYER_SCOPE_LIMIT = 24
 const HOF_SCOPE_BATCH = 4
 
 /** Demo record count for shop / theme previews. */
 export const HOF_PREVIEW_DEMO_RECORD_COUNT = 7
 
 type ScopeRef = { dungeonId: string; difficultyId: number }
+
+type HofGoldRowWithScope = HofGoldRow & { dungeonId: string; difficultyId: number }
 
 async function fetchPlayerMeterScopes(
   client: SupabaseClient,
@@ -71,6 +83,22 @@ function mapRpcHofGoldRows(
     .filter((row) => rowInCycleWindow(row.achievedAt, windowStart, windowEnd))
 }
 
+function countPerScopeGoldBreaks(rows: HofGoldRowWithScope[]): number {
+  const byScope = new Map<string, HofGoldRow[]>()
+  for (const row of rows) {
+    const scopeKey = `${row.dungeonId}:${row.difficultyId}`
+    const list = byScope.get(scopeKey) ?? []
+    list.push(row)
+    byScope.set(scopeKey, list)
+  }
+
+  let total = 0
+  for (const scopeRows of byScope.values()) {
+    total += filterGoldRecordBreaks(scopeRows).length
+  }
+  return total
+}
+
 async function fetchScopeHofGoldRows(
   client: SupabaseClient,
   scope: ScopeRef,
@@ -95,27 +123,14 @@ async function fetchScopeHofGoldRows(
   return { rows: mapRpcHofGoldRows(fallback.data, windowStart, windowEnd), error: null }
 }
 
-function hofThemeCycleId(themeId: MeterPartyBarThemeId): string | null {
-  if (themeId === HALL_OF_FAME_THEME_ID) return 'olympus'
-  if (themeId === MAGIA_HALL_OF_FAME_THEME_ID) return 'magia'
-  return null
-}
-
-/** Induction count for a cycle — same rules as the website profile (per scope). */
-export async function fetchMeterPlayerHofRecordCount(
+async function fetchMeterPlayerHofRecordCountByScopes(
   client: SupabaseClient,
   playerKey: string,
-  options?: { cycleId?: string },
+  windowStart: string,
+  windowEnd: string | null,
 ): Promise<{ count: number; error: string | null }> {
   const key = playerKey.trim().toLowerCase()
-  if (!key) return { count: 0, error: null }
-
-  const cycleId = options?.cycleId?.trim() || 'magia'
-  const cycle = getMeterLeaderboardCycle(cycleId)
-  if (!cycle) return { count: 0, error: null }
-  const { windowStart, windowEnd } = meterLeaderboardCycleWindow(cycle)
-
-  const scopes = await fetchPlayerMeterScopes(client, key, HOF_SCOPE_LIMIT)
+  const scopes = await fetchPlayerMeterScopes(client, key, HOF_PLAYER_SCOPE_LIMIT)
   if (!scopes.length) return { count: 0, error: null }
 
   let total = 0
@@ -124,15 +139,9 @@ export async function fetchMeterPlayerHofRecordCount(
     const batch = scopes.slice(i, i + HOF_SCOPE_BATCH)
     const batchResults = await Promise.all(
       batch.map(async (scope) => {
-        const { rows, error } = await fetchScopeHofGoldRows(
-          client,
-          scope,
-          windowStart,
-          windowEnd,
-        )
+        const { rows, error } = await fetchScopeHofGoldRows(client, scope, windowStart, windowEnd)
         if (error) return { count: 0, error }
 
-        // Gold logic is per dungeon scope — same as website fetchScopeHallOfFameGoldEntries.
         const gold = filterGoldRecordBreaks(rows)
         const count = gold.filter((row) => row.playerKey === key).length
         return { count, error: null as string | null }
@@ -148,13 +157,90 @@ export async function fetchMeterPlayerHofRecordCount(
   return { count: total, error: null }
 }
 
+async function fetchMeterPlayerHofRecordCountFromPlayerRpc(
+  client: SupabaseClient,
+  playerKey: string,
+  windowStart: string,
+  windowEnd: string | null,
+): Promise<{ count: number; error: string | null; rpcMissing: boolean }> {
+  const key = playerKey.trim().toLowerCase()
+  const { data, error } = await client.rpc('get_meter_player_hof_gold_breaks', {
+    p_player_key: key,
+    p_scope_limit: HOF_PLAYER_SCOPE_LIMIT,
+    p_window_start: windowStart,
+    p_window_end: windowEnd,
+  })
+
+  if (error) {
+    const rpcMissing = /could not find the function|schema cache/i.test(error.message)
+    return { count: 0, error: error.message, rpcMissing }
+  }
+
+  const rows = (data ?? [])
+    .map((row) => mapPlayerHofGoldRpcRow(row as Parameters<typeof mapPlayerHofGoldRpcRow>[0]))
+    .filter((row): row is HofGoldRowWithScope => row != null)
+    .filter((row) => rowInCycleWindow(row.achievedAt, windowStart, windowEnd))
+
+  return { count: countPerScopeGoldBreaks(rows), error: null, rpcMissing: false }
+}
+
+function hofThemeCycleId(themeId: MeterPartyBarThemeId): string | null {
+  if (themeId === HALL_OF_FAME_THEME_ID) return 'olympus'
+  if (themeId === MAGIA_HALL_OF_FAME_THEME_ID) return 'magia'
+  return null
+}
+
+/** Induction count for a cycle — one server RPC per cycle when migration is applied. */
+export async function fetchMeterPlayerHofRecordCount(
+  client: SupabaseClient,
+  playerKey: string,
+  options?: { cycleId?: string; skipCache?: boolean },
+): Promise<{ count: number; error: string | null }> {
+  const key = playerKey.trim().toLowerCase()
+  if (!key) return { count: 0, error: null }
+
+  const cycleId = options?.cycleId?.trim() || 'magia'
+  if (!options?.skipCache) {
+    const cached = readMeterHofRecordCountCache(key)
+    if (cached && cycleId in cached) return { count: cached[cycleId] ?? 0, error: null }
+  }
+
+  const cycle = getMeterLeaderboardCycle(cycleId)
+  if (!cycle) return { count: 0, error: null }
+  const { windowStart, windowEnd } = meterLeaderboardCycleWindow(cycle)
+
+  const rpcRes = await fetchMeterPlayerHofRecordCountFromPlayerRpc(
+    client,
+    key,
+    windowStart,
+    windowEnd,
+  )
+  if (rpcRes.rpcMissing) {
+    return fetchMeterPlayerHofRecordCountByScopes(client, key, windowStart, windowEnd)
+  }
+  if (rpcRes.error) return { count: 0, error: rpcRes.error }
+  return { count: rpcRes.count, error: null }
+}
+
 export async function fetchMeterPlayerHofRecordCountsByCycle(
   client: SupabaseClient,
   playerKey: string,
+  options?: { skipCache?: boolean },
 ): Promise<{ counts: Record<string, number>; error: string | null }> {
+  const key = playerKey.trim().toLowerCase()
+  if (!key) return { counts: {}, error: null }
+
+  if (!options?.skipCache) {
+    const cached = readMeterHofRecordCountCache(key)
+    if (cached) return { counts: cached, error: null }
+  }
+
   const results = await Promise.all(
     (['olympus', 'magia'] as const).map(async (cycle) => {
-      const res = await fetchMeterPlayerHofRecordCount(client, playerKey, { cycleId: cycle })
+      const res = await fetchMeterPlayerHofRecordCount(client, key, {
+        cycleId: cycle,
+        skipCache: true,
+      })
       return { cycle, ...res }
     }),
   )
@@ -163,6 +249,7 @@ export async function fetchMeterPlayerHofRecordCountsByCycle(
   }
   const counts: Record<string, number> = {}
   for (const result of results) counts[result.cycle] = result.count
+  writeMeterHofRecordCountCache(key, counts)
   return { counts, error: null }
 }
 
@@ -216,4 +303,9 @@ export function writeHofThemeAutoEquipDone(userId: string): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Call after a successful parse upload if you want HoF theme counts refreshed sooner. */
+export function bumpMeterHofRecordCountCache(): void {
+  invalidateMeterHofRecordCountCache()
 }

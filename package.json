@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.100",
+  "version": "0.1.101",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added 3 new Magia Cycle themes"
+      "releaseNotes": "- Optimized parse uploads"
     }
   }
 }
