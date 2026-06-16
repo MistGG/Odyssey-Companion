@@ -5,7 +5,9 @@ import { useMeterRewardsCompanion } from '../hooks/useMeterRewardsCompanion'
 import { purchaseMeterTheme } from '../lib/meterRewardsService'
 import {
   METER_SHOP_CATEGORIES,
+  type MeterShopCategoryId,
   type MeterShopSubcategoryId,
+  meterShopCategoryById,
   meterShopSubcategoryById,
 } from '../lib/meterShopCategories'
 import {
@@ -15,7 +17,11 @@ import {
   shopMeterPartyBarThemesForSubcategory,
 } from '../lib/meterThemeShop'
 import { HOF_PREVIEW_DEMO_RECORD_COUNT } from '../lib/meterHallOfFameTheme'
-import { isHallOfFameMeterTheme, type MeterPartyBarThemeId } from '../lib/meterPartyBarThemes'
+import {
+  isHallOfFameMeterTheme,
+  isMagiaMeterShopTheme,
+  type MeterPartyBarThemeId,
+} from '../lib/meterPartyBarThemes'
 import { buildThemePreviewRows, MeterThemePreview } from './MeterThemePreview'
 import { MeterCompanionBarThemes } from './MeterCompanionBarThemes'
 import { MeterThemeShopEarnPanels } from './MeterThemeShopEarnPanels'
@@ -47,14 +53,20 @@ export function ThemesPanel({
   const [confirmThemeId, setConfirmThemeId] = useState<MeterPartyBarThemeId | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [panelMode, setPanelMode] = useState<ThemesPanelMode>('shop')
+  const [selectedCategory, setSelectedCategory] = useState<MeterShopCategoryId | null>(null)
   const [selectedSubcategory, setSelectedSubcategory] = useState<MeterShopSubcategoryId | null>(
     null,
   )
 
-  const activeSub = selectedSubcategory ? meterShopSubcategoryById(selectedSubcategory) : null
-  const shopThemes = selectedSubcategory
-    ? shopMeterPartyBarThemesForSubcategory(selectedSubcategory)
-    : []
+  const activeCategory = selectedCategory ? meterShopCategoryById(selectedCategory) : null
+  const activeSub =
+    selectedCategory && selectedSubcategory
+      ? meterShopSubcategoryById(selectedCategory, selectedSubcategory)
+      : null
+  const shopThemes =
+    selectedCategory && selectedSubcategory
+      ? shopMeterPartyBarThemesForSubcategory(selectedCategory, selectedSubcategory)
+      : []
 
   async function onConfirmPurchase(themeId: MeterPartyBarThemeId) {
     if (!supabase) return
@@ -160,9 +172,10 @@ export function ThemesPanel({
                       <li key={sub.id}>
                         <button
                           type="button"
-                          className={`meter-shop-subnav-btn${selectedSubcategory === sub.id ? ' meter-shop-subnav-btn--active' : ''}`}
+                          className={`meter-shop-subnav-btn${selectedCategory === category.id && selectedSubcategory === sub.id ? ' meter-shop-subnav-btn--active' : ''}`}
                           onClick={() => {
                             setConfirmThemeId(null)
+                            setSelectedCategory(category.id)
                             setSelectedSubcategory(sub.id)
                           }}
                         >
@@ -177,14 +190,16 @@ export function ThemesPanel({
           </nav>
 
           <div className="themes-panel__shop-main">
-            {!selectedSubcategory ? (
+            {!selectedCategory || !selectedSubcategory ? (
               <div className="themes-panel__shop-placeholder">
-                <p className="muted">Choose Common, Rare, or Legendary to browse bar themes.</p>
+                <p className="muted">
+                  Choose Olympus or Magia bar themes, then pick Common, Rare, or Legendary.
+                </p>
               </div>
             ) : (
               <>
                 <header className="themes-panel__shop-head">
-                  <p className="themes-panel__shop-breadcrumb muted">Bar Themes</p>
+                  <p className="themes-panel__shop-breadcrumb muted">{activeCategory?.label ?? ''}</p>
                   <h3 className="themes-panel__shop-tier-title">{activeSub?.label ?? ''}</h3>
                 </header>
                 <ul className="meter-shop-grid">
@@ -193,6 +208,7 @@ export function ThemesPanel({
                     const owned = rewards.ownedThemeIds.includes(theme.id)
                     const canAfford = rewards.balance >= price
                     const confirming = confirmThemeId === theme.id
+                    const isMagia = isMagiaMeterShopTheme(theme)
                     const previewRows = buildThemePreviewRows(
                       theme,
                       profileDisplayName,
@@ -201,7 +217,7 @@ export function ThemesPanel({
                     return (
                       <li
                         key={theme.id}
-                        className={`meter-shop-card${theme.variant === 'rare' ? ' meter-shop-card--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-card--legendary' : ''}`}
+                        className={`meter-shop-card${theme.variant === 'rare' ? ' meter-shop-card--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-card--legendary' : ''}${isMagia ? ' meter-shop-card--magia' : ''}`}
                       >
                         <MeterThemePreview
                           theme={theme}
@@ -213,7 +229,7 @@ export function ThemesPanel({
                         />
                         <div className="meter-shop-card-meta">
                           <span
-                            className={`meter-shop-tier${theme.variant === 'rare' ? ' meter-shop-tier--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-tier--legendary' : ''}`}
+                            className={`meter-shop-tier${theme.variant === 'rare' ? ' meter-shop-tier--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-tier--legendary' : ''}${isMagia ? ' meter-shop-tier--magia' : ''}`}
                           >
                             {meterThemeShopTierLabelForTheme(theme)}
                           </span>

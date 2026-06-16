@@ -6,9 +6,17 @@ export const DEV_METER_TAMER_NAME = 'Mist'
 /** Shop / card copy for Olympos XII themes (digimon subtitle line). */
 export const OLYMPUS_XII_SHOP_PREFIX = 'Olympus XII'
 
+/** Shop / card copy for Magia cycle themes. */
+export const MAGIA_SHOP_PREFIX = 'Magia'
+
 export function olympusThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
-  const name = theme.label.replace(/\s*\(Rare\)\s*$/i, '').trim()
+  const name = theme.label.replace(/\s*\((?:Rare|Legendary)\)\s*$/i, '').trim()
   return `${OLYMPUS_XII_SHOP_PREFIX} - ${name}`
+}
+
+export function magiaThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
+  const name = theme.label.replace(/\s*\((?:Rare|Legendary)\)\s*$/i, '').trim()
+  return `${MAGIA_SHOP_PREFIX} - ${name}`
 }
 
 export const MIST_DEV_REWARD_THEME_ID: MeterPartyBarThemeId = 'iliad-core'
@@ -24,6 +32,7 @@ export function meterThemeRewardsCardTitle(
     const n = hofRecordCount ?? 0
     return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : theme.label
   }
+  if (isMagiaMeterShopTheme(theme)) return magiaThemeShopDigimonLine(theme)
   return olympusThemeShopDigimonLine(theme)
 }
 
@@ -32,7 +41,16 @@ export function meterThemePreviewDigimonLine(theme: MeterPartyBarTheme): string 
   if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
     return theme.subtitle
   }
+  if (isMagiaMeterShopTheme(theme)) return magiaThemeShopDigimonLine(theme)
   return olympusThemeShopDigimonLine(theme)
+}
+
+export type MagiaBaseThemeId = 'raguelmon' | 'plesiomon' | 'zhuqiaomon'
+
+export const MAGIA_BASE_THEME_IDS: MagiaBaseThemeId[] = ['raguelmon', 'plesiomon', 'zhuqiaomon']
+
+export function isMagiaMeterShopTheme(theme: MeterPartyBarTheme | null | undefined): boolean {
+  return MAGIA_BASE_THEME_IDS.includes(theme?.barStyleId as MagiaBaseThemeId)
 }
 
 export function isHallOfFameMeterTheme(
@@ -70,6 +88,9 @@ export type MeterPartyBarThemeId =
   | OlymposXiiBaseThemeId
   | `${OlymposXiiBaseThemeId}-rare`
   | `${OlymposXiiBaseThemeId}-legendary`
+  | MagiaBaseThemeId
+  | `${MagiaBaseThemeId}-rare`
+  | `${MagiaBaseThemeId}-legendary`
 
 export type MeterPartyBarThemeVariant = 'common' | 'rare' | 'legendary'
 
@@ -337,7 +358,58 @@ const OLYMPOS_XII_COMMON_THEMES: MeterPartyBarTheme[] = [
   },
 ]
 
-function olympusRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
+const MAGIA_BASE_THEMES: MeterPartyBarTheme[] = [
+  {
+    id: 'raguelmon',
+    barStyleId: 'raguelmon',
+    variant: 'common',
+    label: 'Raguelmon',
+    badge: '',
+    domain: 'Fallen justice',
+    earnable: true,
+    subtitle: 'Magia · Raguelmon',
+    style: {
+      accent: '#c084fc',
+      c1: 'rgba(28, 10, 48, 0.72)',
+      c2: 'rgba(110, 42, 160, 0.52)',
+      grid: 'rgba(192, 132, 252, 0.1)',
+    },
+  },
+  {
+    id: 'plesiomon',
+    barStyleId: 'plesiomon',
+    variant: 'common',
+    label: 'Plesiomon',
+    badge: '',
+    domain: 'Abyssal sea',
+    earnable: true,
+    subtitle: 'Magia · Plesiomon',
+    style: {
+      accent: '#38bdf8',
+      c1: 'rgba(8, 32, 56, 0.72)',
+      c2: 'rgba(14, 116, 144, 0.52)',
+      grid: 'rgba(56, 189, 248, 0.1)',
+    },
+  },
+  {
+    id: 'zhuqiaomon',
+    barStyleId: 'zhuqiaomon',
+    variant: 'common',
+    label: 'Zhuqiaomon',
+    badge: '',
+    domain: 'Vermillion flame',
+    earnable: true,
+    subtitle: 'Magia · Zhuqiaomon',
+    style: {
+      accent: '#f97316',
+      c1: 'rgba(56, 12, 8, 0.72)',
+      c2: 'rgba(180, 52, 20, 0.52)',
+      grid: 'rgba(251, 146, 60, 0.1)',
+    },
+  },
+]
+
+function shopRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
   const rareId = `${base.barStyleId}-rare` as MeterPartyBarThemeId
   return {
     ...base,
@@ -349,9 +421,9 @@ function olympusRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
 }
 
 export const OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
-  OLYMPOS_XII_COMMON_THEMES.map(olympusRareVariant)
+  OLYMPOS_XII_COMMON_THEMES.map(shopRareVariant)
 
-function olympusLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
+function shopLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
   const legendaryId = `${base.barStyleId}-legendary` as MeterPartyBarThemeId
   return {
     ...base,
@@ -363,7 +435,15 @@ function olympusLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
 }
 
 export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
-  OLYMPOS_XII_COMMON_THEMES.map(olympusLegendaryVariant)
+  OLYMPOS_XII_COMMON_THEMES.map(shopLegendaryVariant)
+
+export const MAGIA_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  MAGIA_BASE_THEMES.map(shopRareVariant)
+
+export const MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  MAGIA_BASE_THEMES.map(shopLegendaryVariant)
+
+export const MAGIA_RARE_SHOP_THEMES = MAGIA_RARE_METER_PARTY_BAR_THEMES
 
 export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ILIAD_CORE_THEME,
@@ -372,6 +452,8 @@ export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ...OLYMPOS_XII_COMMON_THEMES,
   ...OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
   ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
+  ...MAGIA_RARE_METER_PARTY_BAR_THEMES,
+  ...MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES,
 ]
 
 const THEME_BY_ID = new Map(METER_PARTY_BAR_THEMES.map((t) => [t.id, t]))
@@ -430,6 +512,7 @@ export function shouldShowMeterThemeBadge(
   if (!theme) return false
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return false
   if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) return false
+  if (isMagiaMeterShopTheme(theme)) return false
   if (theme.variant === 'legendary') return false
   return theme.badge.trim().length > 0
 }
