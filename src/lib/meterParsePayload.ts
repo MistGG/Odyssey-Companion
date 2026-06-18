@@ -45,6 +45,7 @@ export type MeterParseDungeonStored = {
   partyId: string | null
   bossTargets: string[]
   runOutcome: 'clear' | 'fail' | null
+  invalidatedByManualReset?: boolean
   leaderboardEligible?: boolean
 }
 
@@ -164,6 +165,7 @@ export function dungeonFromPayload(payload: unknown): MeterParseDungeonStored | 
 export function isLeaderboardEligibleDungeonParsePayload(payload: unknown): boolean {
   const dungeon = dungeonFromPayload(payload)
   if (!dungeon) return false
+  if (dungeon.invalidatedByManualReset === true) return false
   if (dungeon.leaderboardEligible === false) return false
   if (typeof dungeon.leaderboardEligible === 'boolean') return dungeon.leaderboardEligible
   return dungeon.runOutcome === 'clear'

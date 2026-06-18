@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.101",
+  "version": "0.1.102",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Optimized parse uploads"
+      "releaseNotes": "- Resets now invalidate runs"
     }
   }
 }

@@ -115,7 +115,7 @@ export function buildMeterLeaderboardSummary(
   members: MeterDungeonPartyMemberParse[],
   durationSec: number,
 ): MeterLeaderboardSummary {
-  if (!dungeon.leaderboardEligible) {
+  if (dungeon.invalidatedByManualReset || !dungeon.leaderboardEligible) {
     return { version: 1, eligible: false, sessionDurationSec: durationSec, members: [] }
   }
 

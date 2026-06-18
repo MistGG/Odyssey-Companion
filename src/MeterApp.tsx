@@ -850,7 +850,9 @@ export default function MeterApp() {
       }
 
       if (!pending.builtParse.dungeon.leaderboardEligible) {
-        const reason = 'Clear not eligible for upload (incomplete objectives)'
+        const reason = pending.builtParse.dungeon.invalidatedByManualReset
+          ? 'Run invalidated by manual meter reset'
+          : 'Clear not eligible for upload (incomplete objectives)'
         patchRunHistoryUpload('not_uploaded', reason)
         showUploadOutcomeToast(`Clear not uploaded — ${reason}`, 'warn')
         return
@@ -1120,6 +1122,11 @@ export default function MeterApp() {
     const session = streamRef.current
     const built = snapshotBuilt ?? buildMeterDungeonPartyParse(session)
     const { durationSec, dungeon, members, digimonNamesRequireWikiLookup } = built
+    if (session.runInvalidatedByReset || dungeon.invalidatedByManualReset) {
+      setUploadToast({ text: 'Run invalidated — manual meter reset', kind: 'warn' })
+      patchRunHistoryUpload('not_uploaded', 'Run invalidated by manual meter reset')
+      return
+    }
     if (!isDungeonParseUploadAllowed(dungeon.dungeonId, dungeon.difficultyId)) {
       setUploadToast({ text: 'Normal or Hard dungeon only', kind: 'warn' })
       patchRunHistoryUpload('not_applicable', 'Story difficulty — not uploaded')

@@ -77,6 +77,7 @@ export function buildMeterDungeonPartyParse(
     partyId: null,
     bossTargets,
     runOutcome: session.lastRunOutcome,
+    invalidatedByManualReset: session.runInvalidatedByReset,
     leaderboardEligible: isMeterSessionLeaderboardEligible(session),
     clientComplete: meterClientClearForParse(session.dungeonCompletePayload),
   }

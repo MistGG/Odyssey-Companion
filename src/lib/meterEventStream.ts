@@ -1311,17 +1311,20 @@ function meterSessionInActiveDungeonRun(session: MeterStreamSession): boolean {
  * mark a clear or trigger ranked upload.
  */
 export function resetMeterCombatForManualReset(session: MeterStreamSession): boolean {
-  const invalidated = meterSessionInActiveDungeonRun(session)
+  const inDungeonInstance = Boolean(session.dungeonId?.trim())
+  const invalidated = inDungeonInstance || meterSessionInActiveDungeonRun(session)
 
   if (invalidated) {
     session.runInvalidatedByReset = true
+    // Stay in an active pull until leave — prevents dungeon_progress from treating this as a fresh pull.
+    session.dungeonRunActive = true
     session.clientDungeonComplete = false
     session.dungeonCompletePayload = null
     session.clientReportedFullClear = false
     session.pendingEndedRun = null
-    meterRunLogNote(session, 'run invalidated — manual meter reset during active dungeon')
+    meterRunLogNote(session, 'run invalidated — manual meter reset during dungeon')
     if (isMeterDebugEnabled()) {
-      meterDebugLog('manual meter reset — active dungeon run invalidated')
+      meterDebugLog('manual meter reset — dungeon run invalidated for ranked upload')
     }
   }
 
@@ -1486,7 +1489,6 @@ export function applyDungeonProgress(
     meterRunLogClear()
     meterCombatLogClear()
     meterRunLogNote(session, `new dungeon pull | dungeon_id=${dungeonId}`)
-    session.runInvalidatedByReset = false
     session.lastRunOutcome = null
     session.clientReportedFullClear = false
     session.clientDungeonComplete = false

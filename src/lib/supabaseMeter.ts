@@ -65,6 +65,8 @@ export type MeterParseDungeonContext = {
   partyId: string | null
   bossTargets: string[]
   runOutcome: 'clear' | 'fail' | null
+  /** Set when the user hit meter reset during this dungeon visit — run cannot rank or upload. */
+  invalidatedByManualReset?: boolean
   /** False for manual mid-run uploads and post-refresh slices — still stored for the user. */
   leaderboardEligible: boolean
   /** Authoritative clear stats from `dungeon_complete` when present. */
@@ -396,6 +398,9 @@ export async function insertMeterParse(
     }
     if (!members.length) {
       return { error: 'Dungeon upload has no party members.' }
+    }
+    if (dungeon.invalidatedByManualReset) {
+      return { error: 'This run was invalidated by a manual meter reset.' }
     }
     let totalDamage = 0
     let hitCount = 0

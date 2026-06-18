@@ -222,10 +222,10 @@ export function classifyMeterRunUploadFromSnapshot(
     return { uploadStatus: 'not_uploaded', uploadDetail: 'Cloud upload not configured' }
   }
   if (!snap.builtParse.dungeon.leaderboardEligible) {
-    return {
-      uploadStatus: 'not_uploaded',
-      uploadDetail: 'Clear not eligible for upload (incomplete objectives)',
-    }
+    const detail = snap.builtParse.dungeon.invalidatedByManualReset
+      ? 'Run invalidated by manual meter reset'
+      : 'Clear not eligible for upload (incomplete objectives)'
+    return { uploadStatus: 'not_uploaded', uploadDetail: detail }
   }
   return { uploadStatus: 'not_uploaded', uploadDetail: 'Upload pending' }
 }
