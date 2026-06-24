@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.102",
+  "version": "0.1.103",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Resets now invalidate runs"
+      "releaseNotes": "- Retry upload for pending meter clears in Recent runs"
     }
   }
 }
