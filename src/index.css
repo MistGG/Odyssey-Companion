@@ -6550,11 +6550,17 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   flex-shrink: 0;
 }
 
-.meter-run-history__copy {
+.meter-run-history__copy,
+.meter-run-history__retry {
   flex-shrink: 0;
   font-size: 11px;
   padding: 6px 10px;
   white-space: nowrap;
+}
+
+.meter-run-history__retry:not(:disabled) {
+  border-color: rgba(120, 200, 140, 0.35);
+  color: rgba(180, 240, 200, 0.95);
 }
 
 .settings-panel-toggles {

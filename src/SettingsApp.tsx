@@ -880,7 +880,7 @@ export default function SettingsApp() {
                     Calc → Meter → My Parses. Story runs and failed runs are not uploaded.
                   </p>
                 </section>
-                <MeterRunHistorySection />
+                <MeterRunHistorySection supabase={supabase} userId={onlineUser?.id ?? null} />
               </>
             ) : null}
 

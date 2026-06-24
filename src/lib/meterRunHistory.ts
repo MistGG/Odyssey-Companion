@@ -21,6 +21,8 @@ import type { MeterEndedRunSnapshot } from './meterEndedRunSnapshot'
 import { meterClientClearForParse, type DungeonCompletePayload } from './meterDungeonComplete'
 import { isMeterDungeonRunHistoryCandidate } from './meterEndedRunSnapshot'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
+import type { MeterRunUploadSnapshot } from './meterRunUploadSnapshot'
+import { meterUploadSnapshotFromBuiltParse } from './meterRunUploadSnapshot'
 
 export type MeterRunUploadStatus =
   | 'uploaded_ranked'
@@ -46,6 +48,8 @@ export type MeterRunHistoryEntry = {
   clientClearTimeSec?: number | null
   clientClearDeaths?: number | null
   clientClearPartySize?: number | null
+  /** Serialized parse payload for manual upload retry from Recent runs. */
+  uploadSnapshot?: MeterRunUploadSnapshot
 }
 
 const STORAGE_KEY = 'odyssey-meter-run-history-v1'
@@ -274,6 +278,7 @@ export function recordMeterRunHistoryEntry(
     session.dungeonName?.trim() || session.dungeonId?.trim() || null
   const difficulty = session.dungeonDifficulty?.trim() || null
 
+  const builtParse = buildMeterDungeonPartyParse(session)
   const entry: MeterRunHistoryEntry = {
     id: String(sessionEndMs),
     sessionEndMs,
@@ -285,6 +290,7 @@ export function recordMeterRunHistoryEntry(
     uploadStatus,
     uploadDetail,
     ...clientClearFieldsFromPayload(session.dungeonCompletePayload),
+    uploadSnapshot: meterUploadSnapshotFromBuiltParse(builtParse),
     debugReport: buildMeterRunReportFromSession(
       session,
       meta,
@@ -297,7 +303,7 @@ export function recordMeterRunHistoryEntry(
         uploadStatus,
         uploadDetail,
       },
-      buildMeterDungeonPartyParse(session),
+      builtParse,
       meterRunLogCapture(),
     ),
   }
@@ -347,6 +353,7 @@ export function recordMeterRunHistoryFromSnapshot(
     uploadStatus,
     uploadDetail,
     ...clientClearFieldsFromPayload(snap.dungeonCompletePayload),
+    uploadSnapshot: meterUploadSnapshotFromBuiltParse(snap.builtParse),
     debugReport,
   }
 
