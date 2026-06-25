@@ -27,6 +27,8 @@ import {
   signUpWithProfile,
 } from './lib/supabaseMeter'
 import { MeterRunHistorySection } from './components/MeterRunHistorySection'
+import { SettingsDevStreamLog } from './components/SettingsDevStreamLog'
+import { useSequentialTapReveal } from './hooks/useSequentialTapReveal'
 import {
   normalizeSettingsSection,
   readInitialSettingsSection,
@@ -60,7 +62,7 @@ const NAV: { id: SettingsSectionId; label: string }[] = [
   { id: 'updates', label: 'Updates' },
 ]
 
-function sectionScrollId(id: SettingsSectionId) {
+function sectionScrollId(id: SettingsSectionId | 'dev-stream') {
   return `settings-section-${id}`
 }
 
@@ -104,6 +106,17 @@ export default function SettingsApp() {
   const [meterReportHint, setMeterReportHint] = useState<string | null>(null)
   const [timerTestHint, setTimerTestHint] = useState<string | null>(null)
   const [timerTestHintIsError, setTimerTestHintIsError] = useState(false)
+  const [devStreamLogUnlocked, setDevStreamLogUnlocked] = useState(false)
+
+  const revealDevStreamLog = useCallback(() => {
+    setDevStreamLogUnlocked(true)
+    ignoreScrollSpyUntilRef.current = Date.now() + 700
+    requestAnimationFrame(() => {
+      document.getElementById(sectionScrollId('dev-stream'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
+
+  const { registerTap: registerDevStreamTap } = useSequentialTapReveal(10, 2500, revealDevStreamLog)
 
   const supabase = useMemo(() => {
     const { url, anonKey } = getMeterSupabaseCredentials()
@@ -425,6 +438,18 @@ export default function SettingsApp() {
               {label}
             </button>
           ))}
+          <div
+            className="settings-app-nav__easter-egg"
+            onClick={registerDevStreamTap}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                registerDevStreamTap()
+              }
+            }}
+            role="presentation"
+            aria-hidden
+          />
         </nav>
 
         <main ref={mainScrollRef} className="settings-app-main meter-scroll--themed">
@@ -1297,6 +1322,13 @@ export default function SettingsApp() {
               </button>
             </div>
           </section>
+
+          {devStreamLogUnlocked ? (
+            <section id={sectionScrollId('dev-stream')} className="settings-app-section">
+              <h2 className="settings-app-section__title">Developer</h2>
+              <SettingsDevStreamLog />
+            </section>
+          ) : null}
         </main>
       </div>
 

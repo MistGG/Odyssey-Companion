@@ -8,6 +8,13 @@ release
 # Downloaded by scripts/prepare-embedded-python.ps1 before packaging Windows installers.
 bundle/python-runtime/
 
+# Local / admin scripts — only DPS reader runtime is tracked
+scripts/*
+!scripts/odyssey-dps-reader.py
+!scripts/requirements-dps.txt
+!scripts/run-prepare-dps-python.mjs
+!scripts/prepare-embedded-python.ps1
+
 scripts/__pycache__/
 *.pyc
 

@@ -51,7 +51,7 @@ import {
   getFightEngageEpoch,
   setFightEngageEpoch,
 } from './fightEngageEpoch'
-import { registerEventStreamBridge, shutdownEventStreamBridge } from './eventStreamBridge'
+import { registerEventStreamBridge, shutdownEventStreamBridge, isDevStreamCaptureActive } from './eventStreamBridge'
 import {
   boundsAfterHudResize,
   parseHudResizeEdge,
@@ -1632,6 +1632,9 @@ registerEventStreamBridge(() => {
   if (meterWin && !meterWin.isDestroyed()) wins.push(meterWin)
   if (hudWin && !hudWin.isDestroyed()) wins.push(hudWin)
   if (timelineWin && !timelineWin.isDestroyed()) wins.push(timelineWin)
+  if (isDevStreamCaptureActive() && settingsWin && !settingsWin.isDestroyed()) {
+    wins.push(settingsWin)
+  }
   return wins
 })
 

@@ -6459,6 +6459,164 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   background: rgba(62, 224, 255, 0.1);
 }
 
+.settings-app-nav__easter-egg {
+  flex-shrink: 0;
+  height: 36px;
+  margin-top: 4px;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.settings-dev-stream__status {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.settings-dev-stream__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settings-dev-stream__transport {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 200px;
+  max-width: 240px;
+}
+
+.settings-dev-stream__transport .btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.settings-dev-stream__log {
+  margin: 0;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(120, 200, 255, 0.12);
+}
+
+.settings-dev-stream__empty {
+  margin: 8px 4px;
+  font-size: 12px;
+}
+
+.settings-dev-stream__entry {
+  border-radius: 6px;
+  background: rgba(8, 14, 24, 0.72);
+  border: 1px solid rgba(120, 200, 255, 0.08);
+}
+
+.settings-dev-stream__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(220, 235, 255, 0.95);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-dev-stream__row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-dev-stream__row--open {
+  background: rgba(62, 224, 255, 0.06);
+}
+
+.settings-dev-stream__time {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: rgba(160, 190, 230, 0.85);
+}
+
+.settings-dev-stream__kind {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(120, 160, 200, 0.18);
+  color: rgba(190, 220, 255, 0.95);
+}
+
+.settings-dev-stream__kind--hello,
+.settings-dev-stream__kind--map,
+.settings-dev-stream__kind--digimon {
+  background: rgba(52, 211, 153, 0.16);
+  color: #6ee7b7;
+}
+
+.settings-dev-stream__kind--query,
+.settings-dev-stream__kind--party,
+.settings-dev-stream__kind--dungeon,
+.settings-dev-stream__kind--complete {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+}
+
+.settings-dev-stream__kind--skill,
+.settings-dev-stream__kind--party_skill,
+.settings-dev-stream__kind--hit,
+.settings-dev-stream__kind--enemy {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fcd34d;
+}
+
+.settings-dev-stream__kind--death,
+.settings-dev-stream__kind--warn {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.settings-dev-stream__kind--buff {
+  background: rgba(167, 139, 250, 0.14);
+  color: #c4b5fd;
+}
+
+.settings-dev-stream__summary {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(220, 235, 255, 0.92);
+}
+
+.settings-dev-stream__json {
+  margin: 0;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(120, 200, 255, 0.1);
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: rgba(200, 225, 255, 0.94);
+  max-height: 240px;
+  overflow: auto;
+}
+
 .settings-app-main {
   flex: 1;
   min-width: 0;

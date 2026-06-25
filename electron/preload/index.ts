@@ -373,6 +373,9 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   disconnectEventStream: () =>
     ipcRenderer.invoke('event-stream:disconnect') as Promise<{ ok: true }>,
 
+  setEventStreamDevCapture: (active: boolean) =>
+    ipcRenderer.invoke('event-stream:set-dev-capture', { active }) as Promise<{ ok: true }>,
+
   sendEventStreamQuery: (what: string) =>
     ipcRenderer.invoke('event-stream:query', { what }) as Promise<{ ok: true } | { ok: false; error: string }>,
 

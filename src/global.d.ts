@@ -156,6 +156,7 @@ declare global {
         port: number,
       ) => Promise<{ ok: true } | { ok: false; error: string }>
       disconnectEventStream?: () => Promise<{ ok: true }>
+      setEventStreamDevCapture?: (active: boolean) => Promise<{ ok: true }>
       onEventStreamMessage?: (
         handler: (payload: { raw: string; event: Record<string, unknown> }) => void,
       ) => () => void

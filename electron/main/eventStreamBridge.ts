@@ -15,6 +15,13 @@ let currentHost = '127.0.0.1'
 let currentPort = 8766
 /** Suppress `waiting` when we deliberately tear down the socket to reconnect. */
 let intentionalDisconnect = false
+/** Active renderer consumers (`connect` minus `disconnect`). Socket stays up while > 0. */
+let connectionRefCount = 0
+let devStreamCaptureActive = false
+
+export function isDevStreamCaptureActive(): boolean {
+  return devStreamCaptureActive
+}
 
 function eventStreamTargets(): BrowserWindow[] {
   return resolveEventStreamWins().filter((w) => w && !w.isDestroyed())
@@ -145,6 +152,25 @@ function startConnectionLoop(host: string, port: number) {
   void runConnectAttempt(gen)
 }
 
+function acquireEventStream(host: string, port: number) {
+  connectionRefCount += 1
+  if (connectionRefCount === 1) {
+    startConnectionLoop(host, port)
+    return
+  }
+  if (loopActive && client?.isConnected && host === currentHost && port === currentPort) {
+    broadcastStatus('connected', null)
+  }
+}
+
+async function releaseEventStream() {
+  connectionRefCount = Math.max(0, connectionRefCount - 1)
+  if (connectionRefCount > 0) return
+  cancelRetryLoop()
+  await disconnectClient(true)
+  broadcastStatus('idle', null)
+}
+
 export function registerEventStreamBridge(getWins: () => BrowserWindow[]) {
   resolveEventStreamWins = getWins
 
@@ -155,17 +181,28 @@ export function registerEventStreamBridge(getWins: () => BrowserWindow[]) {
       const host = typeof o.host === 'string' && o.host.trim() ? o.host.trim() : '127.0.0.1'
       const portRaw = Number(o.port)
       const port = Number.isFinite(portRaw) && portRaw > 0 ? Math.round(portRaw) : 8766
-      startConnectionLoop(host, port)
+      acquireEventStream(host, port)
       return { ok: true }
     },
   )
 
   ipcMain.handle('event-stream:disconnect', async () => {
-    cancelRetryLoop()
-    await disconnectClient(true)
-    broadcastStatus('idle', null)
+    await releaseEventStream()
     return { ok: true as const }
   })
+
+  ipcMain.handle(
+    'event-stream:set-dev-capture',
+    (_e, payload: unknown): { ok: true } => {
+      const active =
+        payload === true ||
+        (payload &&
+          typeof payload === 'object' &&
+          (payload as { active?: unknown }).active === true)
+      devStreamCaptureActive = active
+      return { ok: true }
+    },
+  )
 
   ipcMain.handle(
     'event-stream:query',
@@ -187,6 +224,8 @@ export function registerEventStreamBridge(getWins: () => BrowserWindow[]) {
 }
 
 export async function shutdownEventStreamBridge() {
+  connectionRefCount = 0
+  devStreamCaptureActive = false
   cancelRetryLoop()
   await disconnectClient(true)
   broadcastStatus('idle', null)
