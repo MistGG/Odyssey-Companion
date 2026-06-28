@@ -11,6 +11,7 @@ import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG, normalizeAttackSpeedWidgetConfig } 
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, normalizeBuffTrackerWidgetConfig } from './hudBuffTrackerWidget'
 import { DEFAULT_BOSS_ALERTS_WIDGET_CONFIG, normalizeBossAlertsWidgetConfig } from './hudBossAlertsWidget'
 import { normalizeBossTimerChimeStyle, normalizeServerStatusChimeStyle } from './bossTimerWebChime'
+import { normalizeBossTimerIgnoredIds } from './bossTimerIgnore'
 
 const KEY = 'dmo-overlay-settings-v1'
 
@@ -218,6 +219,8 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
   let bossVisibleCount =
     typeof raw.bossTimerVisibleCount === 'number' ? raw.bossTimerVisibleCount : undefined
 
+  const bossIgnoredMonsterIds = normalizeBossTimerIgnoredIds(raw.bossTimerIgnoredMonsterIds)
+
   let serverStatusMonitor =
     typeof raw.serverStatusMonitorEnabled === 'boolean'
       ? raw.serverStatusMonitorEnabled
@@ -338,6 +341,7 @@ function normalizeLoaded(raw: unknown): OverlaySettings {
       bossVisibleCount <= 15
         ? Math.round(bossVisibleCount)
         : DEFAULT_SETTINGS.bossTimerVisibleCount,
+    bossTimerIgnoredMonsterIds: bossIgnoredMonsterIds,
     serverStatusMonitorEnabled:
       typeof serverStatusMonitor === 'boolean'
         ? serverStatusMonitor

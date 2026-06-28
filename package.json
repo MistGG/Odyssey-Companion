@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.105",
+  "version": "0.1.106",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added better MDGH Timeline/Digi-Aura data for upto 6 minutes. Please contact me if you have data up to the Enrage."
+      "releaseNotes": "- Added the ability to ignore specific world bosses in the Raid Timer"
     }
   }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { OverlaySettings } from './types'
 import { loadSettings, saveSettings, hotkeysApplyPayload } from './lib/settingsStorage'
 import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
+import { toggleBossTimerIgnore } from './lib/bossTimerIgnore'
 import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import BossTimersView from './components/BossTimersView'
 
@@ -128,6 +129,10 @@ export default function TimersApp() {
     setSettings((s) => ({ ...s, timersPositionLocked: !s.timersPositionLocked }))
   }, [])
 
+  const onIgnoreBoss = useCallback((monsterId: string) => {
+    setSettings((s) => toggleBossTimerIgnore(s, monsterId))
+  }, [])
+
   const shellStyle = useMemo(
     () =>
       ({
@@ -234,6 +239,8 @@ export default function TimersApp() {
             <BossTimersView
               variant="overlay"
               visibleCount={settings.bossTimerVisibleCount}
+              ignoredMonsterIds={settings.bossTimerIgnoredMonsterIds}
+              onIgnoreBoss={onIgnoreBoss}
               onLootRatesExpandedChange={onLootRatesExpandedChange}
             />
           </div>

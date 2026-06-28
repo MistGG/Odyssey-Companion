@@ -131,6 +131,16 @@ export type RaidBossAlertSnapshot = {
   nextSpawnUtcMs: number
 }
 
+/** Drop bosses the user chose to ignore in settings. */
+export function filterIgnoredRaidBosses(
+  bosses: RaidBossEntry[],
+  ignoredMonsterIds: readonly string[],
+): RaidBossEntry[] {
+  if (ignoredMonsterIds.length === 0) return bosses
+  const ignored = new Set(ignoredMonsterIds)
+  return bosses.filter((boss) => !ignored.has(boss.monster_id))
+}
+
 export function toAlertSnapshots(
   bosses: RaidBossEntry[],
   _serverOffsetMs: number,

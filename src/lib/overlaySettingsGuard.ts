@@ -45,6 +45,10 @@ function isHudWidgets(v: unknown): boolean {
   return v.every(isHudWidget)
 }
 
+function isStringIdArray(v: unknown): boolean {
+  return Array.isArray(v) && v.every((item) => typeof item === 'string' && item.trim().length > 0)
+}
+
 function isHotkeyShape(v: unknown): boolean {
   if (!v || typeof v !== 'object') return false
   const h = v as Record<string, unknown>
@@ -119,6 +123,7 @@ export function isOverlaySettings(v: unknown): v is OverlaySettings {
     !Number.isInteger(o.bossTimerVisibleCount) ||
     o.bossTimerVisibleCount < 1 ||
     o.bossTimerVisibleCount > 15 ||
+    !isStringIdArray(o.bossTimerIgnoredMonsterIds) ||
     typeof o.serverStatusMonitorEnabled !== 'boolean' ||
     (o.serverStatusNotifyMethod !== 'toast' &&
       o.serverStatusNotifyMethod !== 'sound' &&

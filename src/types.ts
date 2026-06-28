@@ -337,6 +337,8 @@ export type OverlaySettings = {
   bossTimerChimeRepeats: number
   /** How many upcoming bosses to show in the timers overlay (1–15). */
   bossTimerVisibleCount: number
+  /** Raid bosses hidden from the overlay and spawn reminders (`monster_id` values). */
+  bossTimerIgnoredMonsterIds: string[]
   /** Poll The Digital Odyssey server-status API and alert on offline/online changes. */
   serverStatusMonitorEnabled: boolean
   /** How to alert when game server status changes. */
@@ -398,6 +400,7 @@ export const DEFAULT_SETTINGS: OverlaySettings = {
   bossTimerChimeVolume: 0.45,
   bossTimerChimeRepeats: 1,
   bossTimerVisibleCount: 5,
+  bossTimerIgnoredMonsterIds: [],
   serverStatusMonitorEnabled: false,
   serverStatusNotifyMethod: 'toast',
   serverStatusChimeStyle: 'digivice',

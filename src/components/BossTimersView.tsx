@@ -10,6 +10,7 @@ import {
   bossStatusLabel,
   bossTrainSpawnMs,
   fetchRaidTimer,
+  filterIgnoredRaidBosses,
   formatRespawnCycleMinutes,
   isBossAlive,
   isBossReady,
@@ -193,6 +194,8 @@ function LootIconStrip({ rewards }: { rewards: BossTimerReward[] }) {
 type BossTimersViewProps = {
   variant?: 'overlay' | 'page'
   visibleCount?: number
+  ignoredMonsterIds?: string[]
+  onIgnoreBoss?: (monsterId: string) => void
   onLootRatesExpandedChange?: (expanded: boolean) => void
 }
 
@@ -203,6 +206,7 @@ function BossTimerCard({
   variant,
   lootRatesOpen,
   onToggleLootRates,
+  onIgnoreBoss,
   inTrain = false,
 }: {
   boss: RaidBossEntry
@@ -211,6 +215,7 @@ function BossTimerCard({
   variant: 'overlay' | 'page'
   lootRatesOpen: boolean
   onToggleLootRates: () => void
+  onIgnoreBoss?: (monsterId: string) => void
   /** Nested inside a multi-boss train row. */
   inTrain?: boolean
 }) {
@@ -285,6 +290,19 @@ function BossTimerCard({
     </div>
   )
 
+  const ignoreButton =
+    onIgnoreBoss != null ? (
+      <button
+        type="button"
+        className="btn boss-timer-ignore-btn"
+        title="Hide this boss from the timer and reminders"
+        aria-label={`Ignore ${bossName}`}
+        onClick={() => onIgnoreBoss(boss.monster_id)}
+      >
+        Ignore
+      </button>
+    ) : null
+
   if (variant === 'overlay') {
     return (
       <div
@@ -316,7 +334,10 @@ function BossTimerCard({
             </span>
           </div>
           <div className="boss-timer-overlay-strip__meta muted">
-            <div className="boss-timer-overlay-strip__loc-line">{locationLine}</div>
+            <div className="boss-timer-overlay-strip__loc-line">
+              <span>{locationLine}</span>
+              {ignoreButton}
+            </div>
             {lootBar({ overlay: true })}
             {lootRatesOpen && raidRewards.length > 0 ? (
               <RaidDropsTable rewards={raidRewards} compact />
@@ -346,6 +367,7 @@ function BossTimerCard({
           ) : inTrain && ready ? (
             <span className="boss-timer-train__status-pill boss-timer-train__status-pill--ready">Ready</span>
           ) : null}
+          {ignoreButton}
         </h2>
         <p className="boss-timer-card__location">
           <span className="boss-timer-card__label">Location</span>
@@ -385,6 +407,7 @@ function BossTimerTrainGroup({
   variant,
   expandedLootBossId,
   onToggleLootRatesForBoss,
+  onIgnoreBoss,
 }: {
   bosses: RaidBossEntry[]
   totalSpawnCount: number
@@ -393,6 +416,7 @@ function BossTimerTrainGroup({
   variant: 'overlay' | 'page'
   expandedLootBossId: string | null
   onToggleLootRatesForBoss: (bossId: string) => void
+  onIgnoreBoss?: (monsterId: string) => void
 }) {
   const isTrain = totalSpawnCount > 1
   const displayBosses = useMemo(() => {
@@ -410,6 +434,7 @@ function BossTimerTrainGroup({
         variant={variant}
         lootRatesOpen={expandedLootBossId === boss.monster_id}
         onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+        onIgnoreBoss={onIgnoreBoss}
       />
     )
   }
@@ -433,6 +458,7 @@ function BossTimerTrainGroup({
               variant="overlay"
               lootRatesOpen={expandedLootBossId === boss.monster_id}
               onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+              onIgnoreBoss={onIgnoreBoss}
               inTrain
             />
           ))}
@@ -459,6 +485,7 @@ function BossTimerTrainGroup({
             variant="page"
             lootRatesOpen={expandedLootBossId === boss.monster_id}
             onToggleLootRates={() => onToggleLootRatesForBoss(boss.monster_id)}
+            onIgnoreBoss={onIgnoreBoss}
             inTrain
           />
         ))}
@@ -470,6 +497,8 @@ function BossTimerTrainGroup({
 export default function BossTimersView({
   variant = 'page',
   visibleCount = DEFAULT_SETTINGS.bossTimerVisibleCount,
+  ignoredMonsterIds = DEFAULT_SETTINGS.bossTimerIgnoredMonsterIds,
+  onIgnoreBoss,
   onLootRatesExpandedChange,
 }: BossTimersViewProps) {
   const [tick, setTick] = useState(0)
@@ -494,23 +523,36 @@ export default function BossTimersView({
     onLootRatesExpandedChange?.(lootDetailsExpanded)
   }, [lootDetailsExpanded, onLootRatesExpandedChange])
 
+  const pushAlertSchedule = useCallback(
+    (data: RaidTimerResponse) => {
+      const tracked = filterIgnoredRaidBosses(data.bosses, ignoredMonsterIds)
+      window.odysseyCompanion?.pushBossTimerSchedule?.(toAlertSnapshots(tracked, data.serverOffsetMs))
+    },
+    [ignoredMonsterIds],
+  )
+
   const refreshRaid = useCallback(() => {
     void fetchRaidTimer()
       .then((data) => {
         setRaid(data)
         setRaidErr(null)
-        window.odysseyCompanion?.pushBossTimerSchedule?.(toAlertSnapshots(data.bosses, data.serverOffsetMs))
+        pushAlertSchedule(data)
       })
       .catch((e) => {
         setRaidErr(e instanceof Error ? e.message : String(e))
       })
-  }, [])
+  }, [pushAlertSchedule])
 
   useEffect(() => {
     refreshRaid()
     const id = window.setInterval(refreshRaid, 10_000)
     return () => window.clearInterval(id)
   }, [refreshRaid])
+
+  useEffect(() => {
+    if (!raid) return
+    pushAlertSchedule(raid)
+  }, [ignoredMonsterIds, pushAlertSchedule, raid])
 
   useLayoutEffect(() => {
     if (variant !== 'overlay') return
@@ -524,10 +566,13 @@ export default function BossTimersView({
   }, [])
 
   const serverOffsetMs = raid?.serverOffsetMs ?? 0
-  const allBosses = raid?.bosses ?? []
+  const trackedBosses = useMemo(
+    () => filterIgnoredRaidBosses(raid?.bosses ?? [], ignoredMonsterIds),
+    [raid?.bosses, ignoredMonsterIds],
+  )
   const bossTrains = useMemo(
-    () => pickVisibleBossTrains(allBosses, visibleCount, serverOffsetMs),
-    [allBosses, visibleCount, serverOffsetMs],
+    () => pickVisibleBossTrains(trackedBosses, visibleCount, serverOffsetMs),
+    [trackedBosses, visibleCount, serverOffsetMs],
   )
 
   if (variant === 'overlay') {
@@ -548,6 +593,7 @@ export default function BossTimersView({
             variant="overlay"
             expandedLootBossId={expandedLootBossId}
             onToggleLootRatesForBoss={onToggleLootRatesForBoss}
+            onIgnoreBoss={onIgnoreBoss}
           />
         ))}
         {!bossTrains.length && !raidErr ? <p className="hint muted">Loading raid timers…</p> : null}
@@ -613,6 +659,7 @@ export default function BossTimersView({
           variant="page"
           expandedLootBossId={expandedLootBossId}
           onToggleLootRatesForBoss={onToggleLootRatesForBoss}
+          onIgnoreBoss={onIgnoreBoss}
         />
       ))}
 

@@ -27,7 +27,9 @@ import {
   signUpWithProfile,
 } from './lib/supabaseMeter'
 import { MeterRunHistorySection } from './components/MeterRunHistorySection'
+import BossTimerIgnorePanel from './components/BossTimerIgnorePanel'
 import { SettingsDevStreamLog } from './components/SettingsDevStreamLog'
+import { toggleBossTimerIgnore } from './lib/bossTimerIgnore'
 import { useSequentialTapReveal } from './hooks/useSequentialTapReveal'
 import {
   normalizeSettingsSection,
@@ -1032,6 +1034,15 @@ export default function SettingsApp() {
                   Upcoming spawns in the Raid Timer overlay, soonest first.
                 </span>
               </label>
+              <div className="field" style={{ gridColumn: '1 / -1' }}>
+                <span>Ignored bosses</span>
+                <BossTimerIgnorePanel
+                  ignoredMonsterIds={settings.bossTimerIgnoredMonsterIds}
+                  onToggle={(monsterId) =>
+                    setSettings((s) => toggleBossTimerIgnore(s, monsterId))
+                  }
+                />
+              </div>
             </section>
 
             <section className="field-group">
