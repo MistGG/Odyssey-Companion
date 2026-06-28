@@ -16,7 +16,7 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import { normalizeFightPayloadDetailed } from './lib/fightPayload'
 import { fightSkillsForLabeling } from './lib/effectTypeDisplay'
-import { flattenFightSkills } from './lib/timelineSchedule'
+import { flattenFightSkills, buildTimelineDisplayEntries, fightUsesAbsoluteSchedule } from './lib/timelineSchedule'
 
 function formatMs(ms: number) {
   const totalCs = Math.floor(ms / 10)
@@ -505,8 +505,14 @@ export default function TimelineApp() {
                         </span>
                       </div>
                       <SkillTimelineList
-                        objectiveIndex={i}
-                        skills={fight.monsterSkills[i]?.skills ?? []}
+                        entries={
+                          fightUsesAbsoluteSchedule(fight) && i === 0
+                            ? buildTimelineDisplayEntries(fight)
+                            : flattenFightSkills(fight).filter(
+                                (e) => e.objectiveIndex === i,
+                              )
+                        }
+                        absoluteTiming={fightUsesAbsoluteSchedule(fight) && i === 0}
                         labelContextSkills={labelContextSkills}
                       />
                     </section>

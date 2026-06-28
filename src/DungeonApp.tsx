@@ -262,6 +262,7 @@ export default function DungeonApp() {
           pickedDungeon.name,
           row,
           monsterMap,
+          { dungeonId: pickedDungeonId },
         )
         const ok = await api.loadFightIntoTimeline(payload)
         if (!ok) {

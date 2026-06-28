@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { MonsterSkill, TimelineFightPayload } from '../types'
 import type { FlatSkillEntry, QueuedEvent, QueuedGroup } from '../lib/timelineSchedule'
-import { computeEventQueue, groupQueueByFireAt } from '../lib/timelineSchedule'
+import { computeFightEventQueue, groupQueueByFireAt } from '../lib/timelineSchedule'
 import { fightSkillsForLabeling, formatSkillEffectLabel } from '../lib/effectTypeDisplay'
 import { formatSkillDamage } from '../lib/skillTimeline'
 import { TargetCallout } from './TargetCallout'
@@ -226,8 +226,8 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
   const fightSkills = useMemo(() => fightSkillsForLabeling(fight), [fight])
 
   const queue = useMemo(
-    () => computeEventQueue(flatSkills, elapsedMs, MAX_QUEUE_ROWS),
-    [flatSkills, elapsedMs],
+    () => computeFightEventQueue(fight, flatSkills, elapsedMs, MAX_QUEUE_ROWS),
+    [fight, flatSkills, elapsedMs],
   )
 
   const groups = useMemo(() => groupQueueByFireAt(queue), [queue])

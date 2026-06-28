@@ -21,6 +21,15 @@ export function formatCastMs(ms: number) {
   return `${(ms / 1000).toFixed(1)}s cast`
 }
 
+/** One-shot or first-cast timestamp from pull start. */
+export function formatAtMs(ms: number) {
+  const sec = Math.max(0, Math.round(ms / 1000))
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const r = sec % 60
+  return r ? `${m}m ${r}s` : `${m}m`
+}
+
 /** Compact damage readout for timeline rows (0 / invalid → em dash). */
 export function formatSkillDamage(amount: number): string {
   if (!Number.isFinite(amount) || amount <= 0) return '—'

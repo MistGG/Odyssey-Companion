@@ -1,11 +1,13 @@
 import type { DungeonDetailDifficulty, MonsterDetail, TimelineFightPayload } from '../types'
+import { fightTimelineScheduleFor } from './fightTimelineOverrides'
 
 export function buildTimelineFightPayload(
   dungeonName: string,
   row: DungeonDetailDifficulty,
   monsterById: Record<string, MonsterDetail>,
+  opts?: { dungeonId?: string },
 ): TimelineFightPayload {
-  return {
+  const payload: TimelineFightPayload = {
     dungeonName,
     difficulty: row.difficulty,
     time_limit_sec: row.time_limit_sec,
@@ -23,4 +25,10 @@ export function buildTimelineFightPayload(
       skills: monsterById[o.monster_id]?.skills ?? [],
     })),
   }
+  const dungeonId = opts?.dungeonId?.trim()
+  if (dungeonId) {
+    const schedule = fightTimelineScheduleFor(dungeonId, row.difficulty)
+    if (schedule) payload.schedule = schedule
+  }
+  return payload
 }

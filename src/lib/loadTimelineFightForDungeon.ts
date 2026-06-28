@@ -3,7 +3,6 @@ import { buildTimelineFightPayload } from './buildTimelineFightPayload'
 import { fetchDungeonDetail, findDifficultyRow } from './dungeonDetailApi'
 import { normalizeEventStreamDifficulty } from './dungeonDifficultyTags'
 import { fetchMonsterDetail } from './monsterDetailApi'
-
 export async function loadTimelineFightForDungeon(
   dungeonId: string,
   difficultyRaw: string,
@@ -38,7 +37,7 @@ export async function loadTimelineFightForDungeon(
 
     const dungeonName =
       detail.name?.trim() || opts?.dungeonDisplayName?.trim() || id
-    const payload = buildTimelineFightPayload(dungeonName, row, monsterMap)
+    const payload = buildTimelineFightPayload(dungeonName, row, monsterMap, { dungeonId: id })
     return { ok: true, payload }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }

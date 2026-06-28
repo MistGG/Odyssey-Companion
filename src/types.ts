@@ -106,6 +106,24 @@ export type MonsterSkill = {
   condition: string
   condition_val: number
   max_uses?: number
+  /** Player-facing label — skips effect-type heuristics when set. */
+  display_label?: string
+  /** One-shot cast at this ms from pull (not a repeating cooldown interval). */
+  fire_at_ms?: number
+}
+
+/** Verified mechanic schedule when wiki cooldown data is wrong. */
+export type FightTimelineScheduledEvent = {
+  atMs: number
+  label: string
+  targetCount: number
+  effectMax?: number
+}
+
+export type FightTimelineSchedule = {
+  events: FightTimelineScheduledEvent[]
+  /** After this ms, append wiki skills whose first cast is later than the cutover. */
+  wikiCutoverMs: number
 }
 
 /** `GET …/api/wiki/monsters` — map rows on the monster payload. */
@@ -411,6 +429,8 @@ export type TimelineFightPayload = {
     monster_id: string
     skills: MonsterSkill[]
   }>
+  /** Verified pull schedule — overrides wiki cooldown queue until wikiCutoverMs. */
+  schedule?: FightTimelineSchedule
 }
 
 export type AppVersionInfo = {

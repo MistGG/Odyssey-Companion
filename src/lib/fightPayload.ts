@@ -44,6 +44,13 @@ export function normalizeFightPayloadDetailed(
   if (!Array.isArray(o.monsterSkills)) {
     return { ok: false, reason: 'monsterSkills must be an array' }
   }
+  const scheduleRaw = o.schedule
+  const schedule =
+    scheduleRaw &&
+    typeof scheduleRaw === 'object' &&
+    Array.isArray((scheduleRaw as { events?: unknown }).events)
+      ? (scheduleRaw as TimelineFightPayload['schedule'])
+      : undefined
   return {
     ok: true,
     value: {
@@ -53,6 +60,7 @@ export function normalizeFightPayloadDetailed(
       death_limit,
       objectives: o.objectives as TimelineFightPayload['objectives'],
       monsterSkills: o.monsterSkills as TimelineFightPayload['monsterSkills'],
+      schedule,
     },
   }
 }

@@ -15,7 +15,7 @@ import {
   syncDungeonBossTargets,
 } from './meterDungeonRun'
 import { parseDungeonCompleteEvent } from './meterDungeonComplete'
-import { flattenFightSkills, type FlatSkillEntry } from './timelineSchedule'
+import { flattenFightSkills, computeFightEventQueue, buildTimelineDisplayEntries, type FlatSkillEntry } from './timelineSchedule'
 import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
 
 export type HudBossAlertRow = {
@@ -101,6 +101,15 @@ export function listTrackedBossAlertSkills(
   fight: TimelineFightPayload,
   config: BossAlertsWidgetConfig,
 ): FlatSkillEntry[] {
+  if (fight.schedule?.events.length) {
+    return buildTimelineDisplayEntries(fight).filter((e) =>
+      shouldTrackSkillTargetCount(
+        e.skill.target_count,
+        config.trackSingleTarget,
+        config.trackMultiTarget,
+      ),
+    )
+  }
   return flattenFightSkills(fight).filter((e) =>
     shouldTrackSkillTargetCount(
       e.skill.target_count,
@@ -136,6 +145,37 @@ export function computeHudBossAlerts(
   const warnLeadMs = Math.max(1, config.warnLeadSec) * 1000
   const rows: HudBossAlertRow[] = []
   const fightSkills = fightSkillsForLabeling(fight)
+  const flat = flattenFightSkills(fight)
+
+  if (fight.schedule?.events.length) {
+    const queue = computeFightEventQueue(fight, flat, elapsedMs, 32)
+    for (const q of queue) {
+      if (
+        !shouldTrackSkillTargetCount(
+          q.entry.skill.target_count,
+          config.trackSingleTarget,
+          config.trackMultiTarget,
+        )
+      ) {
+        continue
+      }
+      const remainMs = q.fireAt - elapsedMs
+      if (remainMs > warnLeadMs) continue
+      if (remainMs <= -500) continue
+      const sec = Math.max(0, remainMs / 1000)
+      const ob = fight.objectives[q.entry.objectiveIndex]
+      rows.push({
+        key: q.entry.key,
+        skillLabel: formatSkillEffectLabel(q.entry.skill, fightSkills),
+        targetCount: q.entry.skill.target_count,
+        bossName: ob?.monster_name?.trim() || ob?.pen_name?.trim() || null,
+        secondsRemaining: sec,
+        urgent: sec <= 2,
+      })
+    }
+    rows.sort((a, b) => a.secondsRemaining - b.secondsRemaining)
+    return rows
+  }
 
   for (const entry of listTrackedBossAlertSkills(fight, config)) {
     const cd = entry.skill.cool_time
