@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DamageNumbersWidgetConfig } from '../../../types'
 import {
+  fetchMapleActionSkinIndices,
   fetchMapleDamageSkinItems,
+  formatMapleSkinDisplayName,
   mapleItemIconUrl,
   SkinMap,
   useMapleWzVersion,
   cacheMapleDamageSkinLocally,
+  MAPLE_SKIN_FILTER_LABELS,
+  matchesMapleSkinFilter,
+  dedupeMapleDamageSkinItemsByIndex,
+  splitMapleDamageSkinItems,
   type MapleDamageSkinItem,
+  type MapleSkinFilterMode,
 } from '../../../lib/mapleDamageSkin'
 
 type Props = {
@@ -14,12 +21,17 @@ type Props = {
   onChange: (patch: Partial<DamageNumbersWidgetConfig>) => void
 }
 
+const FILTER_MODES: MapleSkinFilterMode[] = ['all', 'unit', 'action']
+
 export default function MapleDamageSkinPicker({ config, onChange }: Props) {
   const wz = useMapleWzVersion(config.mapleRegion, config.mapleWzVersion)
   const [search, setSearch] = useState('')
   const [items, setItems] = useState<MapleDamageSkinItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [actionIndices, setActionIndices] = useState<ReadonlySet<number>>(() => new Set())
+  const [actionProbeReady, setActionProbeReady] = useState(false)
   const [browseOpen, setBrowseOpen] = useState(false)
+  const [filterMode, setFilterMode] = useState<MapleSkinFilterMode>('all')
   const [cacheStatus, setCacheStatus] = useState<string | null>(null)
   const cacheTimerRef = useRef<number | null>(null)
 
@@ -55,10 +67,17 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
     if (!browseOpen || !wz) return
     let cancelled = false
     setLoading(true)
+    setActionProbeReady(false)
     void fetchMapleDamageSkinItems(wz).then((list: MapleDamageSkinItem[]) => {
       if (cancelled) return
-      setItems(list.filter((item: MapleDamageSkinItem) => SkinMap[item.id] !== undefined))
+      const { mapped } = splitMapleDamageSkinItems(list, SkinMap)
+      setItems(dedupeMapleDamageSkinItemsByIndex(mapped, SkinMap))
       setLoading(false)
+    })
+    void fetchMapleActionSkinIndices(wz).then((indices) => {
+      if (cancelled) return
+      setActionIndices(new Set(indices))
+      setActionProbeReady(true)
     })
     return () => {
       cancelled = true
@@ -67,9 +86,25 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return items
-    return items.filter((item) => item.name.toLowerCase().includes(q))
-  }, [items, search])
+    return items.filter((item) => {
+      const skinNum = SkinMap[item.id]?.[0]
+      if (!matchesMapleSkinFilter(item.name, filterMode, skinNum, actionIndices)) return false
+      if (!q) return true
+      const haystack = `${item.name} ${skinNum ?? ''} ${item.id}`.toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [items, search, filterMode, actionIndices])
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<MapleSkinFilterMode, number> = { all: 0, unit: 0, action: 0 }
+    for (const item of items) {
+      const skinNum = SkinMap[item.id]?.[0]
+      for (const mode of FILTER_MODES) {
+        if (matchesMapleSkinFilter(item.name, mode, skinNum, actionIndices)) counts[mode]++
+      }
+    }
+    return counts
+  }, [items, actionIndices])
 
   const selectSkin = (item: MapleDamageSkinItem) => {
     const numbers = SkinMap[item.id]
@@ -87,8 +122,17 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
   const skinLabel = (item: MapleDamageSkinItem): string => {
     const numbers = SkinMap[item.id]
     const skinNum = numbers?.[0]
-    return skinNum != null ? `Skin #${skinNum}` : `Item ${item.id}`
+    if (skinNum == null) return `Item ${item.id}`
+    return formatMapleSkinDisplayName(skinNum, item.name, item.id)
   }
+
+  const selectedLabel = formatMapleSkinDisplayName(
+    config.skinNumber,
+    config.skinName,
+    config.skinItemId,
+  )
+
+  const actionTabLoading = filterMode === 'action' && browseOpen && !actionProbeReady
 
   return (
     <div className="hud-damage-skin-picker">
@@ -98,7 +142,7 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
           type="number"
           className="hud-widget-settings-menu__number"
           min={1}
-          max={999}
+          max={9999}
           value={config.skinNumber}
           onChange={(e) => {
             const skinNumber = Number(e.target.value)
@@ -108,10 +152,8 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
         />
       </label>
 
-      {config.skinItemId != null ? (
-        <p className="hud-damage-skin-picker__current">
-          Selected: Skin #{config.skinNumber}
-        </p>
+      {config.skinItemId != null || config.skinName ? (
+        <p className="hud-damage-skin-picker__current">Selected: {selectedLabel}</p>
       ) : null}
 
       {cacheStatus ? (
@@ -128,6 +170,41 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
 
       {browseOpen ? (
         <div className="hud-damage-skin-picker__browse">
+          <div
+            className="hud-damage-skin-picker__modes"
+            role="tablist"
+            aria-label="Damage skin category"
+          >
+            {FILTER_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={filterMode === mode}
+                className={[
+                  'hud-damage-skin-picker__mode',
+                  filterMode === mode ? 'hud-damage-skin-picker__mode--active' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={() => setFilterMode(mode)}
+              >
+                {MAPLE_SKIN_FILTER_LABELS[mode]}
+                <span className="hud-damage-skin-picker__mode-count">
+                  {mode === 'action' && !actionProbeReady ? '…' : filterCounts[mode]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <p className="hud-damage-skin-picker__mode-hint muted">
+            {filterMode === 'all'
+              ? 'All mapped damage skins.'
+              : filterMode === 'unit'
+                ? 'Unit skins shorten big numbers (10k / 100M style).'
+                : 'Action skins animate each digit sprite.'}
+          </p>
+
           <input
             type="search"
             className="hud-damage-skin-picker__search"
@@ -135,19 +212,26 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          {loading ? (
-            <p className="hud-damage-skin-picker__status muted">Loading skins…</p>
+          {loading || actionTabLoading ? (
+            <p className="hud-damage-skin-picker__status muted">
+              {loading ? 'Loading skins…' : 'Detecting action skins…'}
+            </p>
           ) : !wz ? (
             <p className="hud-damage-skin-picker__status muted">Connecting to maplestory.io…</p>
           ) : (
             <ul className="hud-damage-skin-picker__list">
-              {filtered.map((item) => (
+              {filtered.map((item) => {
+                const skinNum = SkinMap[item.id]?.[0]
+                const isActive =
+                  config.skinItemId === item.id ||
+                  (skinNum != null && skinNum === config.skinNumber)
+                return (
                 <li key={item.id}>
                   <button
                     type="button"
                     className={[
                       'hud-damage-skin-picker__item',
-                      config.skinItemId === item.id ? 'hud-damage-skin-picker__item--active' : '',
+                      isActive ? 'hud-damage-skin-picker__item--active' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')}
@@ -163,9 +247,10 @@ export default function MapleDamageSkinPicker({ config, onChange }: Props) {
                     <span>{skinLabel(item)}</span>
                   </button>
                 </li>
-              ))}
+                )
+              })}
               {!filtered.length ? (
-                <li className="hud-damage-skin-picker__status muted">No skins match.</li>
+                <li className="hud-damage-skin-picker__status muted">No skins match this filter.</li>
               ) : null}
             </ul>
           )}

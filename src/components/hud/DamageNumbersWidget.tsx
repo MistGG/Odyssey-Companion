@@ -9,9 +9,14 @@ import {
 import type { DamageNumbersWidgetConfig } from '../../types'
 import type { HudDamagePopup } from '../../lib/hudDamageNumbers'
 import { formatDamageNumber } from '../../lib/hudDamageNumbers'
-import { DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG } from '../../lib/hudDamageNumbersWidget'
+import {
+  DAMAGE_NUMBERS_WIDGET_HEIGHT_PX,
+  DAMAGE_NUMBERS_WIDGET_WIDTH_PX,
+  DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG,
+} from '../../lib/hudDamageNumbersWidget'
 import {
   preloadMapleDamageSkin,
+  useMapleSkinAnimatedDigits,
   useMapleWzVersion,
 } from '../../lib/mapleDamageSkin'
 import MapleDamageSkinPopup from './mapleDamageSkin/MapleDamageSkinPopup'
@@ -32,6 +37,11 @@ const DamageNumbersWidget = forwardRef<HTMLDivElement, Props>(function DamageNum
   const config = configProp ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG
   const [tick, setTick] = useState(0)
   const wz = useMapleWzVersion(config.mapleRegion, config.mapleWzVersion)
+  const { animated, frameCount } = useMapleSkinAnimatedDigits(
+    wz,
+    config.skinNumber,
+    config.skinName,
+  )
 
   useEffect(() => {
     if (!popups.length) return
@@ -41,26 +51,26 @@ const DamageNumbersWidget = forwardRef<HTMLDivElement, Props>(function DamageNum
 
   useEffect(() => {
     if (!wz) return
-    preloadMapleDamageSkin(wz, config.skinNumber)
-  }, [wz, config.skinNumber])
+    preloadMapleDamageSkin(wz, config.skinNumber, { animated, frameCount })
+  }, [wz, config.skinNumber, animated, frameCount])
 
   void tick
 
   const style = useMemo(
     () =>
       ({
-        '--hud-widget-alpha': String(config.backgroundOpacity),
         '--hud-damage-numbers-scale': String(config.widgetScale),
-        width: config.widgetWidthPx,
-        height: config.widgetHeightPx,
-        minWidth: config.widgetWidthPx,
-        minHeight: config.widgetHeightPx,
+        width: DAMAGE_NUMBERS_WIDGET_WIDTH_PX,
+        height: DAMAGE_NUMBERS_WIDGET_HEIGHT_PX,
+        minWidth: DAMAGE_NUMBERS_WIDGET_WIDTH_PX,
+        minHeight: DAMAGE_NUMBERS_WIDGET_HEIGHT_PX,
       }) as CSSProperties,
-    [config.backgroundOpacity, config.widgetScale, config.widgetWidthPx, config.widgetHeightPx],
+    [config.widgetScale],
   )
 
   const empty = popups.length === 0
-  const showEditPlaceholder = draggable && empty
+  const editChrome = draggable && !layoutLocked
+  const showPlaceholderText = editChrome && empty
   const useMapleSkins = Boolean(wz)
 
   return (
@@ -71,10 +81,8 @@ const DamageNumbersWidget = forwardRef<HTMLDivElement, Props>(function DamageNum
         'hud-widget--damage-numbers',
         draggable ? 'hud-widget--draggable' : '',
         layoutLocked ? 'hud-widget--locked' : '',
-        showEditPlaceholder ? 'hud-widget--damage-numbers-edit' : '',
-        config.backgroundOpacity < 0.04 && !showEditPlaceholder
-          ? 'hud-widget--chromeless'
-          : '',
+        editChrome ? 'hud-widget--damage-numbers-edit' : '',
+        !editChrome ? 'hud-widget--chromeless' : '',
         useMapleSkins ? 'hud-widget--damage-numbers-maple' : '',
       ]
         .filter(Boolean)
@@ -88,7 +96,7 @@ const DamageNumbersWidget = forwardRef<HTMLDivElement, Props>(function DamageNum
         onOpenSettings(e.clientX, e.clientY)
       }}
     >
-      {showEditPlaceholder ? (
+      {showPlaceholderText ? (
         <div className="hud-damage-numbers__placeholder">
           <span className="hud-widget__label">Damage numbers</span>
           <span className="hud-damage-numbers__hint muted">

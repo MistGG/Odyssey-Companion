@@ -39,7 +39,7 @@ export async function fetchMapleDamageSkinItems(
 ): Promise<MapleDamageSkinItem[]> {
   const url = new URL(`https://maplestory.io/api/${wz.region}/${wz.version}/item`)
   url.searchParams.set('searchFor', searchFor)
-  url.searchParams.set('count', '500')
+  url.searchParams.set('count', '1000')
   const response = await fetch(url)
   if (!response.ok) return []
   const items = (await response.json()) as Array<{ id?: number; name?: string }>

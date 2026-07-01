@@ -1238,6 +1238,9 @@ export default function SettingsApp() {
                   }
                 />
               </label>
+              <p className="hint muted" style={{ marginTop: 6 }}>
+                Adjusts the edit overlay behind widgets. Unlock Digi Aura layout to see it.
+              </p>
               <label className="check">
                 <input
                   type="checkbox"

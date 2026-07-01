@@ -47,6 +47,7 @@ export default function MapleDamageSkinImage({ apiUrl, alt, style, className }: 
       alt={alt}
       src={src}
       style={style}
+      onError={() => setSrc('')}
     />
   )
 }

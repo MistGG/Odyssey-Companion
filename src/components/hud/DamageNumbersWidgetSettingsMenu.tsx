@@ -117,56 +117,6 @@ export default function DamageNumbersWidgetSettingsMenu({
         <span className="hud-widget-settings-menu__hint">{config.widgetScale.toFixed(2)}×</span>
       </label>
 
-      <label className="hud-widget-settings-menu__field">
-        <span className="hud-widget-settings-menu__label">Width</span>
-        <input
-          type="range"
-          className="hud-widget-settings-menu__range"
-          min={120}
-          max={480}
-          step={10}
-          value={config.widgetWidthPx}
-          onChange={(e) =>
-            onChange({ ...config, widgetWidthPx: Number(e.target.value) })
-          }
-        />
-        <span className="hud-widget-settings-menu__hint">{config.widgetWidthPx}px</span>
-      </label>
-
-      <label className="hud-widget-settings-menu__field">
-        <span className="hud-widget-settings-menu__label">Height</span>
-        <input
-          type="range"
-          className="hud-widget-settings-menu__range"
-          min={80}
-          max={360}
-          step={10}
-          value={config.widgetHeightPx}
-          onChange={(e) =>
-            onChange({ ...config, widgetHeightPx: Number(e.target.value) })
-          }
-        />
-        <span className="hud-widget-settings-menu__hint">{config.widgetHeightPx}px</span>
-      </label>
-
-      <label className="hud-widget-settings-menu__field">
-        <span className="hud-widget-settings-menu__label">Panel opacity</span>
-        <input
-          type="range"
-          className="hud-widget-settings-menu__range"
-          min={0}
-          max={1}
-          step={0.04}
-          value={config.backgroundOpacity}
-          onChange={(e) =>
-            onChange({ ...config, backgroundOpacity: Number(e.target.value) })
-          }
-        />
-        <span className="hud-widget-settings-menu__hint">
-          {Math.round(config.backgroundOpacity * 100)}%
-        </span>
-      </label>
-
       <button
         type="button"
         className="hud-widget-settings-menu__preview"

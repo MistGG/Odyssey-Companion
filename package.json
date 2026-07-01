@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.107",
+  "version": "0.1.108",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated support for the new event dgn and twins to only show the boss alerts in Digi Aura when hitting the relevant boss\n- Added a TON of maplestory type damage fonts to DigiAura. It is recommended to turn off ingame damage balloons when using this!"
+      "releaseNotes": "- Added support for action/animated damage skins\n- Cleaned up unecessary settings and fixed some minor bugs"
     }
   }
 }

@@ -36,6 +36,7 @@ import { loadRandomHardBossAlertsFight } from './lib/hudBossAlertsTest'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, applyAutoBlacklistIconlessBuffs } from './lib/hudBuffTrackerWidget'
 import {
   DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG,
+  DAMAGE_NUMBERS_WIDGET_HEIGHT_PX,
   normalizeDamageNumbersWidgetConfig,
 } from './lib/hudDamageNumbersWidget'
 import {
@@ -517,7 +518,7 @@ export default function HudApp() {
         const stackY = s.hudWidgets.reduce((max, w) => {
           const estH =
             w.type === 'damage_numbers'
-              ? (w.damageNumbers?.widgetHeightPx ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG.widgetHeightPx)
+              ? DAMAGE_NUMBERS_WIDGET_HEIGHT_PX
               : w.type === 'buff_tracker'
                 ? 80
                 : 72
@@ -781,7 +782,18 @@ export default function HudApp() {
     [settings.hudBackdropOpacity],
   )
 
-  const ghostChrome = settings.hudBackdropOpacity < 0.04
+  const hudStageStyle = shellStyle
+
+  const hudStageBackdropStyle = useMemo((): CSSProperties => {
+    const alpha = settings.hudBackdropOpacity
+    return {
+      background: `rgba(7, 10, 18, ${alpha})`,
+      borderColor: `rgba(120, 200, 255, ${0.08 + alpha * 0.12})`,
+      backdropFilter: alpha > 0.02 ? `blur(${18 * alpha}px)` : 'none',
+      WebkitBackdropFilter: alpha > 0.02 ? `blur(${18 * alpha}px)` : 'none',
+    }
+  }, [settings.hudBackdropOpacity])
+
   const { shellModifiers: allShellModifiers } = useOverlayPerformanceShell(settings)
   const shellModifiers = useMemo(
     () =>
@@ -803,7 +815,6 @@ export default function HudApp() {
     'shell',
     'shell--hud',
     layoutLocked ? 'hud-layout-locked' : 'hud-layout-unlocked',
-    ghostChrome && editMode ? 'hud-shell--ghost' : '',
     ...shellModifiers,
   ]
     .filter(Boolean)
@@ -931,10 +942,14 @@ export default function HudApp() {
       {editMode ? (
         <HudResizeHandles ref={resizeLayerRef} onResizePointerDown={onResizePointerDown} />
       ) : null}
-      <div className={`hud-stage${editMode ? ' hud-stage--edit' : ' hud-stage--locked'}`}>
+      <div
+        className={`hud-stage${editMode ? ' hud-stage--edit' : ' hud-stage--locked'}`}
+        style={editMode ? hudStageStyle : undefined}
+      >
         {editMode ? (
           <div
-            className={`hud-backdrop hud-backdrop--stage${ghostChrome ? ' hud-backdrop--ghost' : ''}`}
+            className="hud-backdrop hud-backdrop--stage"
+            style={hudStageBackdropStyle}
             aria-hidden
           />
         ) : null}

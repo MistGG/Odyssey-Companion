@@ -11,13 +11,15 @@ import {
 
 export const DAMAGE_NUMBERS_WIDGET_SCALE_MIN = 0.5
 export const DAMAGE_NUMBERS_WIDGET_SCALE_MAX = 2.5
+export const DAMAGE_NUMBERS_WIDGET_WIDTH_PX = 280
+export const DAMAGE_NUMBERS_WIDGET_HEIGHT_PX = 200
 export const DEFAULT_HIGH_TIER_THRESHOLD = 100_000
 
 export const DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG: DamageNumbersWidgetConfig = {
   backgroundOpacity: 0,
   widgetScale: 1,
-  widgetWidthPx: 280,
-  widgetHeightPx: 200,
+  widgetWidthPx: DAMAGE_NUMBERS_WIDGET_WIDTH_PX,
+  widgetHeightPx: DAMAGE_NUMBERS_WIDGET_HEIGHT_PX,
   skinNumber: DEFAULT_MAPLE_DAMAGE_SKIN_NUMBER,
   mapleRegion: DEFAULT_MAPLE_REGION,
   highTierThreshold: DEFAULT_HIGH_TIER_THRESHOLD,
