@@ -8,6 +8,7 @@ const HUD_WIDGET_CATALOG: { type: HudWidgetType; label: string }[] = [
   { type: 'attack_speed', label: 'Attack speed' },
   { type: 'buff_tracker', label: 'Buff tracker' },
   { type: 'boss_alerts', label: 'Boss alerts' },
+  { type: 'damage_numbers', label: 'Damage numbers' },
 ]
 
 function clampMenuToViewport(x: number, y: number, width: number, height: number) {

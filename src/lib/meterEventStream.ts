@@ -38,6 +38,10 @@ import {
   type MeterDungeonRunOutcome,
 } from './meterDungeonRun'
 import {
+  updateActiveObjectiveFromCombat,
+  updateActiveObjectiveFromDeathEvent,
+} from './fightObjectiveTargetFilter'
+import {
   applyDungeonCompleteEvent,
   applyDungeonCompleteToPendingRun,
   type DungeonCompletePayload,
@@ -143,6 +147,8 @@ export type MeterStreamSession = {
   /** Manual meter reset during an active dungeon pull — blocks clear/submit for this run. */
   runInvalidatedByReset: boolean
   lastRunOutcome: MeterDungeonRunOutcome | null
+  /** Command Server / Twins — active wiki objective from combat target. */
+  activeObjectiveIndex: number | null
   lastCombatMs: number | null
   selfTamerName: string | null
   /** Official species name from wiki; stream `digimon` is a nickname. */
@@ -184,6 +190,7 @@ export function createMeterStreamSession(): MeterStreamSession {
     pendingEndedRun: null,
     runInvalidatedByReset: false,
     lastRunOutcome: null,
+    activeObjectiveIndex: null,
     lastCombatMs: null,
     selfTamerName: null,
     selfDigimonName: null,
@@ -1360,6 +1367,7 @@ export function meterNeedsPartyIdentity(session: MeterStreamSession): boolean {
 function clearDungeonCombat(session: MeterStreamSession) {
   session.sessionStartMs = null
   session.sessionEndMs = null
+  session.activeObjectiveIndex = null
   if (session.devTestPartySeeded) return
   session.members.clear()
   syncRosterMemberRows(session)
@@ -1687,6 +1695,13 @@ export function ingestMeterEventStream(
   } else if (isPartyRosterEventType(t)) {
     applyPartyRoster(session, ev)
   } else if (t === 'death') {
+    session.activeObjectiveIndex = updateActiveObjectiveFromDeathEvent(
+      session.dungeonId,
+      null,
+      session.dungeonDifficulty,
+      session.activeObjectiveIndex,
+      ev,
+    )
     const markedStep = mergeDeathIntoObjectiveProgress(session, ev)
     if (isMeterDebugEnabled() && markedStep != null) {
       logDungeonObjectiveProgress(session, `death credited step ${markedStep}`)
@@ -1749,6 +1764,16 @@ export function ingestMeterEventStream(
 
     const startsTimer = combatHitStartsMeterTimer(session, ev)
     const timerActive = session.sessionStartMs != null
+    const victim = String(ev.target ?? '').trim()
+    if (victim) {
+      session.activeObjectiveIndex = updateActiveObjectiveFromCombat(
+        session.dungeonId,
+        null,
+        session.dungeonDifficulty,
+        session.activeObjectiveIndex,
+        victim,
+      )
+    }
     const whoEarly = resolveAttacker(session, ev)
     const earlyPeer = whoEarly.tamerName ? isRosterPeerTamer(session, whoEarly.tamerName) : false
     const earlyFromSelf =

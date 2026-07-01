@@ -168,6 +168,13 @@ declare global {
       supabaseAuthStorageGetItem?: (key: string) => Promise<string | null>
       supabaseAuthStorageSetItem?: (key: string, value: string) => Promise<void>
       supabaseAuthStorageRemoveItem?: (key: string) => Promise<void>
+      cacheMapleDamageSkin?: (payload: {
+        region: string
+        version: number
+        skinNumber: number
+      }) => Promise<
+        { ok: true; downloaded: number; skipped: number } | { ok: false; error: string }
+      >
     }
   }
 }

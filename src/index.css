@@ -65,6 +65,11 @@ body.body--hud #root {
   background: transparent;
 }
 
+body.body--hud.body--hud-locked,
+body.body--hud.body--hud-locked #root {
+  background: transparent !important;
+}
+
 body.body--opaque-windows.body--timeline,
 body.body--opaque-windows.body--timeline #root,
 body.body--opaque-windows.body--meter,
@@ -74,6 +79,11 @@ body.body--opaque-windows.body--timers #root,
 body.body--opaque-windows.body--hud,
 body.body--opaque-windows.body--hud #root {
   background: #070a12;
+}
+
+body.body--opaque-windows.body--hud.body--hud-locked,
+body.body--opaque-windows.body--hud.body--hud-locked #root {
+  background: transparent !important;
 }
 
 body.body--settings {
@@ -5554,7 +5564,18 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   background: rgba(124, 240, 255, 0.14);
 }
 
+body.body--opaque-windows.body--hud.body--hud-locked,
+body.body--opaque-windows.body--hud.body--hud-locked #root {
+  background: transparent !important;
+}
+
 .shell--hud.hud-layout-locked {
+  background: transparent !important;
+  padding: 0;
+}
+
+.hud-layout-locked .hud-stage,
+.hud-layout-locked .hud-canvas {
   background: transparent;
 }
 
@@ -12442,6 +12463,479 @@ body.body--timers:has(.shell--timers-loot-expanded) #root {
   animation-play-state: paused !important;
 }
 
+/* Damage popups must keep animating over the game (they start at opacity 0). */
+.shell--performance.shell--game-focused .hud-damage-popup,
+.shell--performance.shell--game-focused .hud-damage-popup__burst,
+.shell--performance.shell--game-focused .hud-damage-popup--maple {
+  animation-play-state: running !important;
+}
+
 .shell--opaque-windows {
   background: #070a12;
+}
+
+.shell--opaque-windows.shell--hud.hud-layout-locked {
+  background: transparent !important;
+}
+
+/* --- Digi Aura: damage numbers (MapleStory-style) --- */
+.hud-widget--damage-numbers {
+  --hud-damage-numbers-scale: 1;
+  padding: 0;
+  overflow: visible;
+}
+
+.hud-widget-slot:has(.hud-widget--damage-numbers) {
+  overflow: visible;
+}
+
+.hud-widget--damage-numbers.hud-widget--damage-numbers-edit::before {
+  opacity: 1;
+  background: rgba(8, 12, 22, 0.42);
+  border: 1px dashed rgba(120, 200, 255, 0.5);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.hud-damage-numbers__placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.hud-damage-numbers__hint {
+  font-size: 11px;
+  line-height: 1.35;
+  max-width: 18ch;
+}
+
+.hud-widget--damage-numbers.hud-widget--chromeless::before {
+  opacity: 0;
+  border-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.hud-damage-numbers__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: scale(var(--hud-damage-numbers-scale));
+  transform-origin: left top;
+}
+
+.hud-damage-popup {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12em;
+  transform: translateX(-50%);
+  font-family: 'Arial Rounded MT Bold', 'Arial Black', 'Segoe UI', Arial, sans-serif;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.01em;
+  animation: hud-damage-float linear forwards;
+  will-change: transform, opacity;
+  filter: drop-shadow(1px 2px 0 #000) drop-shadow(-1px -1px 0 #000);
+}
+
+.hud-damage-popup__digits {
+  display: inline-block;
+  -webkit-text-stroke: 0.14em #fff;
+  paint-order: stroke fill;
+}
+
+.hud-damage-popup--normal .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #ffb347 0%, #ffd54a 42%, #fff59d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hud-damage-popup--strong .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #ff9f2e 0%, #ffd740 38%, #fff176 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke-width: 0.15em;
+}
+
+.hud-damage-popup--heavy .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #ff8c1a 0%, #ffc107 35%, #ffe082 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke-width: 0.16em;
+}
+
+.hud-damage-popup--boss .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #ff6f00 0%, #ffb300 32%, #ffee58 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke-width: 0.17em;
+}
+
+.hud-damage-popup--high-tier:not(.hud-damage-popup--mega) .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #fff176 0%, #ffeb3b 45%, #ffffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: saturate(1.2);
+}
+
+/* 1M+ — MapleStory red / pink mega line */
+.hud-damage-popup--mega .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #e53935 0%, #ff4081 38%, #ff80ab 72%, #ffc1e3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.16em #fff;
+}
+
+.hud-damage-popup--mega-high-tier .hud-damage-popup__digits {
+  background: linear-gradient(180deg, #ff5252 0%, #ff4081 30%, #ffeb3b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-3 .hud-damage-popup__digits,
+.hud-damage-popup--mega.hud-damage-popup--spike-4 .hud-damage-popup__digits {
+  -webkit-text-stroke-width: 0.18em;
+  filter: drop-shadow(0 0 3px rgba(255, 120, 80, 0.65));
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-5 .hud-damage-popup__digits,
+.hud-damage-popup--mega.hud-damage-popup--spike-6 .hud-damage-popup__digits {
+  -webkit-text-stroke-width: 0.2em;
+  filter: drop-shadow(0 0 5px rgba(255, 100, 60, 0.75));
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-7 .hud-damage-popup__digits,
+.hud-damage-popup--mega.hud-damage-popup--spike-8 .hud-damage-popup__digits {
+  -webkit-text-stroke-width: 0.22em;
+  filter: drop-shadow(0 0 7px rgba(255, 90, 50, 0.85)) drop-shadow(0 0 2px #fff);
+}
+
+/* 2M+ starburst beside the digits */
+.hud-damage-popup__burst {
+  flex-shrink: 0;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 0.04em;
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 28%, transparent 30%),
+    conic-gradient(
+      from -12deg,
+      #fff 0deg 16deg,
+      transparent 16deg 28deg,
+      #fff 28deg 44deg,
+      transparent 44deg 56deg,
+      #fff 56deg 72deg,
+      transparent 72deg 84deg,
+      #fff 84deg 100deg,
+      transparent 100deg 112deg,
+      #fff 112deg 128deg,
+      transparent 128deg 140deg,
+      #fff 140deg 156deg,
+      transparent 156deg 168deg,
+      #fff 168deg 184deg,
+      transparent 184deg 196deg,
+      #fff 196deg 212deg,
+      transparent 212deg 224deg,
+      #fff 224deg 240deg,
+      transparent 240deg 252deg,
+      #fff 252deg 268deg,
+      transparent 268deg 280deg,
+      #fff 280deg 296deg,
+      transparent 296deg 308deg,
+      #fff 308deg 324deg,
+      transparent 324deg 336deg,
+      #fff 336deg 352deg,
+      transparent 352deg 360deg
+    );
+  filter: drop-shadow(0 0 4px #ffcc00) drop-shadow(0 0 8px rgba(255, 200, 50, 0.75));
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  animation: hud-damage-burst-pulse 0.55s ease-out forwards;
+}
+
+.hud-damage-popup--burst .hud-damage-popup__burst {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-5 .hud-damage-popup__burst,
+.hud-damage-popup--mega.hud-damage-popup--spike-6 .hud-damage-popup__burst,
+.hud-damage-popup--mega.hud-damage-popup--spike-7 .hud-damage-popup__burst,
+.hud-damage-popup--mega.hud-damage-popup--spike-8 .hud-damage-popup__burst {
+  width: 1em;
+  height: 1em;
+  filter: drop-shadow(0 0 6px #ffcc00) drop-shadow(0 0 12px rgba(255, 160, 40, 0.9));
+}
+
+@keyframes hud-damage-burst-pulse {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.15) rotate(6deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.hud-damage-popup--normal {
+  color: #f4f4f4;
+}
+
+.hud-damage-popup--strong {
+  color: #fff4a0;
+}
+
+.hud-damage-popup--heavy {
+  color: #ffb84d;
+}
+
+.hud-damage-popup--boss {
+  color: #ff7840;
+}
+
+.hud-damage-popup--high-tier {
+  color: #fff45c;
+}
+
+.hud-damage-popup--boss.hud-damage-popup--high-tier,
+.hud-damage-popup--heavy.hud-damage-popup--high-tier {
+  color: #ffe566;
+}
+
+.hud-damage-popup--mega {
+  color: #ff3535;
+}
+
+.hud-damage-popup--mega-high-tier {
+  color: #ff4a3a;
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-4,
+.hud-damage-popup--mega.hud-damage-popup--spike-5 {
+  letter-spacing: 0.02em;
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-6,
+.hud-damage-popup--mega.hud-damage-popup--spike-7,
+.hud-damage-popup--mega.hud-damage-popup--spike-8 {
+  letter-spacing: 0.03em;
+}
+
+.hud-damage-popup--mega.hud-damage-popup--spike-9,
+.hud-damage-popup--mega.hud-damage-popup--spike-10,
+.hud-damage-popup--mega.hud-damage-popup--spike-11,
+.hud-damage-popup--mega.hud-damage-popup--spike-12 {
+  letter-spacing: 0.04em;
+}
+
+@keyframes hud-damage-float {
+  0% {
+    transform: translate(-50%, 10px) scale(0.78);
+    opacity: 0;
+  }
+  7% {
+    transform: translate(-50%, 0) scale(1.08);
+    opacity: 1;
+  }
+  14% {
+    transform: translate(-50%, -6px) scale(1);
+    opacity: 1;
+  }
+  38% {
+    transform: translate(-50%, -28px) scale(0.99);
+    opacity: 0.92;
+  }
+  55% {
+    transform: translate(-50%, -48px) scale(0.97);
+    opacity: 0.55;
+  }
+  72% {
+    transform: translate(-50%, -66px) scale(0.95);
+    opacity: 0.22;
+  }
+  100% {
+    transform: translate(-50%, -84px) scale(0.92);
+    opacity: 0;
+  }
+}
+
+/* maplestory.io sprite digits (maple-demage-skin-simulator) */
+.hud-damage-popup--maple {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-size: inherit;
+  filter: none;
+  letter-spacing: 0;
+  animation-name: hud-damage-maple-float;
+}
+
+.hud-damage-popup__high-tier-fx {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hud-damage-popup__high-tier-fx img {
+  display: block;
+  height: auto;
+  width: auto;
+  max-height: 1.4em;
+}
+
+.hud-damage-popup__digit-row {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hud-damage-popup__digit-row img {
+  display: block;
+  width: auto;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+@keyframes hud-damage-maple-float {
+  0% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -40px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -80px);
+    opacity: 0;
+  }
+}
+
+.hud-damage-skin-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.hud-damage-skin-picker__current {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(200, 220, 255, 0.88);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-damage-skin-picker__browse {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud-damage-skin-picker__search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(120, 160, 220, 0.35);
+  background: rgba(8, 12, 22, 0.85);
+  color: #e8f0ff;
+  font-size: 12px;
+}
+
+.hud-damage-skin-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-damage-skin-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(12, 18, 32, 0.55);
+  color: #dce8ff;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hud-damage-skin-picker__item:hover {
+  border-color: rgba(120, 200, 255, 0.45);
+  background: rgba(20, 32, 56, 0.75);
+}
+
+.hud-damage-skin-picker__item--active {
+  border-color: rgba(120, 200, 255, 0.7);
+  background: rgba(28, 48, 82, 0.85);
+}
+
+.hud-damage-skin-picker__item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-damage-skin-picker__status {
+  margin: 0;
+  font-size: 11px;
+  padding: 4px 2px;
+}
+
+.hud-widget-settings-menu__number {
+  width: 72px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(120, 160, 220, 0.35);
+  background: rgba(8, 12, 22, 0.85);
+  color: #e8f0ff;
+  font-size: 12px;
+}
+
+.hud-widget-settings-menu__number--wide {
+  width: 100px;
 }

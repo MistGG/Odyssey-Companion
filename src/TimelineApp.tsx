@@ -16,6 +16,11 @@ import { mergeOverlaySettings } from './lib/overlaySettingsGuard'
 import { useOverlayPerformanceShell } from './lib/useOverlayPerformanceShell'
 import { normalizeFightPayloadDetailed } from './lib/fightPayload'
 import { fightSkillsForLabeling } from './lib/effectTypeDisplay'
+import {
+  dungeonUsesObjectiveTargetFilter,
+  filterFlatSkillsForActiveObjective,
+  fightSkillsForActiveObjectiveLabeling,
+} from './lib/fightObjectiveTargetFilter'
 import { flattenFightSkills, buildTimelineDisplayEntries, fightUsesAbsoluteSchedule } from './lib/timelineSchedule'
 
 function formatMs(ms: number) {
@@ -34,6 +39,8 @@ export default function TimelineApp() {
   const { elapsedMs, running, start, startAtElapsed, stop, reset } = useStopwatch()
   /** After first Start, keep the run-queue view until Reset (Pause only stops the clock). */
   const [runSessionActive, setRunSessionActive] = useState(false)
+  const [streamDungeonId, setStreamDungeonId] = useState<string | null>(null)
+  const [activeObjectiveIndex, setActiveObjectiveIndex] = useState<number | null>(null)
 
   const positionLocked = settings.timelinePositionLocked
   const titlebarDragRef = useRef<HTMLDivElement>(null)
@@ -129,6 +136,8 @@ export default function TimelineApp() {
       const ev = event as EventStreamRecord
       const session = streamRef.current
       const ingest = ingestMeterEventStream(session, ev)
+      setStreamDungeonId(session.dungeonId)
+      setActiveObjectiveIndex(session.activeObjectiveIndex)
       const companion = window.odysseyCompanion
       const bridge = companion ? createTimelineAutoBridge(companion) : undefined
       processTimelineAutoStreamEvent(
@@ -218,15 +227,20 @@ export default function TimelineApp() {
     ...shellModifiers,
   ].join(' ')
 
-  const flatSkills = useMemo(
-    () => (fight ? flattenFightSkills(fight) : []),
-    [fight],
-  )
+  const flatSkills = useMemo(() => {
+    if (!fight) return []
+    const flat = flattenFightSkills(fight)
+    if (!runSessionActive) return flat
+    return filterFlatSkillsForActiveObjective(streamDungeonId, flat, activeObjectiveIndex)
+  }, [fight, runSessionActive, streamDungeonId, activeObjectiveIndex])
 
-  const labelContextSkills = useMemo(
-    () => (fight ? fightSkillsForLabeling(fight) : []),
-    [fight],
-  )
+  const labelContextSkills = useMemo(() => {
+    if (!fight) return []
+    if (runSessionActive && dungeonUsesObjectiveTargetFilter(streamDungeonId)) {
+      return fightSkillsForActiveObjectiveLabeling(fight, streamDungeonId, activeObjectiveIndex)
+    }
+    return fightSkillsForLabeling(fight)
+  }, [fight, runSessionActive, streamDungeonId, activeObjectiveIndex])
 
   /** Wall-clock cap from dungeon JSON — `<= 0` means no enforceable limit in data. */
   const fightLimitMs = useMemo(() => {
@@ -485,7 +499,12 @@ export default function TimelineApp() {
             {fight ? (
               runSessionActive ? (
                 <div className="timeline-fight timeline-fight--run timeline-fight--run-compact">
-                  <TimelineRunQueue fight={fight} flatSkills={flatSkills} elapsedMs={cappedElapsedMs} />
+                  <TimelineRunQueue
+                    fight={fight}
+                    flatSkills={flatSkills}
+                    elapsedMs={cappedElapsedMs}
+                    labelContextSkills={labelContextSkills}
+                  />
                 </div>
               ) : (
                 <div className="timeline-fight">

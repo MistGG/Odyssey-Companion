@@ -10,6 +10,7 @@ type Props = {
   fight: TimelineFightPayload
   flatSkills: FlatSkillEntry[]
   elapsedMs: number
+  labelContextSkills?: readonly MonsterSkill[]
 }
 
 const MAX_VISIBLE_GROUPS = 5
@@ -193,12 +194,13 @@ function HeroNextWave({
   fight,
   group,
   elapsedMs,
+  fightSkills,
 }: {
   fight: TimelineFightPayload
   group: QueuedGroup
   elapsedMs: number
+  fightSkills: readonly MonsterSkill[]
 }) {
-  const fightSkills = fightSkillsForLabeling(fight)
   const tagBoss = showBossTag(group.entries)
   const { primary, also } = pickPrimaryEntry(group.entries)
   const label = formatCountdownLabel(group.fireAt, elapsedMs)
@@ -222,8 +224,11 @@ function HeroNextWave({
   )
 }
 
-export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
-  const fightSkills = useMemo(() => fightSkillsForLabeling(fight), [fight])
+export function TimelineRunQueue({ fight, flatSkills, elapsedMs, labelContextSkills }: Props) {
+  const fightSkills = useMemo(
+    () => labelContextSkills ?? fightSkillsForLabeling(fight),
+    [labelContextSkills, fight],
+  )
 
   const queue = useMemo(
     () => computeFightEventQueue(fight, flatSkills, elapsedMs, MAX_QUEUE_ROWS),
@@ -251,7 +256,7 @@ export function TimelineRunQueue({ fight, flatSkills, elapsedMs }: Props) {
         <h2 id="upcoming-action-label" className="sr-only">
           Next mechanic
         </h2>
-        <HeroNextWave fight={fight} group={upcoming} elapsedMs={elapsedMs} />
+        <HeroNextWave fight={fight} group={upcoming} elapsedMs={elapsedMs} fightSkills={fightSkills} />
       </section>
 
       {stackGroups.length > 0 ? (

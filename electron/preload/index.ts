@@ -418,6 +418,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
   supabaseAuthStorageRemoveItem: (key: string) =>
     ipcRenderer.invoke('supabase-auth-storage:remove', key) as Promise<void>,
 
+  cacheMapleDamageSkin: (payload: { region: string; version: number; skinNumber: number }) =>
+    ipcRenderer.invoke('maple-skin:cache-skin', payload) as Promise<
+      { ok: true; downloaded: number; skipped: number } | { ok: false; error: string }
+    >,
+
   onBossTimerChime: (
     handler: (payload: {
       style: 'braveHeart' | 'digivice' | 'digibeep'

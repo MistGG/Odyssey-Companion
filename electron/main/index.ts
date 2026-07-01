@@ -28,6 +28,11 @@ import {
   registerForumTeaserImageProtocol,
   TEASER_IMAGE_SCHEME,
 } from './forumTeaserImageCache'
+import {
+  registerMapleDamageSkinIpc,
+  registerMapleDamageSkinProtocol,
+} from './mapleDamageSkinCache'
+import { MAPLE_SKIN_SCHEME } from '../../src/lib/mapleDamageSkin/spritePath'
 import { fetchPatchNotesCached, fetchPatchNoteDetail } from './fetchPatchNotes'
 import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
 import { normalizeSettingsSection } from '../../src/lib/settingsSection'
@@ -77,6 +82,16 @@ if (process.platform === 'win32') {
 protocol.registerSchemesAsPrivileged([
   {
     scheme: TEASER_IMAGE_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+  {
+    scheme: MAPLE_SKIN_SCHEME,
     privileges: {
       standard: true,
       secure: true,
@@ -147,6 +162,17 @@ function overlayWindowChromeOptions(): Pick<
     return { transparent: false, backgroundColor: OVERLAY_WINDOW_BG_OPAQUE }
   }
   return { transparent: true, backgroundColor: '#00000000' }
+}
+
+/** Locked Digi Aura must stay OS-transparent so the game shows through (even with opaque overlays on). */
+function hudWindowChromeOptions(): Pick<
+  Electron.BrowserWindowConstructorOptions,
+  'transparent' | 'backgroundColor'
+> {
+  if (lastOverlaySettings?.hudLayoutLocked === true) {
+    return { transparent: true, backgroundColor: '#00000000' }
+  }
+  return overlayWindowChromeOptions()
 }
 
 function overlayRendererWindows(): BrowserWindow[] {
@@ -1143,7 +1169,7 @@ function createHudWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    ...overlayWindowChromeOptions(),
+    ...hudWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -1643,6 +1669,8 @@ registerMeterCombatLogIpc()
 
 app.whenReady().then(() => {
   registerForumTeaserImageProtocol()
+  registerMapleDamageSkinProtocol()
+  registerMapleDamageSkinIpc()
 
   app.on('browser-window-focus', scheduleHotkeysFocusRefresh)
   app.on('browser-window-blur', scheduleHotkeysFocusRefresh)
@@ -2204,6 +2232,7 @@ ipcMain.handle('overlay:get-game-focused', () => ({
 ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   const prevOpaque = lastOverlaySettings?.overlayOpaqueWindows ?? false
   const prevPerformance = lastOverlaySettings?.overlayPerformanceMode ?? false
+  const prevHudLocked = lastOverlaySettings?.hudLayoutLocked === true
   if (isOverlaySettings(payload)) {
     lastOverlaySettings = payload
     writeOverlaySettingsToDisk(payload)
@@ -2235,6 +2264,11 @@ ipcMain.on('overlay:push-settings', (event, payload: unknown) => {
   }
   if (payload && typeof payload === 'object' && 'hudLayoutLocked' in payload) {
     refreshTrayMenu()
+    const nextHudLocked = lastOverlaySettings?.hudLayoutLocked === true
+    const opaqueWindows = lastOverlaySettings?.overlayOpaqueWindows ?? false
+    if (prevHudLocked !== nextHudLocked && (prevOpaque || opaqueWindows)) {
+      recreateHudWindowForOpaqueToggle()
+    }
   }
   const nextOpaque = lastOverlaySettings?.overlayOpaqueWindows ?? false
   const nextPerformance = lastOverlaySettings?.overlayPerformanceMode ?? false

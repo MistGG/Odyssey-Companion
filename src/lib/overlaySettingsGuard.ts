@@ -37,6 +37,15 @@ function isHudWidget(v: unknown): v is HudWidget {
     }
     return true
   }
+  if (w.type === 'damage_numbers') {
+    if (
+      w.damageNumbers !== undefined &&
+      (typeof w.damageNumbers !== 'object' || w.damageNumbers === null)
+    ) {
+      return false
+    }
+    return true
+  }
   return false
 }
 

@@ -3,6 +3,7 @@ import type {
   AttackSpeedWidgetConfig,
   BossAlertsWidgetConfig,
   BuffTrackerWidgetConfig,
+  DamageNumbersWidgetConfig,
   HudWidget,
   HudWidgetType,
   OverlaySettings,
@@ -33,6 +34,19 @@ import {
 } from './lib/hudBossAlertsDemo'
 import { loadRandomHardBossAlertsFight } from './lib/hudBossAlertsTest'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, applyAutoBlacklistIconlessBuffs } from './lib/hudBuffTrackerWidget'
+import {
+  DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG,
+  normalizeDamageNumbersWidgetConfig,
+} from './lib/hudDamageNumbersWidget'
+import {
+  createHudDamageNumbersState,
+  ingestHudDamageNumbersEvent,
+  pruneHudDamagePopups,
+  spawnHudDamagePreviewBurst,
+  type HudDamageNumbersState,
+} from './lib/hudDamageNumbers'
+import DamageNumbersWidget from './components/hud/DamageNumbersWidget'
+import DamageNumbersWidgetSettingsMenu from './components/hud/DamageNumbersWidgetSettingsMenu'
 import { fightEngageDungeonKey } from './lib/fightEngageEpoch'
 import { loadTimelineFightForDungeon } from './lib/loadTimelineFightForDungeon'
 import AttackSpeedWidgetSettingsMenu from './components/hud/AttackSpeedWidgetSettingsMenu'
@@ -123,9 +137,17 @@ export default function HudApp() {
     x: number
     y: number
   } | null>(null)
+  const [damageNumbersSettingsMenu, setDamageNumbersSettingsMenu] = useState<{
+    widgetId: string
+    x: number
+    y: number
+  } | null>(null)
   const [widgetAddMenu, setWidgetAddMenu] = useState<{ x: number; y: number } | null>(null)
   const [buffTrackerState, setBuffTrackerState] = useState<HudBuffTrackerState>(() =>
     createHudBuffTrackerState(),
+  )
+  const [damageNumbersState, setDamageNumbersState] = useState<HudDamageNumbersState>(() =>
+    createHudDamageNumbersState(),
   )
   const [bossAlertsState, setBossAlertsState] = useState<HudBossAlertsState>(() =>
     createHudBossAlertsState(),
@@ -170,11 +192,21 @@ export default function HudApp() {
     setBossAlertsSettingsMenu(null)
   }, [])
 
+  const closeDamageNumbersSettingsMenu = useCallback(() => {
+    setDamageNumbersSettingsMenu(null)
+  }, [])
+
   const closeHudWidgetSettingsMenus = useCallback(() => {
     closeAttackSpeedSettingsMenu()
     closeBuffTrackerSettingsMenu()
     closeBossAlertsSettingsMenu()
-  }, [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu])
+    closeDamageNumbersSettingsMenu()
+  }, [
+    closeAttackSpeedSettingsMenu,
+    closeBuffTrackerSettingsMenu,
+    closeBossAlertsSettingsMenu,
+    closeDamageNumbersSettingsMenu,
+  ])
 
   const toggleThresholdPreview = useCallback((widgetId: string) => {
     setThresholdPreviewWidgetId((current) => (current === widgetId ? null : widgetId))
@@ -239,6 +271,13 @@ export default function HudApp() {
       if (speed != null) setAttackSpeed(speed)
       setBuffTrackerState((prev) => ingestHudBuffTrackerEvent(prev, event))
 
+      setDamageNumbersState((prev) => {
+        const dmgWidget = settingsRef.current.hudWidgets.find((w) => w.type === 'damage_numbers')
+        if (!dmgWidget) return pruneHudDamagePopups(prev)
+        const cfg = dmgWidget.damageNumbers ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG
+        return ingestHudDamageNumbersEvent(prev, event, cfg)
+      })
+
       if (
         String(event.type ?? '') === 'dungeon_progress' &&
         String(event.dungeon_id ?? '').trim()
@@ -292,6 +331,7 @@ export default function HudApp() {
       } else if (status === 'idle') {
         setAttackSpeed(null)
         setBuffTrackerState(createHudBuffTrackerState())
+        setDamageNumbersState(createHudDamageNumbersState())
         setBossAlertsState(createHudBossAlertsState())
         stopBossAlertsDemoRef.current()
       }
@@ -309,8 +349,15 @@ export default function HudApp() {
       offMsg()
       offStatus?.()
       window.clearInterval(pollId)
-      // Shared EventStream — do not disconnect (meter / other windows may still need it).
+      void api.disconnectEventStream?.()
     }
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setDamageNumbersState((prev) => pruneHudDamagePopups(prev))
+    }, 200)
+    return () => window.clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -402,6 +449,13 @@ export default function HudApp() {
   }, [])
 
   useEffect(() => {
+    document.body.classList.toggle('body--hud-locked', layoutLocked)
+    return () => {
+      document.body.classList.remove('body--hud-locked')
+    }
+  }, [layoutLocked])
+
+  useEffect(() => {
     const api = window.odysseyCompanion
     const setIgnore = (ignore: boolean) => {
       if (hudWindowResizeActiveRef.current) {
@@ -416,7 +470,6 @@ export default function HudApp() {
       api?.setHudIgnoreMouseEvents?.(ignore)
     }
 
-    /** Edit mode: receive all mouse events so resize handles and drag work reliably. */
     if (!layoutLocked) {
       lastIgnoreSent.current = null
       setIgnore(false)
@@ -426,7 +479,6 @@ export default function HudApp() {
       }
     }
 
-    /** Locked: full-window click-through (widgets are visual-only; game keeps cursor + clicks). */
     lastIgnoreSent.current = null
     setIgnore(true)
 
@@ -461,6 +513,23 @@ export default function HudApp() {
           y: HUD_WIDGET_DEFAULT_Y + 72 + buffCount * 80,
           buffTracker: { ...DEFAULT_BUFF_TRACKER_WIDGET_CONFIG },
         }
+      } else if (type === 'damage_numbers') {
+        const stackY = s.hudWidgets.reduce((max, w) => {
+          const estH =
+            w.type === 'damage_numbers'
+              ? (w.damageNumbers?.widgetHeightPx ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG.widgetHeightPx)
+              : w.type === 'buff_tracker'
+                ? 80
+                : 72
+          return Math.max(max, w.y + estH)
+        }, HUD_WIDGET_DEFAULT_Y)
+        widget = {
+          id: newWidgetId(),
+          type: 'damage_numbers',
+          x: 16,
+          y: s.hudWidgets.length === 0 ? HUD_WIDGET_DEFAULT_Y : stackY + 8,
+          damageNumbers: { ...DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG },
+        }
       } else {
         widget = {
           id: newWidgetId(),
@@ -472,6 +541,11 @@ export default function HudApp() {
       }
       return { ...s, hudWidgets: [...s.hudWidgets, widget] }
     })
+    if (type === 'damage_numbers') {
+      setDamageNumbersState((prev) =>
+        spawnHudDamagePreviewBurst(prev, DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG),
+      )
+    }
   }, [])
 
   const removeHudWidget = useCallback((type: HudWidgetType) => {
@@ -556,13 +630,29 @@ export default function HudApp() {
     [],
   )
 
+  const updateDamageNumbersWidgetConfig = useCallback(
+    (widgetId: string, config: DamageNumbersWidgetConfig) => {
+      const normalized = normalizeDamageNumbersWidgetConfig(config)
+      setSettings((s) => ({
+        ...s,
+        hudWidgets: s.hudWidgets.map((w) =>
+          w.id === widgetId && w.type === 'damage_numbers'
+            ? { ...w, damageNumbers: normalized }
+            : w,
+        ),
+      }))
+    },
+    [],
+  )
+
   const openBuffTrackerSettingsMenu = useCallback(
     (widgetId: string, clientX: number, clientY: number) => {
       closeAttackSpeedSettingsMenu()
       closeBossAlertsSettingsMenu()
+      closeDamageNumbersSettingsMenu()
       setBuffTrackerSettingsMenu({ widgetId, x: clientX, y: clientY })
     },
-    [closeAttackSpeedSettingsMenu, closeBossAlertsSettingsMenu],
+    [closeAttackSpeedSettingsMenu, closeBossAlertsSettingsMenu, closeDamageNumbersSettingsMenu],
   )
 
   const stopBossAlertsDemo = useCallback(() => {
@@ -605,18 +695,37 @@ export default function HudApp() {
     (widgetId: string, clientX: number, clientY: number) => {
       closeAttackSpeedSettingsMenu()
       closeBuffTrackerSettingsMenu()
+      closeDamageNumbersSettingsMenu()
       setBossAlertsSettingsMenu({ widgetId, x: clientX, y: clientY })
     },
-    [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu],
+    [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu, closeDamageNumbersSettingsMenu],
   )
+
+  const openDamageNumbersSettingsMenu = useCallback(
+    (widgetId: string, clientX: number, clientY: number) => {
+      closeAttackSpeedSettingsMenu()
+      closeBuffTrackerSettingsMenu()
+      closeBossAlertsSettingsMenu()
+      setDamageNumbersSettingsMenu({ widgetId, x: clientX, y: clientY })
+    },
+    [closeAttackSpeedSettingsMenu, closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu],
+  )
+
+  const previewDamageNumbers = useCallback((widgetId: string) => {
+    const cfg =
+      settingsRef.current.hudWidgets.find((w) => w.id === widgetId)?.damageNumbers ??
+      DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG
+    setDamageNumbersState((prev) => spawnHudDamagePreviewBurst(prev, cfg))
+  }, [])
 
   const openAttackSpeedSettingsMenu = useCallback(
     (widgetId: string, clientX: number, clientY: number) => {
       closeBuffTrackerSettingsMenu()
       closeBossAlertsSettingsMenu()
+      closeDamageNumbersSettingsMenu()
       setAttackSpeedSettingsMenu({ widgetId, x: clientX, y: clientY })
     },
-    [closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu],
+    [closeBuffTrackerSettingsMenu, closeBossAlertsSettingsMenu, closeDamageNumbersSettingsMenu],
   )
 
   const onWidgetDragStart = useCallback(
@@ -673,7 +782,14 @@ export default function HudApp() {
   )
 
   const ghostChrome = settings.hudBackdropOpacity < 0.04
-  const { shellModifiers } = useOverlayPerformanceShell(settings)
+  const { shellModifiers: allShellModifiers } = useOverlayPerformanceShell(settings)
+  const shellModifiers = useMemo(
+    () =>
+      layoutLocked
+        ? allShellModifiers.filter((m) => m !== 'shell--opaque-windows')
+        : allShellModifiers,
+    [allShellModifiers, layoutLocked],
+  )
   const hudWidgetPresentTypes = useMemo(
     () => new Set(settings.hudWidgets.map((w) => w.type)),
     [settings.hudWidgets],
@@ -783,6 +899,26 @@ export default function HudApp() {
             layoutLocked={layoutLocked}
             onDragStart={onWidgetDragStart(widget)}
             onOpenSettings={(x, y) => openBossAlertsSettingsMenu(widget.id, x, y)}
+          />
+        </div>
+      )
+    }
+    if (widget.type === 'damage_numbers') {
+      const cfg = widget.damageNumbers ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG
+      return (
+        <div
+          key={widget.id}
+          className="hud-widget-slot"
+          style={{ left: widget.x, top: widget.y }}
+        >
+          <DamageNumbersWidget
+            ref={(el) => registerWidgetRef(widget.id, el)}
+            popups={damageNumbersState.popups}
+            config={cfg}
+            draggable={editMode}
+            layoutLocked={layoutLocked}
+            onDragStart={onWidgetDragStart(widget)}
+            onOpenSettings={(x, y) => openDamageNumbersSettingsMenu(widget.id, x, y)}
           />
         </div>
       )
@@ -951,6 +1087,21 @@ export default function HudApp() {
           testLoading={bossAlertsTestBusy}
           testRunning={bossAlertsDemo.active}
           testHint={bossAlertsTestHint}
+        />
+      ) : null}
+      {damageNumbersSettingsMenu && editMode ? (
+        <DamageNumbersWidgetSettingsMenu
+          x={damageNumbersSettingsMenu.x}
+          y={damageNumbersSettingsMenu.y}
+          config={
+            settings.hudWidgets.find((w) => w.id === damageNumbersSettingsMenu.widgetId)
+              ?.damageNumbers ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG
+          }
+          onChange={(cfg) =>
+            updateDamageNumbersWidgetConfig(damageNumbersSettingsMenu.widgetId, cfg)
+          }
+          onClose={closeDamageNumbersSettingsMenu}
+          onPreview={() => previewDamageNumbers(damageNumbersSettingsMenu.widgetId)}
         />
       ) : null}
     </div>

@@ -10,6 +10,10 @@ import {
 import { DEFAULT_ATTACK_SPEED_WIDGET_CONFIG, normalizeAttackSpeedWidgetConfig } from './hudAttackSpeedWidget'
 import { DEFAULT_BUFF_TRACKER_WIDGET_CONFIG, normalizeBuffTrackerWidgetConfig } from './hudBuffTrackerWidget'
 import { DEFAULT_BOSS_ALERTS_WIDGET_CONFIG, normalizeBossAlertsWidgetConfig } from './hudBossAlertsWidget'
+import {
+  DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG,
+  normalizeDamageNumbersWidgetConfig,
+} from './hudDamageNumbersWidget'
 import { normalizeBossTimerChimeStyle, normalizeServerStatusChimeStyle } from './bossTimerWebChime'
 import { normalizeBossTimerIgnoredIds } from './bossTimerIgnore'
 
@@ -111,6 +115,19 @@ function normalizeHudWidgets(raw: unknown, legacyWidgetOpacity?: number): HudWid
         y: Math.round(w.y),
         bossAlerts: normalizeBossAlertsWidgetConfig(
           w.bossAlerts ?? DEFAULT_BOSS_ALERTS_WIDGET_CONFIG,
+          legacy,
+        ),
+      })
+      continue
+    }
+    if (w.type === 'damage_numbers') {
+      out.push({
+        id: w.id.trim(),
+        type: 'damage_numbers',
+        x: Math.round(w.x),
+        y: Math.round(w.y),
+        damageNumbers: normalizeDamageNumbersWidgetConfig(
+          w.damageNumbers ?? DEFAULT_DAMAGE_NUMBERS_WIDGET_CONFIG,
           legacy,
         ),
       })

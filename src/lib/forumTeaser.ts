@@ -38,7 +38,9 @@ export function parseForumTeaserHtml(html: string): ForumTeaser {
 
   const linkMatch =
     chunk.match(/<a[^>]+class=["']announcement-link["'][^>]+href=["']([^"']+)["']/i) ??
-    chunk.match(/<a[^>]+href=["']([^"']+)["'][^>]+class=["']announcement-link["']/i)
+    chunk.match(/<a[^>]+href=["']([^"']+)["'][^>]+class=["']announcement-link["']/i) ??
+    chunk.match(/<a[^>]+class=["']announcement-link["'][^>]+href=([^\s>]+)/i) ??
+    chunk.match(/<a[^>]+href=([^\s>]+)[^>]+class=["']announcement-link["']/i)
   if (!linkMatch?.[1]) {
     throw new Error('No read-more link found in announcement box')
   }

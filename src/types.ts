@@ -1,3 +1,5 @@
+import type { MapleRegion } from './lib/mapleDamageSkin/types'
+
 export type Dungeon = {
   id: string
   name: string
@@ -156,7 +158,7 @@ export type MonsterDetail = {
   locations?: MonsterLocation[]
 }
 
-export type HudWidgetType = 'attack_speed' | 'buff_tracker' | 'boss_alerts'
+export type HudWidgetType = 'attack_speed' | 'buff_tracker' | 'boss_alerts' | 'damage_numbers'
 
 /** Companion panels that may open when the app starts (settings excluded). */
 export const STARTUP_PANEL_KEYS = ['main', 'timeline', 'meter', 'timers', 'hud'] as const
@@ -246,6 +248,27 @@ export type BossAlertsWidgetConfig = {
   hideWhenInactive: boolean
 }
 
+/** MapleStory-style floating combat damage readout. */
+export type DamageNumbersWidgetConfig = {
+  /** Background panel opacity (0 = numbers only). */
+  backgroundOpacity: number
+  widgetScale: number
+  widgetWidthPx: number
+  widgetHeightPx: number
+  /** maplestory.io DamageSkin.img index (from maple-demage-skin-simulator). */
+  skinNumber: number
+  /** Cash-shop item id for the selected skin (settings UI). */
+  skinItemId?: number
+  /** Item name from maplestory.io — drives unit / lucky-seven digit rules. */
+  skinName?: string
+  /** KMS region for maplestory.io WZ assets. */
+  mapleRegion?: MapleRegion
+  /** Pin a WZ version; omit to use the latest KMS build from maplestory.io. */
+  mapleWzVersion?: number
+  /** Damage at or above this value uses the high-tier MapleStory skin sprites. 0 = disabled. */
+  highTierThreshold: number
+}
+
 export type HudWidget = {
   id: string
   type: HudWidgetType
@@ -254,6 +277,7 @@ export type HudWidget = {
   attackSpeed?: AttackSpeedWidgetConfig
   buffTracker?: BuffTrackerWidgetConfig
   bossAlerts?: BossAlertsWidgetConfig
+  damageNumbers?: DamageNumbersWidgetConfig
 }
 
 export type HotkeyConfig = {

@@ -15,8 +15,15 @@ import {
   syncDungeonBossTargets,
 } from './meterDungeonRun'
 import { parseDungeonCompleteEvent } from './meterDungeonComplete'
+import {
+  dungeonUsesObjectiveTargetFilter,
+  filterFlatSkillsForActiveObjective,
+  fightSkillsForActiveObjectiveLabeling,
+  updateActiveObjectiveFromCombat,
+  updateActiveObjectiveFromDeathEvent,
+} from './fightObjectiveTargetFilter'
 import { flattenFightSkills, computeFightEventQueue, buildTimelineDisplayEntries, type FlatSkillEntry } from './timelineSchedule'
-import { fightSkillsForLabeling, formatSkillEffectLabel } from './effectTypeDisplay'
+import { formatSkillEffectLabel } from './effectTypeDisplay'
 
 export type HudBossAlertRow = {
   key: string
@@ -40,6 +47,8 @@ export type HudBossAlertsState = {
   lastRunOutcome: MeterDungeonRunOutcome | null
   testMode: boolean
   testLabel: string | null
+  /** Command Server / Twins — wiki objective index for the boss currently being attacked. */
+  activeObjectiveIndex: number | null
 }
 
 export function createHudBossAlertsState(): HudBossAlertsState {
@@ -55,6 +64,7 @@ export function createHudBossAlertsState(): HudBossAlertsState {
     lastRunOutcome: null,
     testMode: false,
     testLabel: null,
+    activeObjectiveIndex: null,
   }
 }
 
@@ -77,6 +87,7 @@ export function bossAlertsFightKey(dungeonId: string, difficulty: string): strin
 
 function resetBossPull(state: HudBossAlertsState) {
   state.bossEngagedAtMs = null
+  state.activeObjectiveIndex = null
 }
 
 function clearBossAlertsFight(state: HudBossAlertsState) {
@@ -141,11 +152,31 @@ export function computeHudBossAlerts(
   const engagedAt = state.bossEngagedAtMs
   if (!fight || engagedAt == null) return []
 
+  if (dungeonUsesObjectiveTargetFilter(state.dungeonId) && state.activeObjectiveIndex == null) {
+    return []
+  }
+
   const elapsedMs = Math.max(0, nowMs - engagedAt)
   const warnLeadMs = Math.max(1, config.warnLeadSec) * 1000
   const rows: HudBossAlertRow[] = []
-  const fightSkills = fightSkillsForLabeling(fight)
-  const flat = flattenFightSkills(fight)
+  const fightSkills = fightSkillsForActiveObjectiveLabeling(
+    fight,
+    state.dungeonId,
+    state.activeObjectiveIndex,
+  )
+  const flat = filterFlatSkillsForActiveObjective(
+    state.dungeonId,
+    flattenFightSkills(fight),
+    state.activeObjectiveIndex,
+  )
+
+  const tracked = flat.filter((e) =>
+    shouldTrackSkillTargetCount(
+      e.skill.target_count,
+      config.trackSingleTarget,
+      config.trackMultiTarget,
+    ),
+  )
 
   if (fight.schedule?.events.length) {
     const queue = computeFightEventQueue(fight, flat, elapsedMs, 32)
@@ -177,7 +208,7 @@ export function computeHudBossAlerts(
     return rows
   }
 
-  for (const entry of listTrackedBossAlertSkills(fight, config)) {
+  for (const entry of tracked) {
     const cd = entry.skill.cool_time
     if (cd <= 0) continue
     const maxUses = entry.skill.max_uses
@@ -327,6 +358,13 @@ export function ingestHudBossAlertsEvent(
   }
 
   if (t === 'death') {
+    next.activeObjectiveIndex = updateActiveObjectiveFromDeathEvent(
+      next.dungeonId,
+      next.fight?.objectives ?? null,
+      next.dungeonDifficulty,
+      next.activeObjectiveIndex,
+      ev,
+    )
     if (
       next.dungeonId?.trim() &&
       next.dungeonBossTargets.length > 0 &&
@@ -354,6 +392,16 @@ export function ingestHudBossAlertsEvent(
 
   const dmg = Number(ev.damage)
   if (Number.isFinite(dmg) && dmg > 0) {
+    const victim = String(ev.target ?? '').trim()
+    if (victim) {
+      next.activeObjectiveIndex = updateActiveObjectiveFromCombat(
+        next.dungeonId,
+        next.fight?.objectives ?? null,
+        next.dungeonDifficulty,
+        next.activeObjectiveIndex,
+        victim,
+      )
+    }
     const sessionLike = {
       dungeonId: next.dungeonId,
       dungeonBossTargets: next.dungeonBossTargets,
