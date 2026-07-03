@@ -4,6 +4,10 @@ import {
   buildPartyRunFingerprint,
   PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
 } from './meterPartyFingerprint'
+import {
+  isMeterUploadAppVersionAllowed,
+  OUTDATED_METER_UPLOAD_MESSAGE,
+} from './meterUploadVersionGate'
 
 export type MeterHitLike = {
   skill: string
@@ -388,6 +392,10 @@ export async function insertMeterParse(
   userId: string | null,
   input: InsertMeterParseInput,
 ): Promise<{ error: string | null; parseId?: string; deduped?: boolean }> {
+  if (!isMeterUploadAppVersionAllowed(input.appVersion)) {
+    return { error: OUTDATED_METER_UPLOAD_MESSAGE }
+  }
+
   if (input.mode === 'dungeon_party') {
     const { members, dungeon, durationSec, appVersion, digimonNamesRequireWikiLookup } = input
     if (!dungeon.dungeonId.trim()) {
