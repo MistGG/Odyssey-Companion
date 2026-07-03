@@ -8,12 +8,23 @@ export type WikiDigimonSkill = {
   icon_id: string
 }
 
+export type WikiDigimonSkin = {
+  id: string
+  name: string
+  model_id: string
+  unlock_item_name: string
+  override_id?: string
+  override_name?: string
+  override_model?: string
+}
+
 export type WikiDigimonDetail = {
   id: string
   name: string
   model_id: string
   role: string
   skills: WikiDigimonSkill[]
+  skins?: WikiDigimonSkin[]
 }
 
 export function parseDigimonDetail(raw: unknown): WikiDigimonDetail {
@@ -37,12 +48,31 @@ export function parseDigimonDetail(raw: unknown): WikiDigimonDetail {
       })
     }
   }
+  const skins: WikiDigimonSkin[] = []
+  if (Array.isArray(o.skins)) {
+    for (const row of o.skins) {
+      if (!row || typeof row !== 'object') continue
+      const s = row as Record<string, unknown>
+      const id = String(s.id ?? '').trim()
+      if (!id) continue
+      skins.push({
+        id,
+        name: String(s.name ?? '').trim(),
+        model_id: String(s.model_id ?? '').trim(),
+        unlock_item_name: String(s.unlock_item_name ?? '').trim(),
+        override_id: String(s.override_id ?? '').trim() || undefined,
+        override_name: String(s.override_name ?? '').trim() || undefined,
+        override_model: String(s.override_model ?? '').trim() || undefined,
+      })
+    }
+  }
   return {
     id: String(o.id ?? '').trim(),
     name: String(o.name ?? '').trim(),
     model_id: String(o.model_id ?? '').trim(),
     role: String(o.role ?? '').trim(),
     skills,
+    skins: skins.length ? skins : undefined,
   }
 }
 

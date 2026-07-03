@@ -12,6 +12,7 @@ import {
 import { gameSkillIconUrl } from './meterSkillIcon'
 import { reconcileDigimonGroupsFromWikiCaches } from './meterSkillDigimonAttribution'
 import { digimonPortraitUrl } from './meterWikiSkills'
+import { resolveEffectiveDigimonIdentity } from './resolveDigimonAlternateStructure'
 import type {
   MeterDungeonPartyMemberParse,
   MeterParseDungeonContext,
@@ -115,13 +116,21 @@ export function buildMeterDungeonPartyParse(
       isSelf: row.isSelf,
       meterBarThemeId: row.meterBarThemeId,
       digimons: digimonGroups.map((g) => {
-        const iconId =
-          (g.digimonId ? streamIconIdForDigimon(session, g.digimonId) : '') || ''
+        const groupIconId =
+          g.iconId?.trim() ||
+          (g.digimonId ? streamIconIdForDigimon(session, g.digimonId) : '') ||
+          ''
+        const effective = resolveEffectiveDigimonIdentity({
+          digimonId: g.digimonId,
+          iconId: groupIconId,
+          digimonName: g.digimonName,
+          wikiByDigimonId: session.wikiByDigimonId,
+        })
         return {
           digimonId: g.digimonId,
-          digimonName: g.digimonName,
-          iconId: iconId || null,
-          portraitUrl: iconId ? digimonPortraitUrl(iconId) : undefined,
+          digimonName: effective.isAlternateStructure ? effective.digimonName : g.digimonName,
+          iconId: groupIconId || null,
+          portraitUrl: groupIconId ? digimonPortraitUrl(groupIconId) : undefined,
           totalDamage: Math.round(g.totalDamage),
           skills: g.skills.map((s) => ({
             skillKey: s.skillKey,

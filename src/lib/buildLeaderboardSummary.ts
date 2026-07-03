@@ -6,6 +6,7 @@ import {
   streamIconIdForDigimon,
 } from './meterEventStream'
 import { digimonIdToBucket, isDpsRoleBucket, type MeterRoleBucket } from './meterRoleBuckets'
+import { resolveEffectiveDigimonIdentity } from './resolveDigimonAlternateStructure'
 import type { MeterDungeonPartyMemberParse, MeterParseDungeonContext } from './supabaseMeter'
 
 export type LeaderboardSummaryMember = {
@@ -136,7 +137,15 @@ export function buildMeterLeaderboardSummary(
       member.portraitIconId?.trim() ||
       null
 
-    const roleBucket = digimonId ? digimonIdToBucket(digimonId, roleByDigimonId) : null
+    const effective = resolveEffectiveDigimonIdentity({
+      digimonId,
+      iconId,
+      digimonName: primary?.digimonName?.trim() || member.currentDigimonName?.trim() || member.displayLabel.trim(),
+      wikiByDigimonId: session.wikiByDigimonId,
+    })
+    const roleBucket = effective.digimonId
+      ? digimonIdToBucket(effective.digimonId, roleByDigimonId)
+      : null
     const memberDur = Math.max(member.durationSec, sessionDur, 1e-6)
     const attributedDamage = memberLeaderboardDamageFromUpload(member, roleByDigimonId)
     const dps = attributedDamage / memberDur
@@ -148,8 +157,8 @@ export function buildMeterLeaderboardSummary(
       playerKey: normalizePlayerKey(member.tamerName, member.displayLabel),
       displayName: member.tamerName.trim() || member.displayLabel.trim(),
       dps,
-      digimonId,
-      digimonName: wikiName || storedName,
+      digimonId: effective.digimonId || digimonId,
+      digimonName: effective.isAlternateStructure ? effective.digimonName : wikiName || storedName,
       iconId: iconId || null,
       portraitUrl: primary?.portraitUrl || member.portraitUrl,
       roleBucket,
@@ -170,7 +179,12 @@ export function collectPartyDigimonIds(session: MeterStreamSession, nowMs = Date
   for (const row of meterPartyRows(session, nowMs)) {
     for (const group of meterMemberSkillBreakdownByDigimon(session, row.key)) {
       const id = group.digimonId.trim()
-      if (id) ids.add(id)
+      if (!id) continue
+      ids.add(id)
+      const iconId = group.iconId?.trim()
+      const parentCache = session.wikiByDigimonId.get(id)
+      const alt = iconId ? parentCache?.alternateByIcon?.get(iconId) : undefined
+      if (alt?.overrideId) ids.add(alt.overrideId)
     }
   }
   return [...ids]

@@ -102,6 +102,7 @@ import {
   type DigimonWikiSkillCache,
 } from './lib/meterWikiSkills'
 import type { WikiDigimonDetail } from './lib/wikiDigimonApi'
+import { registerAlternateStructureWikiCaches } from './lib/resolveDigimonAlternateStructure'
 
 function formatInt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
@@ -165,13 +166,16 @@ export default function MeterApp() {
     (digimonId: string, cache: DigimonWikiSkillCache, detail?: WikiDigimonDetail) => {
       const session = streamRef.current
       session.wikiByDigimonId.set(digimonId, cache)
+      if (detail) registerAlternateStructureWikiCaches(session.wikiByDigimonId, detail, cache)
       loadedWikiDigimonRef.current = digimonId
       const officialName = detail?.name?.trim() || cache.digimonName
       applyWikiOfficialDigimonName(session, digimonId, officialName)
+      const streamIcon = streamIconIdForDigimon(session, digimonId)
       syncDigimonPresentationOnSession(session, digimonId, {
         modelId: detail?.model_id ?? cache.modelId,
         digimonName: officialName,
-        streamIconId: streamIconIdForDigimon(session, digimonId),
+        streamIconId: streamIcon,
+        alternateByIcon: cache.alternateByIcon,
       })
       refreshMemberSkillsFromWiki(
         session.members.values(),

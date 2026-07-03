@@ -1976,6 +1976,7 @@ export type MeterMemberSkillBreakdownEntry = MeterSkillBreakdownRow & {
 
 export type MeterDigimonSkillBreakdownGroup = {
   digimonId: string
+  iconId: string
   digimonName: string
   portraitUrl: string
   totalDamage: number
@@ -2054,6 +2055,7 @@ export function meterMemberSkillBreakdownByDigimon(
     const totalDamage = skills.reduce((sum, s) => sum + s.damage, 0)
     groups.push({
       digimonId,
+      iconId,
       digimonName: digimonDisplayNameForBreakdown(session, memberKey, digimonId),
       portraitUrl: digimonPortraitForBreakdown(session, digimonId, iconId),
       totalDamage,

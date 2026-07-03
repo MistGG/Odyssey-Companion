@@ -14,6 +14,7 @@ import {
 } from './meterBasicAttack'
 import { gameSkillIconUrl } from './meterSkillIcon'
 import { fetchWikiDigimon, type WikiDigimonDetail, type WikiDigimonSkill } from './wikiDigimonApi'
+import { buildAlternateByIconMap } from './resolveDigimonAlternateStructure'
 import { wikiNpcModelImageUrl } from './wikiNpcDetailApi'
 
 export type MeterSkillRow = {
@@ -87,6 +88,8 @@ export type DigimonWikiSkillCache = {
   modelId: string
   /** Wiki role string (Melee DPS, Support, …). */
   role: string
+  /** Alternate Structure Module skins keyed by portrait `icon_id`. */
+  alternateByIcon?: Map<string, { overrideId: string; overrideName: string; wikiRole: string }>
 }
 
 const loadingDigimonIds = new Set<string>()
@@ -115,6 +118,7 @@ export function buildDigimonWikiCache(
     digimonName: detail.name.trim(),
     modelId: detail.model_id.trim(),
     role: detail.role.trim(),
+    alternateByIcon: buildAlternateByIconMap(detail),
   }
 }
 
@@ -131,19 +135,26 @@ export function syncDigimonPresentationOnSession(
     members: Map<string, { digimonId: string; digimonName: string; iconId: string; portraitUrl: string }>
   },
   digimonId: string,
-  opts: { modelId: string; digimonName: string; streamIconId?: string },
+  opts: {
+    modelId: string
+    digimonName: string
+    streamIconId?: string
+    alternateByIcon?: Map<string, { overrideName: string }>
+  },
 ) {
   const portraitId = opts.streamIconId?.trim() || opts.modelId.trim()
+  const altName = portraitId ? opts.alternateByIcon?.get(portraitId)?.overrideName?.trim() : ''
+  const displayName = altName || opts.digimonName.trim()
   const portraitUrl = digimonPortraitUrl(portraitId)
 
   for (const snap of session.rosterMembers.values()) {
     if (norm(snap.digimonId) !== norm(digimonId)) continue
     snap.iconId = portraitId
-    if (opts.digimonName.trim()) snap.digimonName = opts.digimonName.trim()
+    if (displayName) snap.digimonName = displayName
   }
   for (const row of session.members.values()) {
     if (norm(row.digimonId) !== norm(digimonId)) continue
-    if (opts.digimonName.trim()) row.digimonName = opts.digimonName.trim()
+    if (displayName) row.digimonName = displayName
     row.iconId = portraitId
     row.portraitUrl = portraitUrl
   }
@@ -153,12 +164,15 @@ export function syncDigimonPresentationOnSession(
 export function syncMemberLatestDigimonPresentation(
   member: { digimonId: string; digimonName: string; iconId: string; portraitUrl: string },
   snap: { digimonId: string; digimonName: string; iconId: string },
-  wiki?: { modelId: string; digimonName: string },
+  wiki?: { modelId: string; digimonName: string; alternateByIcon?: Map<string, { overrideName: string }> },
   streamIconId?: string,
 ) {
   member.digimonId = snap.digimonId.trim() || member.digimonId
-  member.digimonName = wiki?.digimonName.trim() || snap.digimonName.trim() || member.digimonName
   const portraitId = snap.iconId.trim() || streamIconId?.trim() || wiki?.modelId.trim() || ''
+  const altName =
+    portraitId && wiki?.alternateByIcon?.get(portraitId)?.overrideName?.trim()
+  member.digimonName =
+    altName || wiki?.digimonName.trim() || snap.digimonName.trim() || member.digimonName
   member.iconId = portraitId
   member.portraitUrl = digimonPortraitUrl(portraitId)
 }
@@ -172,6 +186,7 @@ export function syncDigimonPresentationFromCache(
     modelId: cache.modelId,
     digimonName: cache.digimonName,
     streamIconId,
+    alternateByIcon: cache.alternateByIcon,
   })
 }
 
