@@ -184,6 +184,13 @@ function buildCombatEntry(
   const tamer = extractPartyTamerFromCombat(ev)
   if (tamer) fields.push({ label: 'Tamer', value: tamer })
 
+  const digimonId = String(ev.digimon_id ?? '').trim()
+  const digimonIconId = String(ev.digimon_icon_id ?? '').trim()
+  const skillIconId = String(ev.icon_id ?? ev.skill_icon_id ?? '').trim()
+  if (digimonId) fields.push({ label: 'Digimon id', value: digimonId })
+  if (digimonIconId) fields.push({ label: 'Digimon icon id', value: digimonIconId })
+  if (skillIconId) fields.push({ label: 'Skill icon id', value: skillIconId })
+
   const slot = ev.hitter_slot ?? ev.target_slot ?? ev.attacker_slot
   if (slot != null && String(slot).trim()) fields.push({ label: 'Slot', value: String(slot) })
 
@@ -405,6 +412,11 @@ export function devStreamLogCondensedLine(entry: DevStreamLogEntry): string {
       else if (to) bits.push(to)
       const skill = get('Skill')
       if (skill) bits.push(skill)
+      const digimonId = get('Digimon id')
+      const digimonIconId = get('Digimon icon id')
+      if (digimonId || digimonIconId) {
+        bits.push(`form ${digimonId || '?'}${digimonIconId ? `/${digimonIconId}` : ''}`)
+      }
       const dmg = get('Damage')
       if (dmg) bits.push(`${dmg} dmg`)
       if (get('Critical') === 'yes') bits.push('CRIT')

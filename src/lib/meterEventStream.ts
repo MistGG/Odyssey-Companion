@@ -396,6 +396,15 @@ function eventDigimonId(ev: EventStreamRecord): string {
   return String(ev.digimon_id ?? '').trim()
 }
 
+function eventDigimonIconId(ev: EventStreamRecord): string {
+  const type = String(ev.type ?? '')
+  const combatIcon = String(ev.digimon_icon_id ?? '').trim()
+  if (type === 'skill_use' || type === 'party_skill' || type === 'hit_taken') {
+    return combatIcon
+  }
+  return String(ev.icon_id ?? '').trim() || combatIcon
+}
+
 /** True when this hit is from our currently active (or recently swapped) partner digimon. */
 function combatHitFromSelfDigimon(session: MeterStreamSession, ev: EventStreamRecord): boolean {
   if (!session.selfTamerName?.trim()) return false
@@ -1003,7 +1012,7 @@ function ingestHelloLike(session: MeterStreamSession, ev: EventStreamRecord) {
     extractStreamEntityLabel(ev.digimon) ||
     (typeof ev.digimon === 'string' ? ev.digimon.trim() : String(ev.name ?? '').trim())
   const digimonId = String(ev.digimon_id ?? '').trim()
-  const iconId = String(ev.icon_id ?? '').trim()
+  const iconId = eventDigimonIconId(ev)
 
   if (isDigimonSwap) {
     const selfTamer = (tamer || session.selfTamerName)?.trim()
@@ -1133,7 +1142,7 @@ function hydrateSelfFromEvent(session: MeterStreamSession, ev: EventStreamRecord
   }
 
   const digimonId = String(ev.digimon_id ?? '').trim()
-  const iconId = String(ev.icon_id ?? ev.digimon_icon_id ?? '').trim()
+  const iconId = eventDigimonIconId(ev)
   const nickname = String(ev.digimon ?? ev.name ?? '').trim()
   if (digimonId) session.selfDigimonId = digimonId
   if (iconId) session.selfIconId = iconId
@@ -1864,8 +1873,7 @@ export function ingestMeterEventStream(
           who.digimonId,
         )
         const cache = wikiCacheForDigimon(session, attributedDigimonId) ?? previewCache
-        const hitIconId =
-          String(ev.digimon_icon_id ?? ev.icon_id ?? '').trim() || who.iconId
+        const hitIconId = eventDigimonIconId(ev) || who.iconId
         recordMeterSkillHit(creditRow, ev, cache, dmg, attributedDigimonId, hitIconId)
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
@@ -2143,8 +2151,7 @@ export function rosterDigimonIds(session: MeterStreamSession): string[] {
   for (const member of session.members.values()) {
     push(member.digimonId)
     for (const storageKey of member.skills.keys()) {
-      const bar = storageKey.indexOf('|')
-      if (bar > 0) push(storageKey.slice(0, bar))
+      push(digimonIdFromStorage(storageKey))
     }
   }
   return out

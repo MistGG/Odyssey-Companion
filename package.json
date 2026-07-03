@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added support for action/animated damage skins\n- Cleaned up unecessary settings and fixed some minor bugs"
+      "releaseNotes": "- Added support for alternate role Digimon"
     }
   }
 }

@@ -122,6 +122,10 @@ function requestEventStreamQueries() {
   void api?.sendEventStreamQuery?.('all')
 }
 
+function requestSelfIdentityQuery() {
+  void window.odysseyCompanion?.sendEventStreamQuery?.('all')
+}
+
 function clearStreamCombat(session: MeterStreamSession) {
   resetMeterCombatForManualReset(session)
   requestPartyRosterSync()
@@ -220,6 +224,8 @@ export default function MeterApp() {
   const eventStreamConnectedRef = useRef(false)
   const partySyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const partySyncStaggerTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const selfIdentitySyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const selfIdentitySyncLastMsRef = useRef(0)
 
   const schedulePartySyncIfNeeded = useCallback((reason: string) => {
     if (!eventStreamConnectedRef.current) return
@@ -232,6 +238,19 @@ export default function MeterApp() {
       requestEventStreamQueries()
       if (isMeterDebugEnabled()) meterDebugLog(`party sync (${reason})`)
     }, 350)
+  }, [])
+
+  const scheduleSelfIdentitySync = useCallback((reason: string) => {
+    if (!eventStreamConnectedRef.current) return
+    if (selfIdentitySyncTimerRef.current) return
+    const sinceLast = Date.now() - selfIdentitySyncLastMsRef.current
+    const delay = Math.max(50, 750 - sinceLast)
+    selfIdentitySyncTimerRef.current = window.setTimeout(() => {
+      selfIdentitySyncTimerRef.current = null
+      selfIdentitySyncLastMsRef.current = Date.now()
+      requestSelfIdentityQuery()
+      if (isMeterDebugEnabled()) meterDebugLog(`self identity sync (${reason})`)
+    }, delay)
   }, [])
 
   const [sbUser, setSbUser] = useState<User | null>(null)
@@ -624,6 +643,16 @@ export default function MeterApp() {
         ingestMeterEventStream(session, ev)
       if (requestPartySnapshot && eventStreamConnectedRef.current) {
         requestEventStreamQueries()
+      }
+      if (
+        eventStreamConnectedRef.current &&
+        (t === 'skill_use' ||
+          (t === 'hit_taken' &&
+            (Boolean(ev.from_self) ||
+              String(ev.attacker ?? ev.hitter ?? '').trim() ===
+                (session.selfDigimonNickname ?? '').trim())))
+      ) {
+        scheduleSelfIdentitySync(t)
       }
       if (
         !hadIdentity &&
