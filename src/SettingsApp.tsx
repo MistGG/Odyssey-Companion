@@ -37,6 +37,10 @@ import {
   type SettingsSectionId,
 } from './lib/settingsSection'
 
+const HOTKEY_COMPANION: { label: string; slot: 'toggleAllWindows' }[] = [
+  { label: 'Hide / show all windows', slot: 'toggleAllWindows' },
+]
+
 const HOTKEY_TIMELINE: { label: string; slot: 'toggle' | 'reset' }[] = [
   { label: 'Start / Pause', slot: 'toggle' },
   { label: 'Reset', slot: 'reset' },
@@ -619,6 +623,34 @@ export default function SettingsApp() {
             {hotkeyListening ? (
               <p className="hint hotkey-listen-hint">Esc cancels · pressing a modifier alone does nothing</p>
             ) : null}
+
+            <h3 className="settings-app-subhead">Companion windows</h3>
+            {HOTKEY_COMPANION.map(({ label, slot }) => (
+              <label key={slot} className="field">
+                <span>{label}</span>
+                <div className="hotkey-row">
+                  <button
+                    type="button"
+                    className={`hotkey-capture ${hotkeyListening === slot ? 'hotkey-capture--listening' : ''}`}
+                    onClick={() => setHotkeyListening(slot)}
+                  >
+                    {hotkeyListening === slot ? 'Click any key to register…' : settings.hotkeys[slot]}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost hotkey-clear"
+                    onClick={() =>
+                      setSettings((s) => ({
+                        ...s,
+                        hotkeys: { ...s.hotkeys, [slot]: 'None' },
+                      }))
+                    }
+                  >
+                    Clear
+                  </button>
+                </div>
+              </label>
+            ))}
 
             <h3 className="settings-app-subhead">Timeline</h3>
             {HOTKEY_TIMELINE.map(({ label, slot }) => (

@@ -281,6 +281,8 @@ export type HudWidget = {
 }
 
 export type HotkeyConfig = {
+  /** Hide or restore all companion overlay windows (main, timeline, meter, timers, Digi Aura). */
+  toggleAllWindows: string
   /** Same accelerator toggles Start ↔ Pause (clock pause only; Reset restores reference timeline). */
   toggle: string
   reset: string
@@ -399,6 +401,7 @@ export type OverlaySettings = {
 export const DEFAULT_SETTINGS: OverlaySettings = {
   startupPanels: ['main'],
   hotkeys: {
+    toggleAllWindows: 'Ctrl+`',
     toggle: 'F9',
     reset: 'F11',
     meterResetSession: 'None',

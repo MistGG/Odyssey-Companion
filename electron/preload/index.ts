@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 export type HotkeyConfig = {
+  toggleAllWindows: string
   toggle: string
   reset: string
   meterResetSession: string

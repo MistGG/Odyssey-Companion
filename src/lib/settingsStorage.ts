@@ -25,6 +25,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** Saved JSON may still use legacy `start` / `stop` / `reset`. */
 type HotkeyConfigLike = {
+  toggleAllWindows?: string
   toggle?: string
   reset?: string
   start?: string
@@ -51,7 +52,11 @@ function migrateHotkeys(raw: HotkeyConfigLike): HotkeyConfig {
     typeof raw.meterUploadParse === 'string'
       ? raw.meterUploadParse
       : DEFAULT_SETTINGS.hotkeys.meterUploadParse
-  return { toggle, reset, meterResetSession, meterUploadParse }
+  const toggleAllWindows =
+    typeof raw.toggleAllWindows === 'string'
+      ? raw.toggleAllWindows
+      : DEFAULT_SETTINGS.hotkeys.toggleAllWindows
+  return { toggleAllWindows, toggle, reset, meterResetSession, meterUploadParse }
 }
 
 function normalizeStartupPanels(raw: unknown): StartupPanelKey[] {

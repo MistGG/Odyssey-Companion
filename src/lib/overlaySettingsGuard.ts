@@ -62,6 +62,7 @@ function isHotkeyShape(v: unknown): boolean {
   if (!v || typeof v !== 'object') return false
   const h = v as Record<string, unknown>
   return (
+    typeof h.toggleAllWindows === 'string' &&
     typeof h.toggle === 'string' &&
     typeof h.reset === 'string' &&
     typeof h.meterResetSession === 'string' &&

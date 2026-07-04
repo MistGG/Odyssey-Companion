@@ -684,15 +684,61 @@ function wireSettingsStaysAboveOnOverlayFocus(win: BrowserWindow) {
 }
 
 type HotkeyPayload = {
+  toggleAllWindows: string
   toggle: string
   reset: string
   meterResetSession: string
   meterUploadParse: string
 }
 
+type CompanionPanelKey = 'main' | 'timeline' | 'meter' | 'timers' | 'hud'
+
 let storedHotkeys: HotkeyPayload | null = null
 let hotkeysWhenCompanionFocused = false
 let hotkeyFocusDebounce: ReturnType<typeof setTimeout> | null = null
+let companionPanelsVisibilityBeforeHide: Partial<Record<CompanionPanelKey, boolean>> | null = null
+
+function companionPanelWindows(): { key: CompanionPanelKey; win: BrowserWindow | null }[] {
+  return [
+    { key: 'main', win: dungeonWin },
+    { key: 'timeline', win: timelineWin },
+    { key: 'meter', win: meterWin },
+    { key: 'timers', win: timersWin },
+    { key: 'hud', win: hudWin },
+  ]
+}
+
+function isCompanionPanelVisible(win: BrowserWindow | null): boolean {
+  if (!win || win.isDestroyed()) return false
+  return win.isVisible() && !win.isMinimized()
+}
+
+function toggleAllCompanionWindows() {
+  const panels = companionPanelWindows()
+  const anyVisible = panels.some(({ win }) => isCompanionPanelVisible(win))
+
+  if (anyVisible) {
+    const snap: Partial<Record<CompanionPanelKey, boolean>> = {}
+    for (const { key, win } of panels) {
+      if (!win || win.isDestroyed()) continue
+      const visible = win.isVisible() && !win.isMinimized()
+      snap[key] = visible
+      if (visible) hideWindowToTray(win)
+    }
+    companionPanelsVisibilityBeforeHide = snap
+    return
+  }
+
+  const snap = companionPanelsVisibilityBeforeHide
+  if (!snap) return
+
+  if (snap.main) showDungeonWindow()
+  if (snap.timeline) showTimelineWindow()
+  if (snap.meter) showMeterWindow()
+  if (snap.timers) showTimersWindow()
+  if (snap.hud) showHudWindow()
+  companionPanelsVisibilityBeforeHide = null
+}
 
 function companionHotkeyWindowHasFocus(): boolean {
   const w = BrowserWindow.getFocusedWindow()
@@ -709,6 +755,14 @@ function companionHotkeyWindowHasFocus(): boolean {
 
 /** Register shortcuts from `cfg` without calling `unregisterAll` first. */
 function registerHotkeysDirect(cfg: HotkeyPayload) {
+  const toggleAllAcc = cfg.toggleAllWindows.trim()
+  if (toggleAllAcc && toggleAllAcc.toLowerCase() !== 'none') {
+    const ok = globalShortcut.register(toggleAllAcc, toggleAllCompanionWindows)
+    if (!ok) {
+      console.warn(`[odyssey-companion] Could not register global shortcut: ${toggleAllAcc} (toggleAllWindows)`)
+    }
+  }
+
   const entries: { acc: string; action: 'toggle' | 'reset' }[] = [
     { acc: cfg.toggle.trim(), action: 'toggle' },
     { acc: cfg.reset.trim(), action: 'reset' },
@@ -1946,6 +2000,8 @@ ipcMain.handle('hotkeys:apply', (_evt, cfg: unknown) => {
   try {
     const c = cfg as Partial<HotkeyPayload> & { hotkeysOnlyWhenCompanionFocused?: boolean }
     const normalized: HotkeyPayload = {
+      toggleAllWindows:
+        typeof c.toggleAllWindows === 'string' ? c.toggleAllWindows : 'Ctrl+`',
       toggle: typeof c.toggle === 'string' ? c.toggle : '',
       reset: typeof c.reset === 'string' ? c.reset : '',
       meterResetSession: typeof c.meterResetSession === 'string' ? c.meterResetSession : 'None',
