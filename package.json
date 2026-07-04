@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.109",
+  "version": "0.1.110",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added support for alternate role Digimon"
+      "releaseNotes": "- Added a hotkey to show/hide all Companion windows"
     }
   }
 }
