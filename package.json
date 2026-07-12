@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.111",
+  "version": "0.1.112",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Players deaths no longer reset Boss Alerts in DigiAura"
+      "releaseNotes": "- Updated and optimized patch notes"
     }
   }
 }
