@@ -26,7 +26,15 @@ declare global {
         imageRemoteUrl?: string
       }>
       fetchPatchNotes?: () => Promise<
-        Array<{ id: string; title: string; url: string; preview: string; bodyHtml: string }>
+        Array<{
+          id: string
+          title: string
+          url: string
+          preview: string
+          bodyHtml: string
+          bodyLoaded?: boolean
+          date?: string | null
+        }>
       >
       fetchPatchNote?: (url: string) => Promise<{
         id: string
@@ -34,6 +42,8 @@ declare global {
         url: string
         preview: string
         bodyHtml: string
+        bodyLoaded?: boolean
+        date?: string | null
       }>
       openExternal?: (url: string) => Promise<void>
       openMarketLogin?: () => Promise<boolean>

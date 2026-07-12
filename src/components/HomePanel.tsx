@@ -4,6 +4,7 @@ import { imgurIdFromUrl, odysseyCalcTeaserImageUrls } from '../lib/teaserImagePr
 import {
   patchNoteDisplayParts,
   patchNoteKind,
+  patchNoteListDate,
   type PatchNoteEntry,
 } from '../lib/patchNotes'
 import { fetchPatchNote, fetchPatchNotes } from '../lib/patchNotesApi'
@@ -87,7 +88,7 @@ export function HomePanel() {
     patchNotes.find((note) => note.id === selectedPatchId) ?? patchNotes[0] ?? null
 
   useEffect(() => {
-    if (!selectedPatch || selectedPatch.bodyHtml) {
+    if (!selectedPatch || selectedPatch.bodyLoaded || selectedPatch.bodyHtml) {
       setDetailError(null)
       return
     }
@@ -100,7 +101,9 @@ export function HomePanel() {
         const detail = await fetchPatchNote(selectedPatch.url)
         if (cancelled) return
         setPatchNotes((prev) =>
-          prev.map((note) => (note.id === detail.id ? { ...note, ...detail } : note)),
+          prev.map((note) =>
+            note.id === detail.id ? { ...note, ...detail, bodyLoaded: true } : note,
+          ),
         )
       } catch (e) {
         if (!cancelled) {
@@ -114,7 +117,7 @@ export function HomePanel() {
     return () => {
       cancelled = true
     }
-  }, [selectedPatch?.id, selectedPatch?.url, selectedPatch?.bodyHtml])
+  }, [selectedPatch?.id, selectedPatch?.url, selectedPatch?.bodyHtml, selectedPatch?.bodyLoaded])
 
   const openExternal = (url: string) => {
     void window.odysseyCompanion?.openExternal?.(url)
@@ -209,7 +212,8 @@ export function HomePanel() {
           ) : (
             <div className="home-notes__list" role="listbox" aria-label="Recent patches">
               {patchNotes.map((note) => {
-                const { date, label } = patchNoteDisplayParts(note.title)
+                const { label } = patchNoteDisplayParts(note.title)
+                const date = patchNoteListDate(note)
                 const kind = patchNoteKind(note.title)
                 const active = note.id === selectedPatch?.id
                 return (
@@ -250,7 +254,9 @@ export function HomePanel() {
                     onClick={() => {
                       setPatchNotes((prev) =>
                         prev.map((note) =>
-                          note.id === selectedPatch.id ? { ...note, bodyHtml: '' } : note,
+                          note.id === selectedPatch.id
+                            ? { ...note, bodyHtml: '', bodyLoaded: false }
+                            : note,
                         ),
                       )
                     }}

@@ -1916,14 +1916,16 @@ select {
   color: rgba(226, 236, 248, 0.92);
 }
 
-.home-notes__reader-body h2 {
+.home-notes__reader-body h2,
+.home-notes__reader-body h3 {
   margin: 16px 0 8px;
   font-size: 13px;
   font-weight: 800;
   color: rgba(62, 224, 255, 0.9);
 }
 
-.home-notes__reader-body h2:first-child {
+.home-notes__reader-body h2:first-child,
+.home-notes__reader-body h3:first-child {
   margin-top: 0;
 }
 
