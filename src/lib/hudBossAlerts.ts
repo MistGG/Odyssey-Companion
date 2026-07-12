@@ -5,7 +5,6 @@ import { shouldTrackSkillTargetCount } from './hudBossAlertSound'
 import type { MeterDungeonRunOutcome } from './meterDungeonRun'
 import {
   combatHitStartsMeterTimer,
-  deathIndicatesBossClear,
   eventStreamReportsFullClear,
   extractBossTargetsFromObjectives,
   extractDungeonDifficultyMeta,
@@ -358,6 +357,8 @@ export function ingestHudBossAlertsEvent(
   }
 
   if (t === 'death') {
+    // Match timeline/meter: player (or other non-boss) deaths do not reset the engage clock.
+    // Only objective index updates when a kill-step boss dies (multi-boss dungeons).
     next.activeObjectiveIndex = updateActiveObjectiveFromDeathEvent(
       next.dungeonId,
       next.fight?.objectives ?? null,
@@ -365,15 +366,6 @@ export function ingestHudBossAlertsEvent(
       next.activeObjectiveIndex,
       ev,
     )
-    if (
-      next.dungeonId?.trim() &&
-      next.dungeonBossTargets.length > 0 &&
-      next.bossEngagedAtMs != null &&
-      !deathIndicatesBossClear(ev, next.dungeonBossTargets)
-    ) {
-      resetBossPull(next)
-      dungeonReset = true
-    }
     return { state: next, requestFightLoad, dungeonReset, fightJustEngaged }
   }
 
