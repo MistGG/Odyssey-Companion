@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.112",
+  "version": "0.1.113",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated and optimized patch notes"
+      "releaseNotes": "- Fixed an issue where some parses could misattribute DPS to other parse users in the same run"
     }
   }
 }
