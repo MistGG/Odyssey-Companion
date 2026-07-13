@@ -239,19 +239,42 @@ function isUniquePartyLabel(session: MeterStreamSession, label: string): boolean
   return partyLabelTamers(session, label).size <= 1
 }
 
+/** Tamers (roster + self) currently on this digimon id. */
+function partyDigimonIdTamers(session: MeterStreamSession, digimonId: string): Set<string> {
+  const id = digimonId.trim()
+  const tamers = new Set<string>()
+  if (!id) return tamers
+  for (const snap of session.rosterMembers.values()) {
+    if (!snap.digimonId.trim() || normKey(snap.digimonId) !== normKey(id)) continue
+    const t = snap.tamerName.trim()
+    if (t) tamers.add(t)
+  }
+  const selfId = session.selfDigimonId?.trim()
+  const selfTamer = session.selfTamerName?.trim()
+  if (selfId && selfTamer && normKey(selfId) === normKey(id)) {
+    tamers.add(selfTamer)
+  }
+  return tamers
+}
+
+function isUniquePartyDigimonId(session: MeterStreamSession, digimonId: string): boolean {
+  if (!digimonId.trim()) return false
+  return partyDigimonIdTamers(session, digimonId).size <= 1
+}
+
+/**
+ * Resolve a digimon id to a roster (or self) member only when that id is unique in the party.
+ * Shared species/id must be attributed via slot, tamer, or unique nickname — never guessed.
+ */
 function resolveRosterMemberByDigimonId(
   session: MeterStreamSession,
   digimonId: string,
 ): PartyMemberSnapshot | null {
   const id = digimonId.trim()
-  if (!id) return null
-  let match: PartyMemberSnapshot | null = null
+  if (!id || !isUniquePartyDigimonId(session, id)) return null
   for (const snap of session.rosterMembers.values()) {
-    if (normKey(snap.digimonId) !== normKey(id)) continue
-    if (match) return null
-    match = snap
+    if (normKey(snap.digimonId) === normKey(id)) return snap
   }
-  if (match) return match
   const selfId = session.selfDigimonId?.trim()
   const selfTamer = session.selfTamerName?.trim()
   if (selfId && selfTamer && normKey(selfId) === normKey(id)) {
@@ -321,16 +344,9 @@ function rebuildPartyDigimonIdAliases(session: MeterStreamSession) {
     if (selfId && normKey(selfId) === alias) session.rosterByAlias.delete(alias)
   }
 
-  const idCounts = new Map<string, number>()
   for (const snap of session.rosterMembers.values()) {
     const id = snap.digimonId.trim()
-    if (!id) continue
-    const k = normKey(id)
-    idCounts.set(k, (idCounts.get(k) ?? 0) + 1)
-  }
-  for (const snap of session.rosterMembers.values()) {
-    const id = snap.digimonId.trim()
-    if (!id || (idCounts.get(normKey(id)) ?? 0) !== 1) continue
+    if (!id || !isUniquePartyDigimonId(session, id)) continue
     session.rosterByAlias.set(normKey(id), {
       tamerName: snap.tamerName,
       digimonName: snap.digimonName || snap.digimonNickname,
@@ -342,7 +358,7 @@ function rebuildPartyDigimonIdAliases(session: MeterStreamSession) {
   if (
     selfId &&
     selfTamer &&
-    (idCounts.get(normKey(selfId)) ?? 0) <= 1 &&
+    isUniquePartyDigimonId(session, selfId) &&
     !session.rosterByAlias.has(normKey(selfId))
   ) {
     session.rosterByAlias.set(normKey(selfId), {
@@ -405,12 +421,22 @@ function eventDigimonIconId(ev: EventStreamRecord): string {
   return String(ev.icon_id ?? '').trim() || combatIcon
 }
 
-/** True when this hit is from our currently active (or recently swapped) partner digimon. */
+/**
+ * True when this hit is from our currently active partner digimon.
+ * Digimon id / species / display-name alone never map to self when a roster peer shares them.
+ */
 function combatHitFromSelfDigimon(session: MeterStreamSession, ev: EventStreamRecord): boolean {
   if (!session.selfTamerName?.trim()) return false
   const evId = eventDigimonId(ev)
   const selfId = session.selfDigimonId?.trim() ?? ''
-  if (evId && selfId && normKey(evId) === normKey(selfId)) return true
+  if (
+    evId &&
+    selfId &&
+    normKey(evId) === normKey(selfId) &&
+    isUniquePartyDigimonId(session, evId)
+  ) {
+    return true
+  }
   const hitter = String(ev.hitter ?? ev.attacker ?? ev.digimon ?? '').trim()
   if (hitter && combatLabelMatchesSelfDigimon(session, hitter)) return true
   return false
@@ -425,12 +451,25 @@ function resolveTamerFromRoster(session: MeterStreamSession, aliases: string[]):
   return ''
 }
 
-/** True when a combat `hitter` string is one of our active digimon labels. */
+/**
+ * True when a combat `hitter` string is uniquely ours.
+ * Prefer tamer / unique nickname; never claim a shared species/name label as self.
+ */
 function combatLabelMatchesSelfDigimon(session: MeterStreamSession, label: string): boolean {
   const hit = label.trim()
-  if (!hit || !session.selfTamerName?.trim()) return false
+  const selfTamer = session.selfTamerName?.trim()
+  if (!hit || !selfTamer) return false
+
+  // Hard unique key: our tamer name.
+  if (normKey(hit) === normKey(selfTamer)) return true
+
+  // Unique roster alias (nickname / species only registered when unique in party).
   const resolved = resolveTamerFromRoster(session, [hit])
-  if (resolved && normKey(resolved) === normKey(session.selfTamerName)) return true
+  if (resolved && normKey(resolved) === normKey(selfTamer)) return true
+
+  // Shared digimon labels stay ambiguous — leave uncredited without slot/tamer/unique nick.
+  if (!isUniquePartyLabel(session, hit)) return false
+
   const nick = session.selfDigimonNickname?.trim()
   if (nick && normKey(hit) === normKey(nick)) return true
   const official = session.selfDigimonName?.trim()
@@ -442,7 +481,7 @@ function combatLabelMatchesSelfDigimon(session: MeterStreamSession, label: strin
   const entry = session.rosterByAlias.get(normKey(hit))
   return Boolean(
     entry?.tamerName.trim() &&
-      normKey(entry.tamerName) === normKey(session.selfTamerName),
+      normKey(entry.tamerName) === normKey(selfTamer),
   )
 }
 
