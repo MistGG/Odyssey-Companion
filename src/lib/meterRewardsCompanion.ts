@@ -20,6 +20,7 @@ import {
   MAGIA_HALL_OF_FAME_THEME_ID,
   METER_PARTY_BAR_THEMES,
   MIST_DEV_REWARD_THEME_ID,
+  VERDANDI_HALL_OF_FAME_THEME_ID,
   type MeterPartyBarTheme,
   type MeterPartyBarThemeId,
   writeEquippedMeterPartyBarThemeId,
@@ -39,7 +40,11 @@ async function grantHallOfFameThemesIfEligible(
   if (!playerKey) return
   const { counts, error } = await fetchMeterPlayerHofRecordCountsByCycle(client, playerKey)
   if (error) return
-  for (const themeId of [HALL_OF_FAME_THEME_ID, MAGIA_HALL_OF_FAME_THEME_ID] as const) {
+  for (const themeId of [
+    HALL_OF_FAME_THEME_ID,
+    MAGIA_HALL_OF_FAME_THEME_ID,
+    VERDANDI_HALL_OF_FAME_THEME_ID,
+  ] as const) {
     const theme = getMeterPartyBarTheme(themeId)
     if (!theme) continue
     const count = hofRecordCountForTheme(theme, counts)
@@ -157,7 +162,9 @@ export async function equipCompanionMeterTheme(
 
   if (
     data?.error === 'not_owned' &&
-    (themeId === HALL_OF_FAME_THEME_ID || themeId === MAGIA_HALL_OF_FAME_THEME_ID)
+    (themeId === HALL_OF_FAME_THEME_ID ||
+      themeId === MAGIA_HALL_OF_FAME_THEME_ID ||
+      themeId === VERDANDI_HALL_OF_FAME_THEME_ID)
   ) {
     const playerKey = await resolveMeterPlayerKeyForHof(client, profileDisplayName)
     if (playerKey) {
@@ -170,9 +177,11 @@ export async function equipCompanionMeterTheme(
     return {
       ok: false,
       error:
-        themeId === MAGIA_HALL_OF_FAME_THEME_ID
-          ? 'Earn a Magia cycle record break to unlock this theme.'
-          : 'Earn an Olympus cycle record break to unlock this theme.',
+        themeId === VERDANDI_HALL_OF_FAME_THEME_ID
+          ? 'Earn a Verdandi cycle record break to unlock this theme.'
+          : themeId === MAGIA_HALL_OF_FAME_THEME_ID
+            ? 'Earn a Magia cycle record break to unlock this theme.'
+            : 'Earn an Olympus cycle record break to unlock this theme.',
     }
   }
 
@@ -214,7 +223,11 @@ export async function unequipCompanionMeterTheme(
 
 export function companionThemeLabel(theme: CompanionRewardTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return `${theme.label} (Unique)`
-  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
+  if (
+    theme.id === HALL_OF_FAME_THEME_ID ||
+    theme.id === MAGIA_HALL_OF_FAME_THEME_ID ||
+    theme.id === VERDANDI_HALL_OF_FAME_THEME_ID
+  ) {
     const n = theme.hofRecordCount ?? 0
     return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : theme.label
   }

@@ -1,11 +1,17 @@
 import {
   isHallOfFameMeterTheme,
+  isVerdandiSssLegendaryTheme,
   meterPartyBarThemeStyle,
   meterThemePreviewDigimonLine,
   type MeterPartyBarTheme,
 } from '../lib/meterPartyBarThemes'
 import { METER_THEME_PREVIEW_BAR_FILL, meterThemePreviewStats } from '../lib/meterThemeShop'
-import { MeterPartyPlainBar, MeterPartyThemedBar, meterPartyMemberThemeClass } from './MeterPartyThemedBar'
+import {
+  MeterPartyPlainBar,
+  MeterPartyThemedBar,
+  meterPartyMemberSssFirstClass,
+  meterPartyMemberThemeClass,
+} from './MeterPartyThemedBar'
 import { MeterPartyThemeBadge } from './MeterPartyThemeBadge'
 
 function formatInt(n: number) {
@@ -36,10 +42,17 @@ export function MeterThemePreview({
   hofRecordCount = 0,
 }: MeterThemePreviewProps) {
   const displayRows = compact ? rows.filter((r) => r.isSelf) : rows
+  // Compact equip lists clip FX so overflow layers cannot cover Equip.
+  const sssRuneEscape =
+    !compact &&
+    isVerdandiSssLegendaryTheme(theme) &&
+    (theme.barStyleId === 'alphamon-ouryuken' ||
+      theme.barStyleId === 'omegamon' ||
+      theme.barStyleId === 'ulforce-veemon-x')
 
   return (
     <div
-      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${compact ? ' meter-theme-preview--compact' : ''}${className ? ` ${className}` : ''}`}
+      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${sssRuneEscape ? ' meter-theme-preview--sss-rune-escape' : ''}${compact ? ' meter-theme-preview--compact' : ''}${className ? ` ${className}` : ''}`}
       aria-label={`${theme.label} party bar preview`}
     >
       {displayRows.map((row, index) => {
@@ -48,11 +61,14 @@ export function MeterThemePreview({
         const themeStyle = themed ? meterPartyBarThemeStyle(theme) : undefined
         const sharePct = row.fillPct
         const { dps, totalDamage, durationSec } = meterThemePreviewStats(sharePct, index)
+        const isFirstPlace = themed
+        const sssFirstClass = themed ? meterPartyMemberSssFirstClass(theme, isFirstPlace) : ''
+        // Live meter uses sss-bleed; previews must not — negative margins steal Equip/Buy clicks.
 
         return (
           <div
             key={rowKey}
-            className={`meter-party-member${themed ? ' meter-party-member--bar-theme' : ''}${themed ? meterPartyMemberThemeClass(theme) : ''}`}
+            className={`meter-party-member${themed ? ' meter-party-member--bar-theme' : ''}${themed ? meterPartyMemberThemeClass(theme) : ''}${sssFirstClass}`}
             style={themeStyle}
           >
             {themed ? (
@@ -62,6 +78,7 @@ export function MeterThemePreview({
                 hofRecordCount={
                   isHallOfFameMeterTheme(theme) ? Math.max(hofRecordCount, 1) : hofRecordCount
                 }
+                isFirstPlace={isFirstPlace}
               />
             ) : (
               <MeterPartyPlainBar sharePct={sharePct} rowKey={rowKey} />

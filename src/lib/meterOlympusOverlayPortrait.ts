@@ -43,9 +43,13 @@ const OLYMPUS_OVERLAY_FOCUS_Y: Record<OlymposXiiBaseThemeId, number> = {
   marsmon: 14,
 }
 
+export function olympusOverlayArtUrl(styleId: OlymposXiiBaseThemeId): string | undefined {
+  return bundledOlympusOverlayUrl(styleId)
+}
+
 export function olympusOverlayPortraitUrl(theme: MeterPartyBarTheme): string | undefined {
   if (theme.variant !== 'rare' && theme.variant !== 'legendary') return undefined
-  return bundledOlympusOverlayUrl(theme.barStyleId as OlymposXiiBaseThemeId)
+  return olympusOverlayArtUrl(theme.barStyleId as OlymposXiiBaseThemeId)
 }
 
 export function olympusOverlayObjectPosition(theme: MeterPartyBarTheme): string {

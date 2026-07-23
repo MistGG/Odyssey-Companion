@@ -3,9 +3,13 @@ import {
   meterPartyBarThemeStyle,
   HALL_OF_FAME_THEME_ID,
   hofOverlayVariantForTheme,
+  isHallOfFameMeterTheme,
   isMagiaMeterShopTheme,
+  isVerdandiMeterShopTheme,
+  isVerdandiSssLegendaryTheme,
   MAGIA_HALL_OF_FAME_THEME_ID,
   MIST_DEV_REWARD_THEME_ID,
+  VERDANDI_HALL_OF_FAME_THEME_ID,
   type MeterPartyBarTheme,
 } from '../lib/meterPartyBarThemes'
 import { partyMemberBarBackground } from '../lib/meterPartyColor'
@@ -22,32 +26,70 @@ import { MeterNeptunemonLegendaryWaves } from './MeterNeptunemonLegendaryWaves'
 import { MeterPlesiomonLegendaryHydroBlast } from './MeterPlesiomonLegendaryHydroBlast'
 import { MeterRaguelmonLegendaryClawSlashes } from './MeterRaguelmonLegendaryClawSlashes'
 import { MeterZhuqiaomonLegendaryPhoenixFeathers } from './MeterZhuqiaomonLegendaryPhoenixFeathers'
+import { MeterOmegamonLegendaryGreySword } from './MeterOmegamonLegendaryGreySword'
+import { MeterUlforceVeemonXLegendarySpeedLines } from './MeterUlforceVeemonXLegendarySpeedLines'
+import { MeterAlphamonOuryukenLegendaryBlade } from './MeterAlphamonOuryukenLegendaryBlade'
+import { MeterAlphamonOuryukenSssFirstRunes } from './MeterAlphamonOuryukenSssFirstRunes'
+import { MeterOmegamonSssFirstRunes } from './MeterOmegamonSssFirstRunes'
+import { MeterUlforceVeemonXSssFirstSwipes } from './MeterUlforceVeemonXSssFirstSwipes'
 import { MeterVenusmonLegendaryHearts } from './MeterVenusmonLegendaryHearts'
 import { MeterVulcanusmonLegendaryForge } from './MeterVulcanusmonLegendaryForge'
 import { MeterHallOfFameBarOverlay } from './MeterHallOfFameBarOverlay'
 import { MeterIliadBarOverlay } from './MeterIliadBarOverlay'
 import { MeterMagiaBarDigimonOverlay } from './MeterMagiaBarDigimonOverlay'
+import { MeterVerdandiBarDigimonOverlay } from './MeterVerdandiBarDigimonOverlay'
 import { MeterOlympusBarDigimonOverlay } from './MeterOlympusBarDigimonOverlay'
 
 type MeterPartyThemedBarProps = {
   theme: MeterPartyBarTheme
   sharePct: number
   hofRecordCount?: number
+  /** Party #1 by DPS — enables Verdandi SSS Legendary outline glow. */
+  isFirstPlace?: boolean
+}
+
+function shopOverlayLayer(theme: MeterPartyBarTheme): 'verdandi' | 'magia' | 'olympus' {
+  if (isVerdandiMeterShopTheme(theme)) return 'verdandi'
+  if (isMagiaMeterShopTheme(theme)) return 'magia'
+  return 'olympus'
+}
+
+function ShopDigimonOverlay({ theme }: { theme: MeterPartyBarTheme }) {
+  if (isVerdandiMeterShopTheme(theme)) return <MeterVerdandiBarDigimonOverlay theme={theme} />
+  if (isMagiaMeterShopTheme(theme)) return <MeterMagiaBarDigimonOverlay theme={theme} />
+  return <MeterOlympusBarDigimonOverlay theme={theme} />
 }
 
 export function MeterPartyThemedBar({
   theme,
   sharePct,
   hofRecordCount = 0,
+  isFirstPlace = false,
 }: MeterPartyThemedBarProps) {
-  const widthPct = Math.min(100, sharePct)
+  // Verdandi SSS Legendary always spans the full meter track.
+  const widthPct = isVerdandiSssLegendaryTheme(theme) ? 100 : Math.min(100, sharePct)
   const themeStyle = meterPartyBarThemeStyle(theme)
   const isIliad = theme.id === MIST_DEV_REWARD_THEME_ID
-  const isHallOfFame =
-    theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID
+  const isHallOfFame = isHallOfFameMeterTheme(theme)
   const isRare = theme.variant === 'rare'
   const isLegendary = theme.variant === 'legendary'
   const fillWidth = { width: `${widthPct}%` }
+  const showAlphamonSssRunes =
+    isFirstPlace &&
+    isVerdandiSssLegendaryTheme(theme) &&
+    theme.barStyleId === 'alphamon-ouryuken'
+  const showOmegamonSssRunes =
+    isFirstPlace && isVerdandiSssLegendaryTheme(theme) && theme.barStyleId === 'omegamon'
+  const showUlforceSssSwipes =
+    isFirstPlace && isVerdandiSssLegendaryTheme(theme) && theme.barStyleId === 'ulforce-veemon-x'
+
+  const sssFirstFx = showOmegamonSssRunes ? (
+    <MeterOmegamonSssFirstRunes />
+  ) : showAlphamonSssRunes ? (
+    <MeterAlphamonOuryukenSssFirstRunes />
+  ) : showUlforceSssSwipes ? (
+    <MeterUlforceVeemonXSssFirstSwipes />
+  ) : null
 
   const bar = (
     <div
@@ -59,32 +101,38 @@ export function MeterPartyThemedBar({
 
   if (isIliad) {
     return (
-      <div
-        className="meter-party-bar-fill-stack meter-party-bar-fill-stack--iliad"
-        style={fillWidth}
-        aria-hidden
-      >
-        {bar}
-        <div className="meter-party-bar-iliad-layer">
-          <MeterIliadBarOverlay />
+      <>
+        <div
+          className="meter-party-bar-fill-stack meter-party-bar-fill-stack--iliad"
+          style={fillWidth}
+          aria-hidden
+        >
+          {bar}
+          <div className="meter-party-bar-iliad-layer">
+            <MeterIliadBarOverlay />
+          </div>
         </div>
-      </div>
+        {sssFirstFx}
+      </>
     )
   }
 
   if (isHallOfFame) {
     return (
-      <div
-        className="meter-party-bar-fill-stack meter-party-bar-fill-stack--hof"
-        style={fillWidth}
-        aria-hidden
-      >
-        {bar}
-        <MeterHallOfFameBarOverlay
-          recordCount={hofRecordCount}
-          variant={hofOverlayVariantForTheme(theme)}
-        />
-      </div>
+      <>
+        <div
+          className="meter-party-bar-fill-stack meter-party-bar-fill-stack--hof"
+          style={fillWidth}
+          aria-hidden
+        >
+          {bar}
+          <MeterHallOfFameBarOverlay
+            recordCount={hofRecordCount}
+            variant={hofOverlayVariantForTheme(theme)}
+          />
+        </div>
+        {sssFirstFx}
+      </>
     )
   }
 
@@ -121,7 +169,13 @@ export function MeterPartyThemedBar({
                                   ? ' meter-party-bar-fill-stack--plesiomon-legendary'
                                   : styleId === 'zhuqiaomon'
                                     ? ' meter-party-bar-fill-stack--zhuqiaomon-legendary'
-                                    : ''
+                                    : styleId === 'omegamon'
+                                      ? ' meter-party-bar-fill-stack--omegamon-legendary'
+                                      : styleId === 'ulforce-veemon-x'
+                                        ? ' meter-party-bar-fill-stack--ulforce-veemon-x-legendary'
+                                        : styleId === 'alphamon-ouryuken'
+                                          ? ' meter-party-bar-fill-stack--alphamon-ouryuken-legendary'
+                                          : ''
     const legendaryFx =
       styleId === 'apollomon' ? (
         <MeterApollomonLegendarySunrays />
@@ -153,43 +207,54 @@ export function MeterPartyThemedBar({
         <MeterPlesiomonLegendaryHydroBlast />
       ) : styleId === 'zhuqiaomon' ? (
         <MeterZhuqiaomonLegendaryPhoenixFeathers />
+      ) : styleId === 'omegamon' ? (
+        <MeterOmegamonLegendaryGreySword />
+      ) : styleId === 'ulforce-veemon-x' ? (
+        <MeterUlforceVeemonXLegendarySpeedLines />
+      ) : styleId === 'alphamon-ouryuken' ? (
+        <MeterAlphamonOuryukenLegendaryBlade />
       ) : null
-    const legendaryOverlayLayer = isMagiaMeterShopTheme(theme) ? 'magia' : 'olympus'
-    const LegendaryOverlay =
-      legendaryOverlayLayer === 'magia' ? MeterMagiaBarDigimonOverlay : MeterOlympusBarDigimonOverlay
+    const layer = shopOverlayLayer(theme)
     return (
-      <div
-        className={`meter-party-bar-fill-stack meter-party-bar-fill-stack--legendary${legendaryStackModifier}`}
-        style={fillWidth}
-        aria-hidden
-      >
-        {bar}
-        {legendaryFx}
-        <div className={`meter-party-bar-${legendaryOverlayLayer}-layer`}>
-          <LegendaryOverlay theme={theme} />
+      <>
+        <div
+          className={`meter-party-bar-fill-stack meter-party-bar-fill-stack--legendary${legendaryStackModifier}`}
+          style={fillWidth}
+          aria-hidden
+        >
+          {bar}
+          {legendaryFx}
+          <div className={`meter-party-bar-${layer}-layer`}>
+            <ShopDigimonOverlay theme={theme} />
+          </div>
         </div>
-      </div>
+        {sssFirstFx}
+      </>
     )
   }
 
   if (isRare) {
-    const magiaLayer = isMagiaMeterShopTheme(theme) ? 'magia' : 'olympus'
-    const Overlay =
-      magiaLayer === 'magia' ? MeterMagiaBarDigimonOverlay : MeterOlympusBarDigimonOverlay
+    const layer = shopOverlayLayer(theme)
     return (
-      <div className="meter-party-bar-fill-stack meter-party-bar-fill-stack--rare" style={fillWidth} aria-hidden>
-        {bar}
-        <div className={`meter-party-bar-${magiaLayer}-layer`}>
-          <Overlay theme={theme} />
+      <>
+        <div className="meter-party-bar-fill-stack meter-party-bar-fill-stack--rare" style={fillWidth} aria-hidden>
+          {bar}
+          <div className={`meter-party-bar-${layer}-layer`}>
+            <ShopDigimonOverlay theme={theme} />
+          </div>
         </div>
-      </div>
+        {sssFirstFx}
+      </>
     )
   }
 
   return (
-    <div className="meter-party-bar-fill-stack" style={fillWidth} aria-hidden>
-      {bar}
-    </div>
+    <>
+      <div className="meter-party-bar-fill-stack" style={fillWidth} aria-hidden>
+        {bar}
+      </div>
+      {sssFirstFx}
+    </>
   )
 }
 
@@ -208,6 +273,16 @@ export function MeterPartyPlainBar({ sharePct, rowKey }: { sharePct: number; row
 
 export function meterPartyMemberRareClass(theme: MeterPartyBarTheme | null | undefined): string {
   if (!theme) return ''
+  if (isVerdandiMeterShopTheme(theme)) {
+    const style = theme.barStyleId
+    if (theme.variant === 'legendary') {
+      return ` meter-party-member--legendary-verdandi meter-party-member--legendary-verdandi-${style}`
+    }
+    if (theme.variant === 'rare') {
+      return ` meter-party-member--rare-verdandi meter-party-member--rare-verdandi-${style}`
+    }
+    return ''
+  }
   if (isMagiaMeterShopTheme(theme)) {
     const style = theme.barStyleId
     if (theme.variant === 'legendary') {
@@ -227,5 +302,15 @@ export function meterPartyMemberThemeClass(theme: MeterPartyBarTheme | null | un
   if (theme?.id === MIST_DEV_REWARD_THEME_ID) return ' meter-party-member--iliad-core'
   if (theme?.id === HALL_OF_FAME_THEME_ID) return ' meter-party-member--hall-of-fame'
   if (theme?.id === MAGIA_HALL_OF_FAME_THEME_ID) return ' meter-party-member--magia-hall-of-fame'
+  if (theme?.id === VERDANDI_HALL_OF_FAME_THEME_ID) return ' meter-party-member--verdandi-hall-of-fame'
   return meterPartyMemberRareClass(theme)
+}
+
+/** 1st-place outline glow for Verdandi SSS Legendary bars. */
+export function meterPartyMemberSssFirstClass(
+  theme: MeterPartyBarTheme | null | undefined,
+  isFirstPlace: boolean,
+): string {
+  if (!isFirstPlace || !isVerdandiSssLegendaryTheme(theme) || !theme) return ''
+  return ` meter-party-member--verdandi-sss-first meter-party-member--verdandi-sss-first-${theme.barStyleId}`
 }

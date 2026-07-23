@@ -33,6 +33,9 @@ export function applyEquippedThemesToMeterSession(
   themesByTamer: Map<string, MeterPartyBarThemeId>,
 ): boolean {
   let changed = false
+  for (const [tamerKey, themeId] of themesByTamer) {
+    if (themeId) session.partyTamerBarThemes.set(normalizePartyTamerThemeKey(tamerKey), themeId)
+  }
   for (const row of session.members.values()) {
     if (row.isSelf) continue
     if (meterBarThemeIdFromMemberKey(row.key) || isMeterDevBaselinePartyKey(row.key)) continue
@@ -42,6 +45,7 @@ export function applyEquippedThemesToMeterSession(
       row.meterBarThemeId = nextId
       changed = true
     }
+    session.partyTamerBarThemes.set(normalizePartyTamerThemeKey(row.tamerName), nextId)
   }
   return changed
 }
@@ -63,8 +67,18 @@ export function partyTamerThemeResolveSignature(session: MeterStreamSession): st
     .map(normalizePartyTamerThemeKey)
     .sort()
     .join('|')
+  let themed = 0
+  let unthemed = 0
+  for (const row of session.members.values()) {
+    if (row.isSelf) continue
+    if (meterBarThemeIdFromMemberKey(row.key) || isMeterDevBaselinePartyKey(row.key)) continue
+    if (!row.tamerName?.trim()) continue
+    if (row.meterBarThemeId) themed += 1
+    else unthemed += 1
+  }
   const mapId = session.mapId?.trim() || ''
   const mapName = session.mapName?.trim() || ''
   const dungeonId = session.dungeonId?.trim() || ''
-  return `${dungeonId}::${mapId}::${mapName}::${tamers}`
+  // Include themed/unthemed so a combat wipe that drops themes re-triggers resolve.
+  return `${dungeonId}::${mapId}::${mapName}::${tamers}::t${themed}:u${unthemed}`
 }

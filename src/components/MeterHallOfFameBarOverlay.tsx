@@ -1,9 +1,16 @@
+import type { MeterHofOverlayVariant } from '../lib/meterPartyBarThemes'
 import { MeterHallOfFameCountFx } from './MeterHallOfFameCountFx'
 import { MeterHallOfFameSparkles } from './MeterHallOfFameSparkles'
 
 type MeterHallOfFameBarOverlayProps = {
   recordCount: number
-  variant?: 'olympus' | 'magia'
+  variant?: MeterHofOverlayVariant
+}
+
+function hofVariantClass(variant: MeterHofOverlayVariant, base: string): string {
+  if (variant === 'verdandi') return `${base} ${base}--verdandi`
+  if (variant === 'magia') return `${base} ${base}--magia`
+  return base
 }
 
 export function MeterHallOfFameBarOverlay({
@@ -13,13 +20,8 @@ export function MeterHallOfFameBarOverlay({
   if (recordCount <= 0) return null
 
   return (
-    <div
-      className={`meter-party-bar-hof-layer${variant === 'magia' ? ' meter-party-bar-hof-layer--magia' : ''}`}
-      aria-hidden
-    >
-      <div
-        className={`meter-party-hof-count-hero${variant === 'magia' ? ' meter-party-hof-count-hero--magia' : ''}`}
-      >
+    <div className={hofVariantClass(variant, 'meter-party-bar-hof-layer')} aria-hidden>
+      <div className={hofVariantClass(variant, 'meter-party-hof-count-hero')}>
         <MeterHallOfFameCountFx
           className="meter-party-hof-count-hero__filigree"
           variant={variant}

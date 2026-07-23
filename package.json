@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.113",
+  "version": "0.1.114",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed an issue where some parses could misattribute DPS to other parse users in the same run"
+      "releaseNotes": "- Added support for the Verdandi Cycle and themes\n- Fixed a bug that caused other players' themes to disappear on occasion"
     }
   }
 }

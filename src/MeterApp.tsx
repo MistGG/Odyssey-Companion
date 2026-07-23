@@ -41,7 +41,7 @@ import { getDefaultMeterLeaderboardCycle } from './lib/meterLeaderboardCycles'
 import { maybeAutoEquipHallOfFameTheme } from './lib/meterRewardsCompanion'
 import { normalizeRoutePlayerKey } from './lib/meterPlayerProfileGrant'
 import { MeterPartyThemeBadge } from './components/MeterPartyThemeBadge'
-import { MeterPartyThemedBar, meterPartyMemberThemeClass } from './components/MeterPartyThemedBar'
+import { MeterPartyThemedBar, meterPartyMemberSssFirstClass, meterPartyMemberThemeClass } from './components/MeterPartyThemedBar'
 import { partyMemberBarBackground } from './lib/meterPartyColor'
 import type { EventStreamRecord } from './lib/eventStreamFormat'
 import { isGarbageStreamLabel } from './lib/eventStreamParty'
@@ -1684,7 +1684,7 @@ export default function MeterApp() {
                             : 'Waiting for party data…'}
                     </p>
                   ) : (
-                    partyListRows.map((row) => {
+                    partyListRows.map((row, index) => {
                       const accentKey = row.isSelf && sbUser ? `self:${sbUser.id}` : row.rowKey
                       const barTheme = resolveMeterPartyBarTheme(row.tamerName, row.meterBarThemeId, {
                         isSelf: row.isSelf,
@@ -1696,11 +1696,16 @@ export default function MeterApp() {
                           : partyListDamageSum > 0
                             ? (100 * Math.max(0, row.total)) / partyListDamageSum
                             : 0
+                      const isFirstPlace = index === 0
+                      const sssBleedClass = meterPartyMemberSssFirstClass(barTheme, isFirstPlace)
                       return (
-                        <button
+                        <div
                           key={row.rowKey}
+                          className={`meter-party-row${sssBleedClass ? ' meter-party-row--sss-bleed' : ''}`}
+                        >
+                        <button
                           type="button"
-                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}${meterPartyMemberThemeClass(barTheme)}`}
+                          className={`meter-party-member${barTheme ? ' meter-party-member--bar-theme' : ''}${meterPartyMemberThemeClass(barTheme)}${sssBleedClass}`}
                           style={themeStyle}
                           onClick={() => setPartyDetailKey(row.rowKey)}
                         >
@@ -1709,6 +1714,7 @@ export default function MeterApp() {
                               theme={barTheme}
                               sharePct={sharePct}
                               hofRecordCount={hofRecordCountForTheme(barTheme, hofRecordCounts)}
+                              isFirstPlace={isFirstPlace}
                             />
                           ) : (
                             <div
@@ -1764,6 +1770,7 @@ export default function MeterApp() {
                             <span className="meter-party-num">{row.time.toFixed(0)}</span>
                           </div>
                         </button>
+                        </div>
                       )
                     })
                   )}

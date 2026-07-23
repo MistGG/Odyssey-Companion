@@ -1,11 +1,15 @@
 import type { MeterShopCategoryId, MeterShopSubcategoryId } from './meterShopCategories'
 import { isShopPurchasableMeterThemeId } from './meterThemeGrants'
 import {
+  isHallOfFameMeterTheme,
+  isVerdandiSssLegendaryTheme,
   MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES,
   MAGIA_RARE_SHOP_THEMES,
   OLYMPOS_XII_COMMON_SHOP_THEMES,
   OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
   OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
+  VERDANDI_LEGENDARY_METER_PARTY_BAR_THEMES,
+  VERDANDI_RARE_SHOP_THEMES,
   type MeterPartyBarTheme,
   type MeterPartyBarThemeId,
 } from './meterPartyBarThemes'
@@ -13,20 +17,26 @@ import {
 export const METER_THEME_SHOP_PRICE = 50
 export const METER_THEME_SHOP_RARE_PRICE = 75
 export const METER_THEME_SHOP_LEGENDARY_PRICE = 150
+/** Verdandi SSS Legendary shop price. */
+export const METER_THEME_SHOP_SSS_LEGENDARY_PRICE = 200
 
 export const METER_THEME_SHOP_TIER_LABEL = 'Common'
 export const METER_THEME_SHOP_RARE_TIER_LABEL = 'Rare'
+export const METER_THEME_SHOP_SSS_LEGENDARY_TIER_LABEL = 'SSS Legendary'
 
 export function meterThemeShopPriceForTheme(theme: MeterPartyBarTheme): number {
   if (!isShopPurchasableMeterThemeId(theme.id)) {
     return Number.POSITIVE_INFINITY
   }
+  if (isVerdandiSssLegendaryTheme(theme)) return METER_THEME_SHOP_SSS_LEGENDARY_PRICE
   if (theme.variant === 'legendary') return METER_THEME_SHOP_LEGENDARY_PRICE
   if (theme.variant === 'rare') return METER_THEME_SHOP_RARE_PRICE
   return METER_THEME_SHOP_PRICE
 }
 
 export function meterThemeShopTierLabelForTheme(theme: MeterPartyBarTheme): string {
+  if (isHallOfFameMeterTheme(theme)) return 'Hall of Fame'
+  if (isVerdandiSssLegendaryTheme(theme)) return METER_THEME_SHOP_SSS_LEGENDARY_TIER_LABEL
   if (theme.variant === 'rare') return METER_THEME_SHOP_RARE_TIER_LABEL
   if (theme.variant === 'legendary') return 'Legendary'
   return METER_THEME_SHOP_TIER_LABEL
@@ -38,6 +48,8 @@ export const SHOP_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
   ...MAGIA_RARE_SHOP_THEMES,
   ...MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES,
+  ...VERDANDI_RARE_SHOP_THEMES,
+  ...VERDANDI_LEGENDARY_METER_PARTY_BAR_THEMES,
 ]
 
 export function shopMeterPartyBarThemesForSubcategory(
@@ -47,6 +59,11 @@ export function shopMeterPartyBarThemesForSubcategory(
   if (categoryId === 'magia-bar-themes') {
     if (subcategoryId === 'rare') return MAGIA_RARE_SHOP_THEMES
     if (subcategoryId === 'legendary') return MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES
+    return []
+  }
+  if (categoryId === 'verdandi-bar-themes') {
+    if (subcategoryId === 'rare') return VERDANDI_RARE_SHOP_THEMES
+    if (subcategoryId === 'legendary') return VERDANDI_LEGENDARY_METER_PARTY_BAR_THEMES
     return []
   }
   if (subcategoryId === 'common') return OLYMPOS_XII_COMMON_SHOP_THEMES
@@ -98,8 +115,9 @@ export function previewDigimonForTheme(themeId: MeterPartyBarThemeId, seed = 0):
 }
 
 export function meterThemePreviewStats(fillPct: number, rowIndex: number) {
-  const durationSec = 124 - rowIndex * 4
-  const totalDamage = Math.round(1_040_000 * (fillPct / 68))
-  const dps = Math.round(totalDamage / Math.max(1, durationSec))
+  const base = 12000 + fillPct * 180 + rowIndex * 400
+  const dps = Math.round(base)
+  const durationSec = 90 + rowIndex * 3
+  const totalDamage = Math.round(dps * durationSec)
   return { dps, totalDamage, durationSec }
 }

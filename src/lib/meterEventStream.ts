@@ -160,6 +160,11 @@ export type MeterStreamSession = {
   wikiByDigimonId: Map<string, DigimonWikiSkillCache>
   rosterMembers: Map<string, PartyMemberSnapshot>
   members: Map<string, MeterPartyMemberRow>
+  /**
+   * Last-known equipped bar theme per tamer (normalized name).
+   * Survives `clearDungeonCombat` so party mates keep themes across map reload / new pulls.
+   */
+  partyTamerBarThemes: Map<string, MeterPartyBarThemeId>
   /** digimon display name or tamer → roster entry for resolving tamer on hits */
   rosterByAlias: Map<string, { tamerName: string; digimonName: string; iconId: string }>
   /** `seedMeterDevTestParty` — skip re-seeding in dev meter test mode. */
@@ -201,12 +206,56 @@ export function createMeterStreamSession(): MeterStreamSession {
     wikiByDigimonId: new Map(),
     rosterMembers: new Map(),
     members: new Map(),
+    partyTamerBarThemes: new Map(),
     rosterByAlias: new Map(),
   }
 }
 
 function normKey(s: string): string {
   return s.trim().toLowerCase()
+}
+
+function rememberPartyTamerBarTheme(
+  session: MeterStreamSession,
+  tamerName: string | null | undefined,
+  themeId: MeterPartyBarThemeId | null | undefined,
+): void {
+  const key = tamerName?.trim().toLowerCase()
+  if (!key || !themeId) return
+  session.partyTamerBarThemes.set(key, themeId)
+}
+
+function rememberedPartyTamerBarTheme(
+  session: MeterStreamSession,
+  tamerName: string | null | undefined,
+): MeterPartyBarThemeId | undefined {
+  const key = tamerName?.trim().toLowerCase()
+  if (!key) return undefined
+  return session.partyTamerBarThemes.get(key)
+}
+
+function snapshotPartyTamerBarThemesFromMembers(session: MeterStreamSession): void {
+  for (const row of session.members.values()) {
+    if (row.isSelf) continue
+    if (row.meterBarThemeId) rememberPartyTamerBarTheme(session, row.tamerName, row.meterBarThemeId)
+  }
+}
+
+/** Restore remembered party themes onto live rows (after combat clear / roster rebuild). */
+export function restoreRememberedPartyTamerBarThemes(session: MeterStreamSession): boolean {
+  let changed = false
+  for (const row of session.members.values()) {
+    if (row.isSelf) continue
+    if (row.meterBarThemeId) {
+      rememberPartyTamerBarTheme(session, row.tamerName, row.meterBarThemeId)
+      continue
+    }
+    const remembered = rememberedPartyTamerBarTheme(session, row.tamerName)
+    if (!remembered) continue
+    row.meterBarThemeId = remembered
+    changed = true
+  }
+  return changed
 }
 
 function partyLabelTamers(session: MeterStreamSession, label: string): Set<string> {
@@ -650,6 +699,12 @@ function mergeMemberIntoCanonical(
     }
   }
   if (src.isSelf) dst.isSelf = true
+  if (!dst.meterBarThemeId && src.meterBarThemeId) {
+    dst.meterBarThemeId = src.meterBarThemeId
+    rememberPartyTamerBarTheme(session, dst.tamerName, src.meterBarThemeId)
+  } else if (src.meterBarThemeId) {
+    rememberPartyTamerBarTheme(session, dst.tamerName, src.meterBarThemeId)
+  }
   session.members.delete(sourceKey)
 }
 
@@ -856,6 +911,10 @@ function upsertMember(
     .trim()
     .toLowerCase()
   let row = session.members.get(key)
+  const rememberedTheme =
+    opts.meterBarThemeId ??
+    rememberedPartyTamerBarTheme(session, tamer) ??
+    meterBarThemeIdFromMemberKey(key)
   if (!row) {
     const digimon = (opts.digimonName ?? '').trim()
     const icon = (opts.iconId ?? '').trim()
@@ -871,14 +930,22 @@ function upsertMember(
       firstHitMs: null,
       isSelf: Boolean(opts.isSelf) || forceSelf,
       skills: new Map(),
-      meterBarThemeId: opts.meterBarThemeId,
+      meterBarThemeId: rememberedTheme,
       partyBarFillPct: opts.partyBarFillPct,
     }
     session.members.set(key, row)
+    if (rememberedTheme && !forceSelf && !opts.isSelf) {
+      rememberPartyTamerBarTheme(session, tamer, rememberedTheme)
+    }
   } else {
     if (opts.isSelf || forceSelf) row.isSelf = true
     if (forceSelf && selfTamer) row.tamerName = selfTamer
-    if (opts.meterBarThemeId) row.meterBarThemeId = opts.meterBarThemeId
+    if (opts.meterBarThemeId) {
+      row.meterBarThemeId = opts.meterBarThemeId
+      if (!forceSelf && !opts.isSelf) rememberPartyTamerBarTheme(session, tamer, opts.meterBarThemeId)
+    } else if (!row.meterBarThemeId && rememberedTheme) {
+      row.meterBarThemeId = rememberedTheme
+    }
     if (opts.partyBarFillPct != null) row.partyBarFillPct = opts.partyBarFillPct
     if (opts.digimonName?.trim()) row.digimonName = opts.digimonName.trim()
     const nextId = opts.digimonId?.trim() ?? ''
@@ -1026,7 +1093,9 @@ function syncRosterMemberRows(session: MeterStreamSession) {
       isSelf: snap.isSelf,
       memberKey,
       meterBarThemeId:
-        existing?.meterBarThemeId ?? meterBarThemeIdFromMemberKey(memberKey),
+        existing?.meterBarThemeId ??
+        rememberedPartyTamerBarTheme(session, snap.tamerName) ??
+        meterBarThemeIdFromMemberKey(memberKey),
       partyBarFillPct: existing?.partyBarFillPct,
     })
     finalizeMemberAfterDigimonChange(session, memberRow)
@@ -1417,8 +1486,10 @@ function clearDungeonCombat(session: MeterStreamSession) {
   session.sessionEndMs = null
   session.activeObjectiveIndex = null
   if (session.devTestPartySeeded) return
+  snapshotPartyTamerBarThemesFromMembers(session)
   session.members.clear()
   syncRosterMemberRows(session)
+  restoreRememberedPartyTamerBarThemes(session)
   if (session.selfTamerName && !session.members.has(normKey(session.selfTamerName))) {
     upsertMember(session, {
       tamerName: session.selfTamerName,
@@ -1999,7 +2070,9 @@ export function meterPartyRows(session: MeterStreamSession, nowMs = Date.now()):
         isSelf: snap.isSelf,
         memberKey,
         meterBarThemeId:
-          existing?.meterBarThemeId ?? meterBarThemeIdFromMemberKey(memberKey),
+          existing?.meterBarThemeId ??
+          rememberedPartyTamerBarTheme(session, snap.tamerName) ??
+          meterBarThemeIdFromMemberKey(memberKey),
         partyBarFillPct: existing?.partyBarFillPct,
       })
     }

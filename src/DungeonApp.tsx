@@ -14,6 +14,7 @@ import { DungeonDifficultyDetail } from './components/DungeonDifficultyDetail'
 import { HomePanel } from './components/HomePanel'
 import { MarketLookup } from './components/MarketLookup'
 import { ThemesPanel } from './components/ThemesPanel'
+import { CardsCollectionPanel } from './components/cards/CardsCollectionPanel'
 import ServerStatusTitlebar from './components/ServerStatusTitlebar'
 import { getMeterSupabaseCredentials } from './lib/meterSupabaseEnv'
 import { initSupabaseAuth } from './lib/supabaseAuthStorage'
@@ -43,7 +44,7 @@ export default function DungeonApp() {
   const [prefetchLoading, setPrefetchLoading] = useState(false)
   /** Dungeon list was served from localStorage cache (wiki unreachable). */
   const [listFromCache, setListFromCache] = useState(false)
-  const [toolView, setToolView] = useState<'home' | 'themes' | 'dungeons' | 'market'>('home')
+  const [toolView, setToolView] = useState<'home' | 'themes' | 'dungeons' | 'market' | 'cards'>('home')
   const [authReady, setAuthReady] = useState(false)
   const [meterUser, setMeterUser] = useState<User | null>(null)
 
@@ -281,6 +282,7 @@ export default function DungeonApp() {
   const themesMode = toolView === 'themes'
   const browseMode = toolView === 'dungeons' && !pickedDungeonId
   const marketMode = toolView === 'market'
+  const cardsMode = toolView === 'cards'
   const profileDisplayName = meterUser ? displayNameFromUserMetadata(meterUser) : null
 
   return (
@@ -296,6 +298,8 @@ export default function DungeonApp() {
                 ? 'Meter themes'
                 : marketMode
                 ? 'Market lookup'
+                : cardsMode
+                ? 'Card collection'
                 : browseMode
                 ? 'Odyssey Companion'
                 : pickedDungeon?.name ?? 'Dungeon'}
@@ -307,6 +311,8 @@ export default function DungeonApp() {
                 ? 'Earn points · shop & equip bar themes'
                 : marketMode
                 ? 'Search listings · compare unit prices'
+                : cardsMode
+                ? 'Open packs · foil album & showcase'
                 : browseMode
                 ? 'Pick a dungeon · search and select a fight'
                 : 'Objectives & rewards · open timeline when ready'}
@@ -379,6 +385,19 @@ export default function DungeonApp() {
               }}
             >
               Market
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={cardsMode}
+              className={`main-tool-tab${cardsMode ? ' main-tool-tab--active' : ''}`}
+              onClick={() => {
+                setToolView('cards')
+                setPickedDungeonId(null)
+                setFightPanelError(null)
+              }}
+            >
+              Cards
             </button>
           </div>
           <button
@@ -459,6 +478,12 @@ export default function DungeonApp() {
         />
       ) : marketMode ? (
         <MarketLookup />
+      ) : cardsMode ? (
+        <main className="main themes-panel meter-scroll--themed">
+          <div className="themes-panel__content">
+            <CardsCollectionPanel />
+          </div>
+        </main>
       ) : browseMode ? (
         <main className="main main--dungeon">
           <div className="toolbar">

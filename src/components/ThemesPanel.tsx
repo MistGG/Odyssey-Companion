@@ -20,11 +20,13 @@ import { HOF_PREVIEW_DEMO_RECORD_COUNT } from '../lib/meterHallOfFameTheme'
 import {
   isHallOfFameMeterTheme,
   isMagiaMeterShopTheme,
+  isVerdandiMeterShopTheme,
   type MeterPartyBarThemeId,
 } from '../lib/meterPartyBarThemes'
 import { buildThemePreviewRows, MeterThemePreview } from './MeterThemePreview'
 import { MeterCompanionBarThemes } from './MeterCompanionBarThemes'
 import { MeterThemeShopEarnPanels } from './MeterThemeShopEarnPanels'
+
 type ThemesPanelProps = {
   supabase: SupabaseClient | null
   user: User | null
@@ -161,123 +163,124 @@ export function ThemesPanel({
             </section>
 
             <div className="themes-panel__shop-body">
-          <nav className="meter-shop-side-nav" aria-label="Shop categories">
-            <h3 className="meter-shop-side-nav-title">Categories</h3>
-            <ul className="meter-shop-side-nav-list">
-              {METER_SHOP_CATEGORIES.map((category) => (
-                <li key={category.id} className="meter-shop-side-nav-group">
-                  <span className="meter-shop-side-nav-parent">{category.label}</span>
-                  <ul className="meter-shop-subnav-list">
-                    {category.subcategories.map((sub) => (
-                      <li key={sub.id}>
-                        <button
-                          type="button"
-                          className={`meter-shop-subnav-btn${selectedCategory === category.id && selectedSubcategory === sub.id ? ' meter-shop-subnav-btn--active' : ''}`}
-                          onClick={() => {
-                            setConfirmThemeId(null)
-                            setSelectedCategory(category.id)
-                            setSelectedSubcategory(sub.id)
-                          }}
-                        >
-                          {sub.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          </nav>
+              <nav className="meter-shop-side-nav" aria-label="Shop categories">
+                <h3 className="meter-shop-side-nav-title">Categories</h3>
+                <ul className="meter-shop-side-nav-list">
+                  {METER_SHOP_CATEGORIES.map((category) => (
+                    <li key={category.id} className="meter-shop-side-nav-group">
+                      <span className="meter-shop-side-nav-parent">{category.label}</span>
+                      <ul className="meter-shop-subnav-list">
+                        {category.subcategories.map((sub) => (
+                          <li key={sub.id}>
+                            <button
+                              type="button"
+                              className={`meter-shop-subnav-btn${selectedCategory === category.id && selectedSubcategory === sub.id ? ' meter-shop-subnav-btn--active' : ''}`}
+                              onClick={() => {
+                                setConfirmThemeId(null)
+                                setSelectedCategory(category.id)
+                                setSelectedSubcategory(sub.id)
+                              }}
+                            >
+                              {sub.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
 
-          <div className="themes-panel__shop-main">
-            {!selectedCategory || !selectedSubcategory ? (
-              <div className="themes-panel__shop-placeholder">
-                <p className="muted">
-                  Choose Olympus or Magia bar themes, then pick Common, Rare, or Legendary.
-                </p>
-              </div>
-            ) : (
-              <>
-                <header className="themes-panel__shop-head">
-                  <p className="themes-panel__shop-breadcrumb muted">{activeCategory?.label ?? ''}</p>
-                  <h3 className="themes-panel__shop-tier-title">{activeSub?.label ?? ''}</h3>
-                </header>
-                <ul className="meter-shop-grid">
-                  {shopThemes.map((theme) => {
-                    const price = meterThemeShopPriceForTheme(theme)
-                    const owned = rewards.ownedThemeIds.includes(theme.id)
-                    const canAfford = rewards.balance >= price
-                    const confirming = confirmThemeId === theme.id
-                    const isMagia = isMagiaMeterShopTheme(theme)
-                    const previewRows = buildThemePreviewRows(
-                      theme,
-                      profileDisplayName,
-                      previewDigimonForTheme(theme.id),
-                    )
-                    return (
-                      <li
-                        key={theme.id}
-                        className={`meter-shop-card${theme.variant === 'rare' ? ' meter-shop-card--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-card--legendary' : ''}${isMagia ? ' meter-shop-card--magia' : ''}`}
-                      >
-                        <MeterThemePreview
-                          theme={theme}
-                          rows={previewRows}
-                          className="meter-shop-card-preview"
-                          hofRecordCount={
-                            isHallOfFameMeterTheme(theme) ? HOF_PREVIEW_DEMO_RECORD_COUNT : 0
-                          }
-                        />
-                        <div className="meter-shop-card-meta">
-                          <span
-                            className={`meter-shop-tier${theme.variant === 'rare' ? ' meter-shop-tier--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-tier--legendary' : ''}${isMagia ? ' meter-shop-tier--magia' : ''}`}
+              <div className="themes-panel__shop-main">
+                {!selectedCategory || !selectedSubcategory ? (
+                  <div className="themes-panel__shop-placeholder">
+                    <p className="muted">
+                      Choose Olympus, Magia, or Verdandi bar themes, then pick a rarity.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <header className="themes-panel__shop-head">
+                      <p className="themes-panel__shop-breadcrumb muted">{activeCategory?.label ?? ''}</p>
+                      <h3 className="themes-panel__shop-tier-title">{activeSub?.label ?? ''}</h3>
+                    </header>
+                    <ul className="meter-shop-grid">
+                      {shopThemes.map((theme) => {
+                        const price = meterThemeShopPriceForTheme(theme)
+                        const owned = rewards.ownedThemeIds.includes(theme.id)
+                        const canAfford = rewards.balance >= price
+                        const confirming = confirmThemeId === theme.id
+                        const isMagia = isMagiaMeterShopTheme(theme)
+                        const isVerdandi = isVerdandiMeterShopTheme(theme)
+                        const previewRows = buildThemePreviewRows(
+                          theme,
+                          profileDisplayName,
+                          previewDigimonForTheme(theme.id),
+                        )
+                        return (
+                          <li
+                            key={theme.id}
+                            className={`meter-shop-card${theme.variant === 'rare' ? ' meter-shop-card--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-card--legendary' : ''}${isMagia ? ' meter-shop-card--magia' : ''}${isVerdandi ? ' meter-shop-card--verdandi' : ''}`}
                           >
-                            {meterThemeShopTierLabelForTheme(theme)}
-                          </span>
-                          <h4 className="meter-shop-card-title">{theme.label}</h4>
-                        </div>
-                        <div className="meter-shop-card-actions">
-                          {owned ? (
-                            <span className="meter-shop-owned">Owned</span>
-                          ) : confirming ? (
-                            <div className="meter-shop-confirm">
-                              <div className="meter-shop-confirm-row">
+                            <MeterThemePreview
+                              theme={theme}
+                              rows={previewRows}
+                              className="meter-shop-card-preview"
+                              hofRecordCount={
+                                isHallOfFameMeterTheme(theme) ? HOF_PREVIEW_DEMO_RECORD_COUNT : 0
+                              }
+                            />
+                            <div className="meter-shop-card-meta">
+                              <span
+                                className={`meter-shop-tier${theme.variant === 'rare' ? ' meter-shop-tier--rare' : ''}${theme.variant === 'legendary' ? ' meter-shop-tier--legendary' : ''}${isMagia ? ' meter-shop-tier--magia' : ''}${isVerdandi ? ' meter-shop-tier--verdandi' : ''}`}
+                              >
+                                {meterThemeShopTierLabelForTheme(theme)}
+                              </span>
+                              <h4 className="meter-shop-card-title">{theme.label}</h4>
+                            </div>
+                            <div className="meter-shop-card-actions">
+                              {owned ? (
+                                <span className="meter-shop-owned">Owned</span>
+                              ) : confirming ? (
+                                <div className="meter-shop-confirm">
+                                  <div className="meter-shop-confirm-row">
+                                    <button
+                                      type="button"
+                                      className="meter-shop-btn meter-shop-btn--primary"
+                                      disabled={busyThemeId === theme.id}
+                                      onClick={() => void onConfirmPurchase(theme.id)}
+                                    >
+                                      {busyThemeId === theme.id ? '…' : `Confirm · ${price} pts`}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="meter-shop-btn meter-shop-btn--ghost"
+                                      disabled={busyThemeId === theme.id}
+                                      onClick={() => setConfirmThemeId(null)}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
                                 <button
                                   type="button"
                                   className="meter-shop-btn meter-shop-btn--primary"
-                                  disabled={busyThemeId === theme.id}
-                                  onClick={() => void onConfirmPurchase(theme.id)}
+                                  disabled={rewards.loading || !canAfford}
+                                  onClick={() => setConfirmThemeId(theme.id)}
                                 >
-                                  {busyThemeId === theme.id ? '…' : `Confirm · ${price} pts`}
+                                  {canAfford ? `${price} pts` : `Need ${price - rewards.balance} more`}
                                 </button>
-                                <button
-                                  type="button"
-                                  className="meter-shop-btn meter-shop-btn--ghost"
-                                  disabled={busyThemeId === theme.id}
-                                  onClick={() => setConfirmThemeId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
+                              )}
                             </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="meter-shop-btn meter-shop-btn--primary"
-                              disabled={rewards.loading || !canAfford}
-                              onClick={() => setConfirmThemeId(theme.id)}
-                            >
-                              {canAfford ? `${price} pts` : `Need ${price - rewards.balance} more`}
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </>
-            )}
-          </div>
-        </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
           </>
         ) : (
           <section className="themes-panel__mine" aria-labelledby="themes-owned-heading">

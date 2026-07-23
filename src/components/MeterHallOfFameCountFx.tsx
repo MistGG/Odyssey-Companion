@@ -1,8 +1,9 @@
 import { useId } from 'react'
+import type { MeterHofOverlayVariant } from '../lib/meterPartyBarThemes'
 
 type MeterHallOfFameCountFxProps = {
   className?: string
-  variant?: 'olympus' | 'magia'
+  variant?: MeterHofOverlayVariant
 }
 
 /** Outer filigree — paths only outside the central plaque. */
@@ -11,17 +12,34 @@ export function MeterHallOfFameCountFx({
   variant = 'olympus',
 }: MeterHallOfFameCountFxProps) {
   const uid = useId().replace(/:/g, '')
-  const gradId = variant === 'magia' ? `hof-magia-${uid}` : `hof-gold-${uid}`
+  const gradId =
+    variant === 'verdandi'
+      ? `hof-verdandi-${uid}`
+      : variant === 'magia'
+        ? `hof-magia-${uid}`
+        : `hof-gold-${uid}`
+  const variantClass =
+    variant === 'verdandi'
+      ? ' meter-party-hof-count-fx--verdandi'
+      : variant === 'magia'
+        ? ' meter-party-hof-count-fx--magia'
+        : ''
 
   return (
     <svg
-      className={`meter-party-hof-count-fx${variant === 'magia' ? ' meter-party-hof-count-fx--magia' : ''}${className ? ` ${className}` : ''}`}
+      className={`meter-party-hof-count-fx${variantClass}${className ? ` ${className}` : ''}`}
       viewBox="0 0 120 36"
       preserveAspectRatio="xMidYMid meet"
       aria-hidden
     >
       <defs>
-        {variant === 'magia' ? (
+        {variant === 'verdandi' ? (
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ecfdf5" />
+            <stop offset="40%" stopColor="#4ade80" />
+            <stop offset="100%" stopColor="#15803d" />
+          </linearGradient>
+        ) : variant === 'magia' ? (
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#e9d5ff" />
             <stop offset="40%" stopColor="#a78bfa" />

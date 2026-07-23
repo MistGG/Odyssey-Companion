@@ -20,6 +20,7 @@ import { fetchStoredConfirmedPlayerKey } from './meterPointGrants'
 import {
   HALL_OF_FAME_THEME_ID,
   MAGIA_HALL_OF_FAME_THEME_ID,
+  VERDANDI_HALL_OF_FAME_THEME_ID,
   type MeterPartyBarTheme,
   type MeterPartyBarThemeId,
 } from './meterPartyBarThemes'
@@ -77,7 +78,8 @@ function mapRpcHofGoldRows(
   windowStart: string,
   windowEnd: string | null,
 ): HofGoldRow[] {
-  return (data ?? [])
+  const rows = Array.isArray(data) ? data : []
+  return rows
     .map((row) => mapHofGoldRpcRow(row as Parameters<typeof mapHofGoldRpcRow>[0]))
     .filter((row): row is HofGoldRow => row != null)
     .filter((row) => rowInCycleWindow(row.achievedAt, windowStart, windowEnd))
@@ -176,7 +178,7 @@ async function fetchMeterPlayerHofRecordCountFromPlayerRpc(
     return { count: 0, error: error.message, rpcMissing }
   }
 
-  const rows = (data ?? [])
+  const rows = (Array.isArray(data) ? data : [])
     .map((row) => mapPlayerHofGoldRpcRow(row as Parameters<typeof mapPlayerHofGoldRpcRow>[0]))
     .filter((row): row is HofGoldRowWithScope => row != null)
     .filter((row) => rowInCycleWindow(row.achievedAt, windowStart, windowEnd))
@@ -187,6 +189,7 @@ async function fetchMeterPlayerHofRecordCountFromPlayerRpc(
 function hofThemeCycleId(themeId: MeterPartyBarThemeId): string | null {
   if (themeId === HALL_OF_FAME_THEME_ID) return 'olympus'
   if (themeId === MAGIA_HALL_OF_FAME_THEME_ID) return 'magia'
+  if (themeId === VERDANDI_HALL_OF_FAME_THEME_ID) return 'verdandi'
   return null
 }
 
@@ -236,7 +239,7 @@ export async function fetchMeterPlayerHofRecordCountsByCycle(
   }
 
   const results = await Promise.all(
-    (['olympus', 'magia'] as const).map(async (cycle) => {
+    (['olympus', 'magia', 'verdandi'] as const).map(async (cycle) => {
       const res = await fetchMeterPlayerHofRecordCount(client, key, {
         cycleId: cycle,
         skipCache: true,
@@ -270,6 +273,7 @@ export function hofRecordCountForTheme(
   if (!theme) return 0
   if (theme.id === HALL_OF_FAME_THEME_ID) return counts.olympus ?? 0
   if (theme.id === MAGIA_HALL_OF_FAME_THEME_ID) return counts.magia ?? 0
+  if (theme.id === VERDANDI_HALL_OF_FAME_THEME_ID) return counts.verdandi ?? 0
   return 0
 }
 

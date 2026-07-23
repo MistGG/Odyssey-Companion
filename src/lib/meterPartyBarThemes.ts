@@ -9,38 +9,49 @@ export const OLYMPUS_XII_SHOP_PREFIX = 'Olympus XII'
 /** Shop / card copy for Magia cycle themes. */
 export const MAGIA_SHOP_PREFIX = 'Magia'
 
+/** Shop / card copy for Verdandi cycle themes. */
+export const VERDANDI_SHOP_PREFIX = 'Verdandi'
+
 export function olympusThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
-  const name = theme.label.replace(/\s*\((?:Rare|Legendary)\)\s*$/i, '').trim()
+  const name = theme.label.replace(/\s*\((?:Rare|Legendary|SSS Legendary)\)\s*$/i, '').trim()
   return `${OLYMPUS_XII_SHOP_PREFIX} - ${name}`
 }
 
 export function magiaThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
-  const name = theme.label.replace(/\s*\((?:Rare|Legendary)\)\s*$/i, '').trim()
+  const name = theme.label.replace(/\s*\((?:Rare|Legendary|SSS Legendary)\)\s*$/i, '').trim()
   return `${MAGIA_SHOP_PREFIX} - ${name}`
+}
+
+export function verdandiThemeShopDigimonLine(theme: MeterPartyBarTheme): string {
+  const name = theme.label.replace(/\s*\((?:Rare|Legendary|SSS Legendary)\)\s*$/i, '').trim()
+  return `${VERDANDI_SHOP_PREFIX} - ${name}`
 }
 
 export const MIST_DEV_REWARD_THEME_ID: MeterPartyBarThemeId = 'iliad-core'
 export const HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'hall-of-fame'
 export const MAGIA_HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'magia-hall-of-fame'
+export const VERDANDI_HALL_OF_FAME_THEME_ID: MeterPartyBarThemeId = 'verdandi-hall-of-fame'
+
+export type MeterHofOverlayVariant = 'olympus' | 'magia' | 'verdandi'
 
 export function meterThemeRewardsCardTitle(
   theme: MeterPartyBarTheme,
   hofRecordCount?: number,
 ): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.label
-  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
+  if (isHallOfFameMeterTheme(theme)) {
     const n = hofRecordCount ?? 0
     return n > 0 ? `${theme.label} · ${n} break${n === 1 ? '' : 's'}` : theme.label
   }
+  if (isVerdandiMeterShopTheme(theme)) return verdandiThemeShopDigimonLine(theme)
   if (isMagiaMeterShopTheme(theme)) return magiaThemeShopDigimonLine(theme)
   return olympusThemeShopDigimonLine(theme)
 }
 
 export function meterThemePreviewDigimonLine(theme: MeterPartyBarTheme): string {
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return theme.subtitle
-  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) {
-    return theme.subtitle
-  }
+  if (isHallOfFameMeterTheme(theme)) return theme.subtitle
+  if (isVerdandiMeterShopTheme(theme)) return verdandiThemeShopDigimonLine(theme)
   if (isMagiaMeterShopTheme(theme)) return magiaThemeShopDigimonLine(theme)
   return olympusThemeShopDigimonLine(theme)
 }
@@ -49,20 +60,45 @@ export type MagiaBaseThemeId = 'raguelmon' | 'plesiomon' | 'zhuqiaomon'
 
 export const MAGIA_BASE_THEME_IDS: MagiaBaseThemeId[] = ['raguelmon', 'plesiomon', 'zhuqiaomon']
 
+export type VerdandiBaseThemeId = 'omegamon' | 'ulforce-veemon-x' | 'alphamon-ouryuken'
+
+export const VERDANDI_BASE_THEME_IDS: VerdandiBaseThemeId[] = [
+  'omegamon',
+  'ulforce-veemon-x',
+  'alphamon-ouryuken',
+]
+
 export function isMagiaMeterShopTheme(theme: MeterPartyBarTheme | null | undefined): boolean {
   return MAGIA_BASE_THEME_IDS.includes(theme?.barStyleId as MagiaBaseThemeId)
 }
 
+export function isVerdandiMeterShopTheme(theme: MeterPartyBarTheme | null | undefined): boolean {
+  return VERDANDI_BASE_THEME_IDS.includes(theme?.barStyleId as VerdandiBaseThemeId)
+}
+
+/** Verdandi shop legendary tier (SSS Legendary — full-width bar + 1st-place glow). */
+export function isVerdandiSssLegendaryTheme(
+  theme: MeterPartyBarTheme | null | undefined,
+): boolean {
+  return Boolean(theme && isVerdandiMeterShopTheme(theme) && theme.variant === 'legendary')
+}
+
 export function isHallOfFameMeterTheme(
   theme: MeterPartyBarTheme | null | undefined,
-): theme is MeterPartyBarTheme {
-  return theme?.id === HALL_OF_FAME_THEME_ID || theme?.id === MAGIA_HALL_OF_FAME_THEME_ID
+): boolean {
+  return (
+    theme?.id === HALL_OF_FAME_THEME_ID ||
+    theme?.id === MAGIA_HALL_OF_FAME_THEME_ID ||
+    theme?.id === VERDANDI_HALL_OF_FAME_THEME_ID
+  )
 }
 
 export function hofOverlayVariantForTheme(
   theme: MeterPartyBarTheme | null | undefined,
-): 'olympus' | 'magia' {
-  return theme?.id === MAGIA_HALL_OF_FAME_THEME_ID ? 'magia' : 'olympus'
+): MeterHofOverlayVariant {
+  if (theme?.id === VERDANDI_HALL_OF_FAME_THEME_ID) return 'verdandi'
+  if (theme?.id === MAGIA_HALL_OF_FAME_THEME_ID) return 'magia'
+  return 'olympus'
 }
 
 const EQUIPPED_THEME_STORAGE_KEY = 'odyssey-meter-bar-theme'
@@ -85,12 +121,16 @@ export type MeterPartyBarThemeId =
   | 'iliad-core'
   | 'hall-of-fame'
   | 'magia-hall-of-fame'
+  | 'verdandi-hall-of-fame'
   | OlymposXiiBaseThemeId
   | `${OlymposXiiBaseThemeId}-rare`
   | `${OlymposXiiBaseThemeId}-legendary`
   | MagiaBaseThemeId
   | `${MagiaBaseThemeId}-rare`
   | `${MagiaBaseThemeId}-legendary`
+  | VerdandiBaseThemeId
+  | `${VerdandiBaseThemeId}-rare`
+  | `${VerdandiBaseThemeId}-legendary`
 
 export type MeterPartyBarThemeVariant = 'common' | 'rare' | 'legendary'
 
@@ -160,6 +200,22 @@ const MAGIA_HALL_OF_FAME_THEME: MeterPartyBarTheme = {
     c1: 'rgba(18, 10, 36, 0.97)',
     c2: 'rgba(46, 16, 72, 0.94)',
     grid: 'rgba(167, 139, 250, 0.1)',
+  },
+}
+
+const VERDANDI_HALL_OF_FAME_THEME: MeterPartyBarTheme = {
+  id: 'verdandi-hall-of-fame',
+  barStyleId: 'verdandi-hall-of-fame',
+  label: 'Verdandi Breaker',
+  badge: '',
+  domain: 'Verdandi cycle — record breaks',
+  earnable: false,
+  subtitle: 'Verdandi Cycle · Verdandi breaker',
+  style: {
+    accent: '#4ade80',
+    c1: 'rgba(5, 46, 22, 0.97)',
+    c2: 'rgba(20, 83, 45, 0.94)',
+    grid: 'rgba(74, 222, 128, 0.12)',
   },
 }
 
@@ -409,6 +465,57 @@ const MAGIA_BASE_THEMES: MeterPartyBarTheme[] = [
   },
 ]
 
+const VERDANDI_BASE_THEMES: MeterPartyBarTheme[] = [
+  {
+    id: 'omegamon',
+    barStyleId: 'omegamon',
+    variant: 'common',
+    label: 'Omegamon',
+    badge: '',
+    domain: 'Grey sword & Garuru cannon',
+    earnable: true,
+    subtitle: 'Verdandi · Omegamon',
+    style: {
+      accent: '#e8c872',
+      c1: 'rgba(36, 32, 24, 0.78)',
+      c2: 'rgba(180, 160, 110, 0.48)',
+      grid: 'rgba(255, 248, 230, 0.14)',
+    },
+  },
+  {
+    id: 'ulforce-veemon-x',
+    barStyleId: 'ulforce-veemon-x',
+    variant: 'common',
+    label: 'Ulforce Veemon X',
+    badge: '',
+    domain: 'Ulforce speed',
+    earnable: true,
+    subtitle: 'Verdandi · Ulforce Veemon X',
+    style: {
+      accent: '#38bdf8',
+      c1: 'rgba(6, 24, 56, 0.74)',
+      c2: 'rgba(20, 80, 160, 0.52)',
+      grid: 'rgba(56, 189, 248, 0.12)',
+    },
+  },
+  {
+    id: 'alphamon-ouryuken',
+    barStyleId: 'alphamon-ouryuken',
+    variant: 'common',
+    label: 'Alphamon Ouryuken',
+    badge: '',
+    domain: 'Ouryuken blade',
+    earnable: true,
+    subtitle: 'Verdandi · Alphamon Ouryuken',
+    style: {
+      accent: '#d4af37',
+      c1: 'rgba(6, 6, 8, 0.92)',
+      c2: 'rgba(48, 40, 18, 0.7)',
+      grid: 'rgba(212, 175, 55, 0.1)',
+    },
+  },
+]
+
 function shopRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
   const rareId = `${base.barStyleId}-rare` as MeterPartyBarThemeId
   return {
@@ -434,6 +541,17 @@ function shopLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
   }
 }
 
+function shopVerdandiSssLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
+  const legendaryId = `${base.barStyleId}-legendary` as MeterPartyBarThemeId
+  return {
+    ...base,
+    id: legendaryId,
+    variant: 'legendary',
+    label: `${base.label} (SSS Legendary)`,
+    subtitle: `${base.subtitle} · SSS Legendary`,
+  }
+}
+
 export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
   OLYMPOS_XII_COMMON_THEMES.map(shopLegendaryVariant)
 
@@ -445,15 +563,26 @@ export const MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
 
 export const MAGIA_RARE_SHOP_THEMES = MAGIA_RARE_METER_PARTY_BAR_THEMES
 
+export const VERDANDI_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  VERDANDI_BASE_THEMES.map(shopRareVariant)
+
+export const VERDANDI_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  VERDANDI_BASE_THEMES.map(shopVerdandiSssLegendaryVariant)
+
+export const VERDANDI_RARE_SHOP_THEMES = VERDANDI_RARE_METER_PARTY_BAR_THEMES
+
 export const METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] = [
   ILIAD_CORE_THEME,
   HALL_OF_FAME_THEME,
   MAGIA_HALL_OF_FAME_THEME,
+  VERDANDI_HALL_OF_FAME_THEME,
   ...OLYMPOS_XII_COMMON_THEMES,
   ...OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES,
   ...OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES,
   ...MAGIA_RARE_METER_PARTY_BAR_THEMES,
   ...MAGIA_LEGENDARY_METER_PARTY_BAR_THEMES,
+  ...VERDANDI_RARE_METER_PARTY_BAR_THEMES,
+  ...VERDANDI_LEGENDARY_METER_PARTY_BAR_THEMES,
 ]
 
 const THEME_BY_ID = new Map(METER_PARTY_BAR_THEMES.map((t) => [t.id, t]))
@@ -511,8 +640,9 @@ export function shouldShowMeterThemeBadge(
 ): theme is MeterPartyBarTheme {
   if (!theme) return false
   if (theme.id === MIST_DEV_REWARD_THEME_ID) return false
-  if (theme.id === HALL_OF_FAME_THEME_ID || theme.id === MAGIA_HALL_OF_FAME_THEME_ID) return false
+  if (isHallOfFameMeterTheme(theme)) return false
   if (isMagiaMeterShopTheme(theme)) return false
+  if (isVerdandiMeterShopTheme(theme)) return false
   if (theme.variant === 'legendary') return false
   return theme.badge.trim().length > 0
 }
