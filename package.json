@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.115",
+  "version": "0.1.116",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -103,7 +103,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed an issue with multiple party members not showing data for 1 user in the party"
+      "releaseNotes": "- Fixed alternate structure skills being remapped to the parent digimon kit by shared skill icons"
     }
   }
 }

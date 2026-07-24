@@ -174,21 +174,12 @@ export function resolveSkillLabel(
   const wikiSkillId = String(ev.wiki_skill_id ?? ev.wikiSkillId ?? '').trim() || null
   const iconId = extractEventSkillIconId(ev)
 
-  if (iconId && skillNames && skillIcons) {
-    for (const [id, icon] of skillIcons) {
-      if (icon === iconId) {
-        const name = lookupSkillName(skillNames, id)
-        if (name) {
-          return {
-            displayName: name,
-            skillId: skillId ?? id,
-            resolvedFromWiki: true,
-            rawLabel: rawSkill || skillId || id,
-            skillIconId: iconId,
-          }
-        }
-      }
-    }
+  // Do not map skill identity from icon alone — alternate structures (e.g. Mastemon
+  // healer vs caster) share icons, and icon→first-wiki-skill would rewrite healer
+  // hits onto the parent caster kit. Prefer stream id/name; use icon only for art.
+  const iconFromId = (id: string | null | undefined): string | null => {
+    if (!id || !skillIcons) return null
+    return skillIcons.get(id.trim().toLowerCase()) ?? null
   }
 
   if (streamName) {
@@ -197,7 +188,7 @@ export function resolveSkillLabel(
       skillId,
       resolvedFromWiki: Boolean(skillId && lookupSkillName(skillNames, skillId)),
       rawLabel: rawSkill || skillId || streamName,
-      skillIconId: iconId ?? (skillId ? skillIcons?.get(skillId.trim().toLowerCase()) ?? null : null),
+      skillIconId: iconId ?? iconFromId(skillId) ?? iconFromId(wikiSkillId),
     }
   }
 
