@@ -1265,14 +1265,91 @@ function combatDamageEvent(ev: EventStreamRecord): number | null {
   return dmg
 }
 
+/** Explicit tamer on the combat event (not inferred from digimon species/id). */
+function explicitCombatTamer(ev: EventStreamRecord): string {
+  const tamer = extractPartyTamerFromCombat(ev)
+  if (!tamer || isGarbageStreamLabel(tamer)) return ''
+  return tamer
+}
+
+/**
+ * Party attacker slot from combat events only.
+ * Do not use bare `slot` — on skill events that can mean something other than party slot.
+ */
+function combatAttackerSlot(ev: EventStreamRecord): number | null {
+  const raw = Number(ev.attacker_slot ?? ev.hitter_slot)
+  if (!Number.isFinite(raw) || raw <= 0) return null
+  return raw
+}
+
+/**
+ * Learn a peer onto the live roster from an explicit combat tamer so shared digimon
+ * species/ids cannot keep them from receiving later hits.
+ */
+function ensureRosterPeerFromCombatTamer(
+  session: MeterStreamSession,
+  tamerName: string,
+  opts?: {
+    digimonName?: string
+    digimonId?: string
+    iconId?: string
+    slot?: number | null
+  },
+): void {
+  const tamer = tamerName.trim()
+  if (!tamer || isGarbageStreamLabel(tamer)) return
+  const selfTamer = session.selfTamerName?.trim()
+  if (selfTamer && normKey(tamer) === normKey(selfTamer)) return
+
+  const key = memberMapKey(tamer)
+  const digimonName = opts?.digimonName?.trim() || ''
+  const digimonId = opts?.digimonId?.trim() || ''
+  const iconId = opts?.iconId?.trim() || ''
+  const slot =
+    opts?.slot != null && Number.isFinite(opts.slot) && opts.slot > 0 ? opts.slot : null
+
+  const existing = session.rosterMembers.get(key)
+  if (existing) {
+    if (digimonName && !existing.digimonName.trim()) existing.digimonName = digimonName
+    if (digimonName && !existing.digimonNickname.trim()) existing.digimonNickname = digimonName
+    if (digimonId && !existing.digimonId.trim()) existing.digimonId = digimonId
+    if (iconId && !existing.iconId.trim()) existing.iconId = iconId
+    if (slot != null && existing.slot == null) existing.slot = slot
+    return
+  }
+
+  session.rosterMembers.set(key, {
+    memberKey: key,
+    tamerName: tamer,
+    digimonName,
+    digimonNickname: digimonName,
+    digimonId,
+    iconId,
+    slot,
+    isSelf: false,
+    isLeader: false,
+  })
+  // Tamer-name alias only — never register shared species/id aliases here.
+  putRosterAliases(session, tamer, digimonName, iconId, [])
+}
+
 /** Only credit `hit_taken` when the attacker maps to our party roster (or self when solo). */
 function hitTakenFromPartyAttacker(session: MeterStreamSession, ev: EventStreamRecord): boolean {
+  // Explicit tamer / party attacker slot beat shared digimon ambiguity.
+  const tamerDirect = explicitCombatTamer(ev)
+  if (tamerDirect) return true
+  const slot = combatAttackerSlot(ev)
+  if (slot != null && resolveRosterMemberBySlot(session, slot)) return true
+
   const attacker = String(ev.attacker ?? ev.hitter ?? '').trim()
   if (!attacker) return false
   const who = resolveAttacker(session, ev)
   if (who.isSelf) return true
   if (who.tamerName && session.rosterMembers.has(normKey(who.tamerName))) return true
-  if (session.rosterByAlias.has(normKey(attacker))) return true
+  // Shared digimon labels are intentionally absent from rosterByAlias.
+  if (isUniquePartyLabel(session, attacker) && session.rosterByAlias.has(normKey(attacker))) {
+    return true
+  }
   if (session.rosterMembers.size === 0 && session.selfTamerName) {
     return normKey(who.tamerName) === normKey(session.selfTamerName)
   }
@@ -1283,14 +1360,33 @@ function hitTakenFromPartyAttacker(session: MeterStreamSession, ev: EventStreamR
 function partyDealtCombatHit(session: MeterStreamSession, ev: EventStreamRecord): boolean {
   if (Boolean(ev.from_self)) return true
   const t = String(ev.type ?? '')
+
+  // party_skill with an explicit tamer always counts — even when digimon id/name is shared
+  // with another party member, and even before that tamer appears in a party query.
+  const tamerDirect = explicitCombatTamer(ev)
+  if (tamerDirect && (t === 'party_skill' || t === 'hit_taken' || t === 'skill_use')) {
+    return true
+  }
+
   if (t === 'hit_taken') return hitTakenFromPartyAttacker(session, ev)
   if (t !== 'skill_use' && t !== 'party_skill') return false
   if (combatHitFromSelfDigimon(session, ev)) return true
+
+  const slot = combatAttackerSlot(ev)
+  if (slot != null && resolveRosterMemberBySlot(session, slot)) return true
+
   const who = resolveAttacker(session, ev)
   if (who.isSelf) return true
   if (who.tamerName && session.rosterMembers.has(normKey(who.tamerName))) return true
   const hitter = String(ev.hitter ?? ev.attacker ?? '').trim()
-  if (hitter && session.rosterByAlias.has(normKey(hitter))) return true
+  // Digimon species/id aliases exist only when unique in the party.
+  if (
+    hitter &&
+    isUniquePartyLabel(session, hitter) &&
+    session.rosterByAlias.has(normKey(hitter))
+  ) {
+    return true
+  }
   if (hitter && combatLabelMatchesSelfDigimon(session, hitter)) return true
   if (session.selfTamerName && who.tamerName) {
     return normKey(who.tamerName) === normKey(session.selfTamerName)
@@ -1306,25 +1402,16 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
   isSelf: boolean
 } {
   const fromSelf = Boolean(ev.from_self)
-  const slotRaw = Number(ev.attacker_slot ?? ev.slot)
   const digimonIdFromEvent = eventDigimonId(ev)
-  if (Number.isFinite(slotRaw) && slotRaw > 0) {
-    const bySlot = resolveRosterMemberBySlot(session, slotRaw)
-    if (bySlot) {
-      return {
-        tamerName: bySlot.tamerName,
-        digimonName: bySlot.digimonName,
-        digimonId: digimonIdFromEvent || bySlot.digimonId,
-        iconId: bySlot.iconId,
-        isSelf: bySlot.isSelf,
-      }
-    }
-  }
-
   const digimonFromHit = String(ev.hitter ?? ev.attacker ?? ev.digimon ?? '').trim()
-  const tamerDirect = extractPartyTamerFromCombat(ev)
+  const tamerDirect = explicitCombatTamer(ev)
+  const slot = combatAttackerSlot(ev)
+  const bySlot = slot != null ? resolveRosterMemberBySlot(session, slot) : null
 
+  // Prefer explicit tamer, then party attacker slot, then unique digimon id/label.
+  // Shared digimon species/ids must not override a hard tamer/slot key.
   let tamerName = tamerDirect
+  if (!tamerName && bySlot) tamerName = bySlot.tamerName
   if (!tamerName && digimonIdFromEvent) {
     const byId = resolveRosterMemberByDigimonId(session, digimonIdFromEvent)
     if (byId) tamerName = byId.tamerName
@@ -1341,10 +1428,11 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
     tamerName = session.selfTamerName
   }
   if (!tamerName && fromSelf) {
-    tamerName = session.selfTamerName?.trim() || extractPartyTamerFromCombat(ev)
+    tamerName = session.selfTamerName?.trim() || explicitCombatTamer(ev)
   }
   if (
     tamerName &&
+    !tamerDirect &&
     digimonFromHit &&
     normKey(tamerName) === normKey(digimonFromHit) &&
     !session.rosterMembers.has(memberMapKey(tamerName))
@@ -1364,10 +1452,19 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
     }
   }
 
+  if (tamerDirect) {
+    ensureRosterPeerFromCombatTamer(session, tamerDirect, {
+      digimonName: digimonFromHit,
+      digimonId: digimonIdFromEvent,
+      iconId: String(ev.digimon_icon_id ?? '').trim(),
+      slot,
+    })
+  }
+
   let digimonName = ''
   if (tamerName) {
     const snap = session.rosterMembers.get(normKey(tamerName))
-    digimonName = snap?.digimonName?.trim() || ''
+    digimonName = snap?.digimonName?.trim() || snap?.digimonNickname?.trim() || ''
   }
   if (!digimonName && digimonFromHit) digimonName = digimonFromHit
   if (!digimonName && fromSelf) {
@@ -1383,21 +1480,32 @@ function resolveAttacker(session: MeterStreamSession, ev: EventStreamRecord): {
       digimonName = session.wikiByDigimonId.get(snap.digimonId)?.digimonName ?? ''
     }
   }
+  if (!digimonName && bySlot && tamerName && normKey(bySlot.tamerName) === normKey(tamerName)) {
+    digimonName = bySlot.digimonName || bySlot.digimonNickname || ''
+  }
 
   let iconId = String(ev.digimon_icon_id ?? '').trim()
   if (!iconId && fromSelf) iconId = session.selfIconId ?? ''
-  if (!iconId && digimonFromHit) {
+  if (
+    !iconId &&
+    digimonFromHit &&
+    isUniquePartyLabel(session, digimonFromHit)
+  ) {
     iconId = session.rosterByAlias.get(normKey(digimonFromHit))?.iconId ?? ''
   }
   if (!iconId && tamerName) {
     iconId = session.rosterByAlias.get(normKey(tamerName))?.iconId ?? ''
   }
+  if (!iconId && bySlot && tamerName && normKey(bySlot.tamerName) === normKey(tamerName)) {
+    iconId = bySlot.iconId
+  }
 
   const isSelf =
     !isRosterPeerTamer(session, tamerName) &&
     ((!!session.selfTamerName && normKey(tamerName) === normKey(session.selfTamerName)) ||
-      combatHitFromSelfDigimon(session, ev) ||
-      (!!session.selfTamerName &&
+      (!tamerDirect && combatHitFromSelfDigimon(session, ev)) ||
+      (!tamerDirect &&
+        !!session.selfTamerName &&
         !!digimonFromHit &&
         combatLabelMatchesSelfDigimon(session, digimonFromHit)))
 
@@ -1894,18 +2002,27 @@ export function ingestMeterEventStream(
       )
     }
     const whoEarly = resolveAttacker(session, ev)
-    const earlyPeer = whoEarly.tamerName ? isRosterPeerTamer(session, whoEarly.tamerName) : false
+    const earlyTamerDirect = explicitCombatTamer(ev)
+    const earlyCreditBase = earlyTamerDirect || whoEarly.tamerName
+    const earlyPeer = earlyCreditBase ? isRosterPeerTamer(session, earlyCreditBase) : false
+    const earlySelfTamer = session.selfTamerName?.trim()
+    const earlyTamerIsSelf =
+      !!earlySelfTamer &&
+      !!earlyCreditBase &&
+      normKey(earlyCreditBase) === normKey(earlySelfTamer)
     const earlyFromSelf =
       !earlyPeer &&
       (Boolean(ev.from_self) ||
         whoEarly.isSelf ||
-        combatHitFromSelfDigimon(session, ev) ||
-        (whoEarly.tamerName
-          ? combatLabelMatchesSelfDigimon(session, whoEarly.tamerName)
-          : false))
-    const earlySelfTamer = session.selfTamerName?.trim()
+        earlyTamerIsSelf ||
+        (!earlyTamerDirect &&
+          (combatHitFromSelfDigimon(session, ev) ||
+            (whoEarly.tamerName
+              ? combatLabelMatchesSelfDigimon(session, whoEarly.tamerName)
+              : false))))
     const earlyCreditTamer =
-      earlyFromSelf && earlySelfTamer ? earlySelfTamer : whoEarly.tamerName
+      earlyTamerDirect ||
+      (earlyFromSelf && earlySelfTamer ? earlySelfTamer : whoEarly.tamerName)
 
     if (!startsTimer && !timerActive) {
       if (isMeterDebugEnabled()) {
@@ -1946,19 +2063,34 @@ export function ingestMeterEventStream(
       meterDebugLogEvent(ev, `SKIP combat: empty tamerName | ${meterDebugIngestState(session)}`)
     }
     if (who.tamerName) {
-      const isPeer = isRosterPeerTamer(session, who.tamerName)
+      const tamerDirect = explicitCombatTamer(ev)
+      const selfTamer = session.selfTamerName?.trim()
+      // party_skill with tamer=X must credit X even when digimon id collides with a peer.
+      if (tamerDirect && String(ev.type ?? '') === 'party_skill') {
+        ensureRosterPeerFromCombatTamer(session, tamerDirect, {
+          digimonName: who.digimonName,
+          digimonId: who.digimonId,
+          iconId: who.iconId,
+          slot: combatAttackerSlot(ev),
+        })
+      }
+      const creditTamer = tamerDirect || who.tamerName
+      const isPeer = isRosterPeerTamer(session, creditTamer)
+      const tamerIsSelf =
+        !!selfTamer && normKey(creditTamer) === normKey(selfTamer)
       const fromSelf =
         !isPeer &&
         (Boolean(ev.from_self) ||
           who.isSelf ||
-          combatHitFromSelfDigimon(session, ev) ||
-          combatLabelMatchesSelfDigimon(session, who.tamerName))
-      const selfTamer = session.selfTamerName?.trim()
-      const creditTamer = fromSelf && selfTamer ? selfTamer : who.tamerName
+          tamerIsSelf ||
+          // Digimon-only self inference is unsafe when an explicit peer tamer is present.
+          (!tamerDirect &&
+            (combatHitFromSelfDigimon(session, ev) ||
+              combatLabelMatchesSelfDigimon(session, who.tamerName))))
       const canonKey =
         fromSelf && selfTamer ? memberMapKey(selfTamer) : memberMapKey(creditTamer)
       const row = upsertMember(session, {
-        tamerName: creditTamer,
+        tamerName: fromSelf && selfTamer ? selfTamer : creditTamer,
         digimonName: who.digimonName,
         digimonId: who.digimonId,
         iconId: who.iconId,
@@ -1968,10 +2100,12 @@ export function ingestMeterEventStream(
       const creditRow = session.members.get(canonKey) ?? row
       if (creditRow.firstHitMs == null) creditRow.firstHitMs = now
       if (creditRow.isSelf && !creditRow.meterBarThemeId) {
-        const themeId = effectiveEquippedThemeIdForSelf(creditTamer)
+        const themeId = effectiveEquippedThemeIdForSelf(
+          fromSelf && selfTamer ? selfTamer : creditTamer,
+        )
         if (themeId) creditRow.meterBarThemeId = themeId
       }
-      const credited = Boolean(who.tamerName && !isMeterBasicSkillUseEvent(ev))
+      const credited = Boolean(creditTamer && !isMeterBasicSkillUseEvent(ev))
       if (credited) {
         creditRow.totalDamage += dmg
         const previewCache = wikiCacheForDigimon(session, who.digimonId)
@@ -1988,8 +2122,8 @@ export function ingestMeterEventStream(
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
       }
-      if (who.tamerName) {
-        const logTamer = fromSelf && selfTamer ? selfTamer : who.tamerName
+      if (creditTamer) {
+        const logTamer = fromSelf && selfTamer ? selfTamer : creditTamer
         meterCombatLogRecordPartyHit(session, ev, {
           ts: now,
           tamer: logTamer,

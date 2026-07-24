@@ -96,9 +96,13 @@ export function extractStreamEntityLabel(value: unknown): string {
 }
 
 function memberKeyFromTamer(tamerName: string, memberId?: string): string {
+  // Prefer tamer name so two players on the same digimon species/id (e.g. both Alphamon
+  // Ouryuken) do not collapse into one roster slot when `id` is a shared digimon_id.
+  const tamer = tamerName.trim()
+  if (tamer) return normKey(tamer)
   const id = memberId?.trim()
   if (id) return normKey(id)
-  return normKey(tamerName)
+  return ''
 }
 
 /** Incremental roster row from EventStream (`name` = digimon, not tamer). */
@@ -283,7 +287,9 @@ export function extractPartyMembersFromEvent(
   for (const raw of collectMemberArrays(ev)) {
     const row = parseMemberRow(raw, selfTamer)
     if (!row) continue
-    byKey.set(row.memberKey, row)
+    const key = row.tamerName.trim() ? normKey(row.tamerName) : row.memberKey
+    if (!key) continue
+    byKey.set(key, { ...row, memberKey: key })
   }
 
   const t = String(ev.type ?? '')
