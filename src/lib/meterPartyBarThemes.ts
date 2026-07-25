@@ -736,3 +736,37 @@ export function meterBarThemeIdFromMemberKey(
   }
   return undefined
 }
+
+/** Dev gallery: Mist rows using the normal hashed party bar (no custom theme). */
+export const METER_DEV_BASELINE_PREVIEW_ROWS = [
+  { memberKey: 'mist:baseline-1', subtitle: 'Baseline · standard A', fillPct: 42, totalDamage: 245_000 },
+  { memberKey: 'mist:baseline-2', subtitle: 'Baseline · standard B', fillPct: 55, totalDamage: 232_000 },
+  { memberKey: 'mist:baseline-3', subtitle: 'Baseline · standard C', fillPct: 68, totalDamage: 218_000 },
+] as const
+
+export function meterDevTestPartyRowCount(): number {
+  return METER_PARTY_BAR_THEMES.length + METER_DEV_BASELINE_PREVIEW_ROWS.length + 1
+}
+
+export function isMeterDevBaselinePartyKey(memberKey: string): boolean {
+  return memberKey.trim().toLowerCase().startsWith('mist:baseline-')
+}
+
+/** Gallery bar width (30–70%) for dev theme preview rows. */
+export function meterDevThemePreviewBarFillPct(themeIndex: number): number {
+  const count = METER_PARTY_BAR_THEMES.length
+  const t = count <= 1 ? 0.5 : themeIndex / (count - 1)
+  return Math.round(30 + t * 40)
+}
+
+/** Stable dev-gallery fill width from member key (themes + baselines). */
+export function meterDevPreviewBarFillPct(memberKey: string): number | undefined {
+  const key = memberKey.trim().toLowerCase()
+  const themeId = meterBarThemeIdFromMemberKey(key)
+  if (themeId) {
+    const index = METER_PARTY_BAR_THEMES.findIndex((t) => t.id === themeId)
+    if (index >= 0) return meterDevThemePreviewBarFillPct(index)
+  }
+  const baseline = METER_DEV_BASELINE_PREVIEW_ROWS.find((b) => b.memberKey === key)
+  return baseline?.fillPct
+}
