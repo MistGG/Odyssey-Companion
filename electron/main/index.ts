@@ -405,6 +405,11 @@ let hudResizeSession: {
 } | null = null
 /** Bounds before expanding loot drop table — restored on collapse or tray hide. */
 let timersLootDetailSavedBounds: Rectangle | null = null
+/** Content bounds before Mastemon wing gutters — restored when bleed turns off. */
+let meterWingBleedSavedBounds: Rectangle | null = null
+let meterWingBleedActive = false
+/** Transparent side margin so Mastemon wings paint outside the opaque meter panel. */
+const MASTEMON_WING_WINDOW_GUTTER = 80
 /** Unified settings (fixed layout; not tied to overlay size). */
 let settingsWin: BrowserWindow | null = null
 /** EventStream WebSocket log viewer (dev / support). */
@@ -626,7 +631,19 @@ function persistWindowLayout(): void {
     layout.timeline = timelineWin.getBounds()
   }
   if (meterWin && !meterWin.isDestroyed()) {
-    layout.meter = meterWin.getBounds()
+    const b = meterWin.getBounds()
+    if (meterWingBleedActive) {
+      const content = {
+        x: b.x + MASTEMON_WING_WINDOW_GUTTER,
+        y: b.y,
+        width: Math.max(DEFAULT_METER_SIZE.minWidth, b.width - MASTEMON_WING_WINDOW_GUTTER * 2),
+        height: b.height,
+      }
+      layout.meter = content
+      meterWingBleedSavedBounds = content
+    } else {
+      layout.meter = b
+    }
   }
   if (timersWin && !timersWin.isDestroyed()) {
     layout.timers = timersWin.getBounds()
@@ -2128,6 +2145,35 @@ ipcMain.on('hud:apply-options', (_e, opts: unknown) => {
   if (typeof v === 'boolean') {
     setWinAlwaysOnTop(hudWin, v)
   }
+})
+
+ipcMain.handle('meter:set-wing-bleed', (_evt, enabled: unknown) => {
+  if (!meterWin || meterWin.isDestroyed()) {
+    return { ok: false as const, error: 'No meter window' }
+  }
+  if (enabled === true) {
+    if (!meterWingBleedActive) {
+      const b = meterWin.getBounds()
+      meterWingBleedSavedBounds = b
+      meterWin.setBounds({
+        x: b.x - MASTEMON_WING_WINDOW_GUTTER,
+        y: b.y,
+        width: b.width + MASTEMON_WING_WINDOW_GUTTER * 2,
+        height: b.height,
+      })
+      meterWingBleedActive = true
+    }
+    return { ok: true as const }
+  }
+  if (enabled === false) {
+    if (meterWingBleedActive && meterWingBleedSavedBounds) {
+      meterWin.setBounds(meterWingBleedSavedBounds)
+      meterWingBleedSavedBounds = null
+      meterWingBleedActive = false
+    }
+    return { ok: true as const }
+  }
+  return { ok: false as const, error: 'Invalid enabled flag' }
 })
 
 ipcMain.handle(

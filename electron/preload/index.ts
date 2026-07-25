@@ -251,6 +251,12 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
       contentHeightPx ?? null,
     ) as Promise<{ ok: true } | { ok: false; error?: string }>,
 
+  /** Widen meter window with transparent side gutters so Mastemon wings escape the panel. */
+  setMeterWingBleed: (enabled: boolean) =>
+    ipcRenderer.invoke('meter:set-wing-bleed', enabled) as Promise<
+      { ok: true } | { ok: false; error?: string }
+    >,
+
   loadFightIntoTimeline: (payload: unknown, opts?: { silent?: boolean }) =>
     ipcRenderer.invoke('timeline:load-fight', payload, opts) as Promise<boolean>,
 

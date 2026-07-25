@@ -7858,6 +7858,117 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   padding: 4px 6px 8px;
 }
 
+/*
+ * Mastemon wing bleed: transparent side gutters on the shell (window is widened via IPC).
+ * Wing overlay is position:fixed on document.body (inline), locked to the member rect.
+ */
+.shell--meter.meter-shell--mastemon-wings {
+  --mastemon-window-gutter: 80px;
+  position: relative;
+  padding-left: var(--mastemon-window-gutter);
+  padding-right: var(--mastemon-window-gutter);
+  overflow: visible;
+  background: transparent;
+}
+
+.shell--meter.meter-shell--mastemon-wings .meter-backdrop {
+  overflow: visible;
+}
+
+/* Fallback if inline styles are stripped — still pin to a box, never the shell edges. */
+.meter-party-mastemon-wings-float {
+  position: fixed;
+  pointer-events: none;
+  z-index: 40;
+  overflow: visible;
+}
+
+.meter-party-mastemon-wings-float--place-4 {
+  --mastemon-glow: 0.28;
+  --mastemon-orb: 0.32;
+  --mastemon-wing-w: 52px;
+  --mastemon-wing-h: 40px;
+}
+
+.meter-party-mastemon-wings-float--place-3 {
+  --mastemon-glow: 0.45;
+  --mastemon-orb: 0.5;
+  --mastemon-wing-w: 64px;
+  --mastemon-wing-h: 58px;
+}
+
+.meter-party-mastemon-wings-float--place-2 {
+  --mastemon-glow: 0.68;
+  --mastemon-orb: 0.75;
+  --mastemon-wing-w: 74px;
+  --mastemon-wing-h: 64px;
+}
+
+.meter-party-mastemon-wings-float--place-1 {
+  --mastemon-glow: 0.92;
+  --mastemon-orb: 1;
+  --mastemon-wing-w: 86px;
+  --mastemon-wing-h: 70px;
+}
+
+/*
+ * Soar uses a hinge pivot (smooth transition) so roots never slide on the bar.
+ * Idle flap keeps running on the inner wing.
+ */
+.meter-party-mastemon-wing-pivot {
+  position: absolute;
+  inset: 0;
+  transform-origin: var(--mastemon-hinge, right 28%);
+  transform: rotate(0deg);
+  transition: transform 0.85s cubic-bezier(0.33, 0.1, 0.2, 1);
+  will-change: transform;
+}
+
+.meter-party-mastemon-wing-pivot--angel {
+  --mastemon-hinge: right 28%;
+}
+
+.meter-party-mastemon-wing-pivot--demon {
+  --mastemon-hinge: left 28%;
+}
+
+/* Raise tips: angel +, demon − (mirrored). Top feathers get extra spread. */
+.meter-party-mastemon-wings-float--soar .meter-party-mastemon-wing-pivot--angel {
+  transform: rotate(calc(32deg + var(--mastemon-soar-spread, 0deg)));
+}
+
+.meter-party-mastemon-wings-float--soar .meter-party-mastemon-wing-pivot--demon {
+  transform: rotate(calc(-32deg - var(--mastemon-soar-spread, 0deg)));
+}
+
+.meter-party-mastemon-firefly {
+  position: absolute;
+  width: 3.5px;
+  height: 3.5px;
+  margin: -1.75px 0 0 -1.75px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  animation: meter-mastemon-firefly 4.2s ease-out forwards;
+  animation-delay: var(--mastemon-firefly-delay, 0s);
+}
+
+.meter-party-mastemon-firefly--angel {
+  background: #1e3a8a;
+  box-shadow:
+    0 0 3px #1e40af,
+    0 0 8px #1d4ed8,
+    0 0 14px rgba(30, 64, 175, 0.75);
+}
+
+.meter-party-mastemon-firefly--demon {
+  background: #9d174d;
+  box-shadow:
+    0 0 3px #be185d,
+    0 0 8px #db2777,
+    0 0 14px rgba(157, 23, 77, 0.75);
+}
+
 .meter-breakdown-empty {
   margin: 16px 12px;
   font-size: 12px;
@@ -8203,7 +8314,20 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   pointer-events: none;
 }
 
-.meter-party-row--sss-bleed > .meter-party-member {
+/* Mastemon on SSS 1st-place bleed: allow wing overflow without growing the row. */
+.meter-party-row--sss-bleed:has(.meter-party-member--mastemon-sss) {
+  overflow: visible;
+}
+
+/* Mastemon non-1st (and any Mastemon-only row): overflow only — no tall pad/gap. */
+.meter-party-row--mastemon-bleed {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+.meter-party-row--sss-bleed > .meter-party-member,
+.meter-party-row--mastemon-bleed > .meter-party-member {
   pointer-events: auto;
 }
 
@@ -12287,6 +12411,7 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 
 .meter-party-verdandi-digimon-overlay--mastemon {
   height: 175%;
+  /* Keep watermark clipped inside the bar — wings are separate FX outside the fill. */
   filter:
     drop-shadow(0 0 8px rgba(56, 189, 248, 0.35))
     drop-shadow(0 0 8px rgba(236, 72, 153, 0.35));
@@ -12874,11 +12999,13 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 
 .meter-party-bar-fill-stack--mastemon-legendary {
   min-height: 36px;
-  overflow: visible;
+  /* Clip bar fill + watermark so the rectangle never reshapes around wings. */
+  overflow: hidden;
 }
 
 .meter-party-bar-fill-stack--mastemon-legendary .meter-party-bar-verdandi-layer {
   z-index: 2;
+  overflow: hidden;
 }
 
 .meter-party-mastemon-fx {
@@ -12886,42 +13013,61 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  overflow: visible;
+  overflow: hidden;
   border-radius: inherit;
   --mastemon-wing-w: 68px;
   --mastemon-glow: 0.35;
   --mastemon-orb: 0.45;
 }
 
-.meter-party-mastemon-fx--place-4 {
+/* Place vars live on the member — wing stacks portal onto the member, outside the fill. */
+.meter-party-member--mastemon-place-4 {
   --mastemon-glow: 0.28;
   --mastemon-orb: 0.32;
   --mastemon-wing-w: 52px;
-  --mastemon-wing-h: 52px;
+  --mastemon-wing-h: 40px;
+}
+
+.meter-party-member--mastemon-place-3 {
+  --mastemon-glow: 0.45;
+  --mastemon-orb: 0.5;
+  --mastemon-wing-w: 64px;
+  --mastemon-wing-h: 58px;
+}
+
+.meter-party-member--mastemon-place-2 {
+  --mastemon-glow: 0.68;
+  --mastemon-orb: 0.75;
+  --mastemon-wing-w: 74px;
+  --mastemon-wing-h: 64px;
+}
+
+.meter-party-member--mastemon-place-1 {
+  --mastemon-glow: 0.92;
+  --mastemon-orb: 1;
+  --mastemon-wing-w: 86px;
+  --mastemon-wing-h: 70px;
+}
+
+.meter-party-mastemon-fx--place-4 {
+  --mastemon-glow: 0.28;
+  --mastemon-orb: 0.32;
 }
 
 .meter-party-mastemon-fx--place-3 {
   --mastemon-glow: 0.45;
   --mastemon-orb: 0.5;
-  --mastemon-wing-w: 60px;
-  --mastemon-wing-h: 58px;
 }
 
 .meter-party-mastemon-fx--place-2 {
   --mastemon-glow: 0.68;
   --mastemon-orb: 0.75;
-  --mastemon-wing-w: 70px;
-  --mastemon-wing-h: 64px;
 }
 
 .meter-party-mastemon-fx--place-1 {
   --mastemon-glow: 0.92;
   --mastemon-orb: 1;
-  --mastemon-wing-w: 80px;
-  --mastemon-wing-h: 70px;
 }
-
-
 
 /* Stacked angel (left) / demon (right) wings — hinge at body edge */
 .meter-party-member--mastemon-burst-hit {
@@ -12931,6 +13077,7 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 
 .meter-party-member--mastemon-sss {
   overflow: visible;
+  z-index: 3;
 }
 
 .meter-theme-preview--mastemon-burst,
@@ -12947,52 +13094,74 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 
 .meter-party-member--mastemon-burst-hit .meter-party-bar-fill-stack--mastemon-legendary {
   z-index: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .meter-party-mastemon-fx--burst {
   z-index: 3;
 }
 
+/* Wing stacks span the bar height; each slot sits along the L/R border. */
 .meter-party-mastemon-wing-stack {
   position: absolute;
-  top: 50%;
-  width: var(--mastemon-wing-w, 68px);
-  height: var(--mastemon-wing-h, 60px);
-  margin-top: calc(var(--mastemon-wing-h, 60px) * -0.42);
+  top: 0;
+  bottom: 0;
+  width: 0;
   pointer-events: none;
   z-index: 4;
+  overflow: visible;
 }
 
 .meter-party-mastemon-wing-stack--angel {
-  left: -2px;
-  transform: translateX(-70%);
+  left: 0;
 }
 
 .meter-party-mastemon-wing-stack--demon {
-  right: -2px;
-  transform: translateX(70%);
+  right: 0;
+}
+
+.meter-party-mastemon-wing-slot {
+  position: absolute;
+  /* Art roots sit ~28% down the SVG — offset so that point lands on bar mid-edge. */
+  top: var(--mastemon-edge-y, 50%);
+  width: var(--mastemon-wing-w, 68px);
+  height: var(--mastemon-wing-h, 60px);
+  margin-top: calc(var(--mastemon-wing-h, 60px) * -0.28);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.meter-party-mastemon-wing-slot--angel {
+  /* Root on bar’s left border; tuck hinge into the chrome. */
+  right: 0;
+  transform: translateX(14px);
+}
+
+.meter-party-mastemon-wing-slot--demon {
+  /* Root on bar’s right border; tuck hinge into the chrome. */
+  left: 0;
+  transform: translateX(-14px);
 }
 
 .meter-party-mastemon-wing {
   position: absolute;
   inset: 0;
   display: block;
-  transform-origin: var(--mastemon-hinge, right center);
-  transform: rotate(var(--mastemon-fan, 0deg));
-  animation: meter-mastemon-wing-flap-angel 3.8s ease-in-out infinite;
+  transform-origin: var(--mastemon-hinge, right 28%);
+  transform: rotate(var(--mastemon-fan, 4deg));
+  animation: meter-mastemon-wing-flap-angel 4.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
   animation-delay: var(--mastemon-flap-delay, 0s);
   filter: drop-shadow(0 0 4px rgba(125, 211, 252, 0.35));
   opacity: calc(0.84 + var(--mastemon-glow) * 0.16);
 }
 
 .meter-party-mastemon-wing--angel {
-  --mastemon-hinge: right center;
+  --mastemon-hinge: right 28%;
   animation-name: meter-mastemon-wing-flap-angel;
 }
 
 .meter-party-mastemon-wing--demon {
-  --mastemon-hinge: left center;
+  --mastemon-hinge: left 28%;
   animation-name: meter-mastemon-wing-flap-demon;
   filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.4));
 }
@@ -13004,24 +13173,51 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   overflow: visible;
 }
 
-/* Flap only deeper downward — never lift above the stacked fan angle. */
+/*
+ * Idle flap — angel raises with +, demon with −.
+ * Larger --mastemon-flap on top feathers → they rise higher and separate.
+ */
 @keyframes meter-mastemon-wing-flap-angel {
   0%,
   100% {
-    transform: rotate(var(--mastemon-fan, 12deg)) scaleX(0.97);
+    transform: rotate(var(--mastemon-fan, 4deg));
   }
   50% {
-    transform: rotate(calc(var(--mastemon-fan, 12deg) + 8deg)) scaleX(1.04);
+    transform: rotate(calc(var(--mastemon-fan, 4deg) + var(--mastemon-flap, 6deg)));
   }
 }
 
 @keyframes meter-mastemon-wing-flap-demon {
   0%,
   100% {
-    transform: rotate(var(--mastemon-fan, -12deg)) scaleX(0.97);
+    transform: rotate(var(--mastemon-fan, -4deg));
   }
   50% {
-    transform: rotate(calc(var(--mastemon-fan, -12deg) - 8deg)) scaleX(1.04);
+    transform: rotate(calc(var(--mastemon-fan, -4deg) - var(--mastemon-flap, 6deg)));
+  }
+}
+
+@keyframes meter-mastemon-firefly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  8% {
+    opacity: 1;
+    transform: translate(calc(var(--mastemon-firefly-dx, 0px) * 0.1), calc(var(--mastemon-firefly-dy, -10px) * 0.12))
+      scale(1.15);
+  }
+  45% {
+    opacity: 0.95;
+  }
+  72% {
+    opacity: 0.7;
+    transform: translate(calc(var(--mastemon-firefly-dx, 0px) * 0.7), calc(var(--mastemon-firefly-dy, -10px) * 0.75))
+      scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--mastemon-firefly-dx, 0px), var(--mastemon-firefly-dy, -16px)) scale(0.25);
   }
 }
 
@@ -13131,7 +13327,7 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   }
 }
 
-/* Under text (grid z-index 40) — fine branching cracks only, no frost plate. */
+/* Under text (grid z-index 40) — cracks burst from center across the bar. */
 .meter-party-member > .meter-party-mastemon-glass,
 .meter-party-mastemon-glass {
   position: absolute;
@@ -13142,24 +13338,66 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   border-radius: inherit;
 }
 
+.meter-party-mastemon-glass-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18%;
+  height: 70%;
+  margin: -35% 0 0 -9%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(224, 242, 254, 0.35) 35%,
+    transparent 70%
+  );
+  opacity: 0;
+  animation: meter-mastemon-glass-flash 0.55s ease-out forwards;
+}
+
 .meter-party-mastemon-cracks {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 0;
-  animation: meter-mastemon-cracks-pop 1.05s ease-out forwards;
+  opacity: 1;
+  animation: meter-mastemon-cracks-fade 1.2s ease-out forwards;
 }
 
-@keyframes meter-mastemon-cracks-pop {
+.meter-party-mastemon-crack-stroke {
+  stroke-dasharray: var(--crack-len, 80);
+  stroke-dashoffset: var(--crack-len, 80);
+  opacity: 0.95;
+  animation: meter-mastemon-crack-draw 0.65s cubic-bezier(0.12, 0.75, 0.28, 1) forwards;
+  animation-delay: var(--crack-delay, 0s);
+}
+
+@keyframes meter-mastemon-glass-flash {
   0% {
     opacity: 0;
+    transform: scale(0.35);
   }
-  10% {
-    opacity: 0.95;
+  18% {
+    opacity: 1;
+    transform: scale(1.15);
   }
-  68% {
-    opacity: 0.75;
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes meter-mastemon-crack-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes meter-mastemon-cracks-fade {
+  0%,
+  55% {
+    opacity: 1;
   }
   100% {
     opacity: 0;

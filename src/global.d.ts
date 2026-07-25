@@ -114,7 +114,11 @@ declare global {
       setTimersLootDetailExpanded?: (
         expanded: boolean,
         contentHeightPx?: number | null,
-      ) => Promise<{ ok: true } | { ok: false; error?: string }>,
+      ) => Promise<{ ok: true } | { ok: false; error?: string }>
+      /** Meter: transparent side gutters so Mastemon wings paint outside the opaque panel. */
+      setMeterWingBleed?: (
+        enabled: boolean,
+      ) => Promise<{ ok: true } | { ok: false; error?: string }>
       loadFightIntoTimeline: (payload: unknown, opts?: { silent?: boolean }) => Promise<boolean>
       clearFightInTimeline: () => Promise<boolean>
       getLastFight: () => Promise<unknown | null>

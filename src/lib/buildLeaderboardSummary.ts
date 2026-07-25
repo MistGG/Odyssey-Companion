@@ -48,6 +48,22 @@ function memberHasDpsAndNonDpsDamage(
   return false
 }
 
+/** True when damage spans 2+ role buckets (healer+caster, melee+tank, etc.). */
+function memberHasMultipleRoleBuckets(
+  totals: Map<string, number>,
+  roleByDigimonId: Map<string, string>,
+): boolean {
+  const buckets = new Set<MeterRoleBucket>()
+  for (const [id, damage] of totals) {
+    if (damage <= 0) continue
+    const bucket = digimonIdToBucket(id, roleByDigimonId)
+    if (!bucket) continue
+    buckets.add(bucket)
+    if (buckets.size > 1) return true
+  }
+  return false
+}
+
 /** Digimon with the highest damage this run (any end-of-run swap, same role or not). */
 function memberPrimaryDigimonFromUpload(
   member: MeterDungeonPartyMemberParse,
@@ -102,7 +118,7 @@ function memberLeaderboardDamageFromUpload(
   if (totals.size <= 1) {
     return member.digimons.reduce((sum, dg) => sum + Math.max(0, dg.totalDamage), 0)
   }
-  if (roleByDigimonId && memberHasDpsAndNonDpsDamage(totals, roleByDigimonId)) {
+  if (roleByDigimonId && memberHasMultipleRoleBuckets(totals, roleByDigimonId)) {
     return member.digimons.reduce((sum, dg) => sum + Math.max(0, dg.totalDamage), 0)
   }
   const primary = memberPrimaryDigimonFromUpload(member, roleByDigimonId)

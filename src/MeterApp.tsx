@@ -33,6 +33,7 @@ import {
 import {
   resolveMeterPartyBarTheme,
   meterPartyBarThemeStyle,
+  isVerdandiSssLegendaryTheme,
   METER_DEV_TAMER_BADGE,
   shouldShowMeterDevTamerBadge,
 } from './lib/meterPartyBarThemes'
@@ -1105,6 +1106,25 @@ export default function MeterApp() {
     [partyListRows],
   )
 
+  /** Mastemon SSS wings need transparent window gutters (escape the opaque panel). */
+  const mastemonWingBleed = useMemo(
+    () =>
+      partyListRows.some((row) => {
+        const theme = resolveMeterPartyBarTheme(row.tamerName, row.meterBarThemeId, {
+          isSelf: row.isSelf,
+        })
+        return isVerdandiSssLegendaryTheme(theme) && theme?.barStyleId === 'mastemon'
+      }),
+    [partyListRows],
+  )
+
+  useEffect(() => {
+    void window.odysseyCompanion?.setMeterWingBleed?.(mastemonWingBleed)
+    return () => {
+      void window.odysseyCompanion?.setMeterWingBleed?.(false)
+    }
+  }, [mastemonWingBleed])
+
   const detailMember = useMemo(() => {
     if (!partyDetailKey) return null
     return partyListRows.find((r) => r.rowKey === partyDetailKey) ?? null
@@ -1343,6 +1363,7 @@ export default function MeterApp() {
     'shell',
     'shell--meter',
     ghostChrome ? 'meter-shell--ghost' : '',
+    mastemonWingBleed ? 'meter-shell--mastemon-wings' : '',
     positionLocked ? 'meter-position-locked' : 'meter-position-unlocked',
     ...shellModifiers,
   ]
@@ -1730,11 +1751,13 @@ export default function MeterApp() {
                       const placeRank = index + 1
                       const sssBleedClass = meterPartyMemberSssFirstClass(barTheme, isFirstPlace)
                       const mastemonPlaceClass = meterPartyMemberMastemonPlaceClass(barTheme, placeRank)
-                      const rowBleed = Boolean(sssBleedClass || mastemonPlaceClass)
+                      // Mastemon wings are fixed overlays — do NOT use tall SSS bleed (opens huge gaps).
+                      const rowBleed = Boolean(sssBleedClass)
+                      const mastemonBleed = Boolean(mastemonPlaceClass) && !rowBleed
                       return (
                         <div
                           key={row.rowKey}
-                          className={`meter-party-row${rowBleed ? ' meter-party-row--sss-bleed' : ''}`}
+                          className={`meter-party-row${rowBleed ? ' meter-party-row--sss-bleed' : ''}${mastemonBleed ? ' meter-party-row--mastemon-bleed' : ''}`}
                         >
                         <button
                           type="button"

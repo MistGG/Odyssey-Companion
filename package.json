@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.119",
+  "version": "0.1.120",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added Verdandi Mastemon SSS Legendary meter theme (place-scaled wings, duality FX, glass burst).\n- Restored companion dev baseline party helpers required for meter builds."
+      "releaseNotes": "- Updated Mastemon theme"
     }
   }
 }
