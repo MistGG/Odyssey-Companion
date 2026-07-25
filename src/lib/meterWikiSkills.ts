@@ -90,6 +90,10 @@ export type DigimonWikiSkillCache = {
   role: string
   /** Alternate Structure Module skins keyed by portrait `icon_id`. */
   alternateByIcon?: Map<string, { overrideId: string; overrideName: string; wikiRole: string }>
+  /** Parent species id when this cache is an Alternate Structure Module override. */
+  parentDigimonId?: string
+  /** Override digimon ids declared on this parent species. */
+  alternateOverrideIds?: string[]
 }
 
 const loadingDigimonIds = new Set<string>()
@@ -194,10 +198,72 @@ function wikiSkillIconId(skill: WikiDigimonSkill | undefined): string {
   return skill?.icon_id?.trim() ?? ''
 }
 
+/**
+ * Parent + Alternate Structure Module override caches that share a species line.
+ * Used so peer EventStream skill names (e.g. Seiken Grandalpha) resolve to the
+ * correct kit even when party digimon_id stays on the parent.
+ */
+export function wikiKitFamilyCaches(
+  wikiByDigimonId: Map<string, DigimonWikiSkillCache>,
+  digimonId: string,
+): DigimonWikiSkillCache[] {
+  const primary = wikiByDigimonId.get(digimonId.trim())
+  if (!primary) return []
+  const out: DigimonWikiSkillCache[] = []
+  const seen = new Set<string>()
+  const push = (cache: DigimonWikiSkillCache | undefined) => {
+    const id = cache?.digimonId?.trim()
+    if (!cache || !id || seen.has(norm(id))) return
+    seen.add(norm(id))
+    out.push(cache)
+  }
+
+  push(primary)
+  const parentId = primary.parentDigimonId?.trim() || primary.digimonId.trim()
+  const parent = wikiByDigimonId.get(parentId) ?? primary
+  push(parent)
+  for (const overrideId of parent.alternateOverrideIds ?? []) {
+    push(wikiByDigimonId.get(overrideId))
+  }
+  for (const alt of parent.alternateByIcon?.values() ?? []) {
+    push(wikiByDigimonId.get(alt.overrideId))
+  }
+  return out
+}
+
+function findUniqueNameHit(
+  family: DigimonWikiSkillCache[],
+  skillName: string,
+): { cache: DigimonWikiSkillCache; skill: WikiDigimonSkill } | null {
+  const nameKey = skillName.trim().toLowerCase()
+  if (!nameKey) return null
+  const hits: { cache: DigimonWikiSkillCache; skill: WikiDigimonSkill }[] = []
+  for (const cache of family) {
+    const skill = cache.byName.get(nameKey)
+    if (skill) hits.push({ cache, skill })
+  }
+  return hits.length === 1 ? hits[0]! : null
+}
+
+function findUniqueIdHit(
+  family: DigimonWikiSkillCache[],
+  skillId: string,
+): { cache: DigimonWikiSkillCache; skill: WikiDigimonSkill } | null {
+  const key = norm(skillId)
+  if (!key) return null
+  const hits: { cache: DigimonWikiSkillCache; skill: WikiDigimonSkill }[] = []
+  for (const cache of family) {
+    const skill = cache.byTemplateId.get(key)
+    if (skill) hits.push({ cache, skill })
+  }
+  return hits.length === 1 ? hits[0]! : null
+}
+
 /** Resolve display name + wiki skill icon from cached digimon wiki + optional stream skill rows. */
 export function resolveMeterSkillFromEvent(
   ev: EventStreamRecord,
   cache: DigimonWikiSkillCache | undefined,
+  familyCaches?: DigimonWikiSkillCache[],
 ): {
   skillKey: string
   skillName: string
@@ -218,13 +284,20 @@ export function resolveMeterSkillFromEvent(
 
   const instanceId = extractEventSkillId(ev)
   const rawSkill = String(ev.skill ?? '').trim()
-  const skillKey = instanceId || norm(rawSkill || 'unknown')
+  const streamName = extractStreamSkillName(ev)
+  const family =
+    familyCaches && familyCaches.length
+      ? familyCaches
+      : cache
+        ? [cache]
+        : []
+
   const basic =
-    meterBasicAttackPresentation(skillKey) ??
+    (instanceId ? meterBasicAttackPresentation(instanceId) : null) ??
     (rawSkill ? meterBasicAttackPresentation(rawSkill) : null)
   if (basic) {
     return {
-      skillKey,
+      skillKey: instanceId || norm(rawSkill || METER_BASIC_ATTACK_SKILL_KEY),
       skillName: basic.skillName,
       skillIconId: basic.skillIconId,
       iconUrl: basic.iconUrl,
@@ -232,10 +305,38 @@ export function resolveMeterSkillFromEvent(
     }
   }
 
+  // EventStream skill *names* are authoritative for same-model alts (Grandalpha vs Gradalpha).
+  if (streamName && family.length) {
+    const nameHit = findUniqueNameHit(family, streamName)
+    if (nameHit) {
+      return {
+        skillKey: nameHit.skill.id,
+        skillName: nameHit.skill.name,
+        skillIconId: wikiSkillIconId(nameHit.skill),
+        iconUrl: gameSkillIconUrl(wikiSkillIconId(nameHit.skill)),
+        resolvedFromWiki: true,
+      }
+    }
+  }
+
+  if (instanceId && family.length) {
+    const idHit = findUniqueIdHit(family, instanceId)
+    if (idHit) {
+      return {
+        skillKey: idHit.skill.id,
+        skillName: streamName || idHit.skill.name,
+        skillIconId: wikiSkillIconId(idHit.skill),
+        iconUrl: gameSkillIconUrl(wikiSkillIconId(idHit.skill)),
+        resolvedFromWiki: true,
+      }
+    }
+  }
+
+  const skillKey = instanceId || norm(rawSkill || 'unknown')
 
   if (!cache) {
-    const streamName =
-      extractStreamSkillName(ev) ||
+    const fallbackName =
+      streamName ||
       rawSkill ||
       String(ev.skill_name ?? ev.skillName ?? '').trim() ||
       instanceId ||
@@ -243,7 +344,7 @@ export function resolveMeterSkillFromEvent(
     const rawIcon = String(ev.icon_id ?? ev.skill_icon_id ?? '').trim()
     return {
       skillKey,
-      skillName: streamName,
+      skillName: fallbackName,
       skillIconId: rawIcon,
       iconUrl: gameSkillIconUrl(rawIcon),
       resolvedFromWiki: false,
@@ -251,25 +352,30 @@ export function resolveMeterSkillFromEvent(
   }
 
   const resolved = resolveSkillLabelFromFormat(ev, cache.names, cache.icons)
-  let skillName = resolved.displayName
+  let skillName = streamName || resolved.displayName
   let skillIconId = resolved.skillIconId ?? ''
   let resolvedFromWiki = resolved.resolvedFromWiki
+  let outSkillKey = skillKey
 
   const wikiTemplateId = String(ev.wiki_skill_id ?? ev.wikiSkillId ?? '').trim()
   if (wikiTemplateId) {
     const wiki = cache.byTemplateId.get(norm(wikiTemplateId))
     if (wiki) {
-      skillName = wiki.name
+      // Keep EventStream name when it disagrees with parent-kit remaps.
+      if (!streamName || norm(streamName) === norm(wiki.name)) {
+        skillName = wiki.name
+        outSkillKey = wiki.id
+      }
       skillIconId = wikiSkillIconId(wiki)
       resolvedFromWiki = true
     }
   }
 
-  const streamName = extractStreamSkillName(ev)
   if (streamName) {
     const byName = cache.byName.get(streamName.toLowerCase())
     if (byName) {
       skillName = byName.name
+      outSkillKey = byName.id
       skillIconId = wikiSkillIconId(byName)
       resolvedFromWiki = true
     }
@@ -292,7 +398,7 @@ export function resolveMeterSkillFromEvent(
   }
 
   return {
-    skillKey,
+    skillKey: outSkillKey,
     skillName,
     skillIconId,
     iconUrl: gameSkillIconUrl(skillIconId),
@@ -348,12 +454,27 @@ function applyCacheToSkillRow(
   }
 
   const key = norm(instanceOrWikiId)
+  const rowName = row.skillName?.trim() ?? ''
+  const rowNameKey = rowName.toLowerCase()
   let name = cache.names.get(key) ?? row.skillName
   let iconId = cache.icons.get(key) ?? ''
 
   const wiki = cache.byTemplateId.get(key)
   if (wiki) {
-    name = wiki.name
+    const wikiNameKey = wiki.name.trim().toLowerCase()
+    // Never clobber EventStream alt names (Grandalpha) with parent-kit remaps (Gradalpha).
+    if (
+      !rowNameKey ||
+      rowNameKey === '(skill)' ||
+      rowNameKey === key ||
+      rowNameKey === '(basic)' ||
+      rowNameKey === wikiNameKey ||
+      cache.byName.has(rowNameKey)
+    ) {
+      name = wiki.name
+    } else {
+      name = row.skillName
+    }
     iconId = wikiSkillIconId(wiki)
   }
 
@@ -376,8 +497,9 @@ export function recordMeterSkillHit(
   damage: number,
   hitDigimonId = '',
   hitIconId = '',
+  familyCaches?: DigimonWikiSkillCache[],
 ) {
-  const skill = resolveMeterSkillFromEvent(ev, cache)
+  const skill = resolveMeterSkillFromEvent(ev, cache, familyCaches)
   const attributionKey = meterSkillAttributionKey(hitDigimonId, hitIconId)
   const storageKey = meterSkillStorageKey(attributionKey, skill.skillKey)
   const prev = row.skills.get(storageKey)

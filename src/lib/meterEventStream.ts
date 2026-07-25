@@ -59,6 +59,7 @@ import {
   recordMeterSkillHit,
   resolveMeterSkillFromEvent,
   syncMemberLatestDigimonPresentation,
+  wikiKitFamilyCaches,
 } from './meterWikiSkills'
 import {
   isMeterDebugEnabled,
@@ -1020,13 +1021,69 @@ function pruneDepartedPartyMembers(session: MeterStreamSession, snaps: PartyMemb
   }
 }
 
+/**
+ * Drop the fake `dev:meter` theme-preview party so live EventStream roster/combat can take over.
+ * PARTY logs still parse without this — without it, `applyPartyRoster` was a no-op and peers never appeared.
+ */
+export function clearMeterDevTestPartySeed(session: MeterStreamSession): boolean {
+  if (!session.devTestPartySeeded) return false
+  session.devTestPartySeeded = false
+
+  const selfKey = selfCanonicalMemberKey(session)
+  for (const key of [...session.members.keys()]) {
+    if (selfKey && key === selfKey) continue
+    const row = session.members.get(key)
+    if (!row) continue
+    const preview =
+      Boolean(row.meterBarThemeId) ||
+      isMeterDevBaselinePartyKey(key) ||
+      isMistTamer(row.tamerName)
+    if (preview) {
+      session.members.delete(key)
+      session.rosterMembers.delete(key)
+    }
+  }
+  for (const key of [...session.rosterMembers.keys()]) {
+    if (selfKey && key === selfKey) continue
+    const snap = session.rosterMembers.get(key)
+    if (!snap) continue
+    if (isMistTamer(snap.tamerName) || isMeterDevBaselinePartyKey(key)) {
+      session.rosterMembers.delete(key)
+    }
+  }
+  for (const alias of [...session.rosterByAlias.keys()]) {
+    const entry = session.rosterByAlias.get(alias)
+    if (!entry) continue
+    if (isMistTamer(entry.tamerName)) session.rosterByAlias.delete(alias)
+  }
+
+  if (session.dungeonId === 'dev-test-dungeon') {
+    session.dungeonId = null
+    session.dungeonName = null
+    session.dungeonNameLoading = false
+    session.dungeonRunActive = false
+  }
+
+  // Fake seed uses tamer "Mist" — drop it once a real hello hasn't replaced identity yet.
+  const selfTamer = session.selfTamerName?.trim()
+  if (selfTamer && isMistTamer(selfTamer) && !session.selfDigimonId?.trim()) {
+    session.selfTamerName = null
+    if (selfKey) {
+      session.members.delete(selfKey)
+      session.rosterMembers.delete(selfKey)
+    }
+  }
+
+  return true
+}
+
 function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
-  if (session.devTestPartySeeded) return
   const partyId = extractPartyId(ev)
   if (partyId) session.partyId = partyId
 
   const t = String(ev.type ?? '')
   if (t === 'party_leave' || t === 'party_member_removed') {
+    if (session.devTestPartySeeded) return
     const leaveTamer =
       extractPartyTamerFromCombat(ev) ||
       extractStreamEntityLabel(ev.tamer) ||
@@ -1043,6 +1100,11 @@ function applyPartyRoster(session: MeterStreamSession, ev: EventStreamRecord) {
   }
 
   const snaps = extractPartyMembersFromEvent(ev, session.selfTamerName ?? '')
+  // Live EventStream party overrides the local theme-preview seed from `VITE_METER_DEV_TEST`.
+  if (session.devTestPartySeeded) {
+    if (snaps.length === 0) return
+    clearMeterDevTestPartySeed(session)
+  }
   if (isAuthoritativePartyQueryResult(ev)) {
     pruneDepartedPartyMembers(session, snaps)
   }
@@ -1729,6 +1791,10 @@ export function applyDungeonProgress(
     session.clientDungeonComplete = false
     session.dungeonCompletePayload = null
     resetDungeonBossTargetTracking(session)
+    // Real dungeon pulls must not keep the fake theme-preview party / blocked roster apply.
+    if (session.devTestPartySeeded && dungeonId !== 'dev-test-dungeon') {
+      clearMeterDevTestPartySeed(session)
+    }
     clearDungeonCombat(session)
     reset = true
     const idMeta = applyDungeonIdentity(session, dungeonId)
@@ -2109,7 +2175,8 @@ export function ingestMeterEventStream(
       if (credited) {
         creditRow.totalDamage += dmg
         const previewCache = wikiCacheForDigimon(session, who.digimonId)
-        const previewSkill = resolveMeterSkillFromEvent(ev, previewCache)
+        const previewFamily = wikiKitFamilyCaches(session.wikiByDigimonId, who.digimonId)
+        const previewSkill = resolveMeterSkillFromEvent(ev, previewCache, previewFamily)
         const attributedDigimonId = resolveDigimonIdForSkillHit(
           session,
           previewSkill.skillKey,
@@ -2117,8 +2184,17 @@ export function ingestMeterEventStream(
           who.digimonId,
         )
         const cache = wikiCacheForDigimon(session, attributedDigimonId) ?? previewCache
+        const hitFamily = wikiKitFamilyCaches(session.wikiByDigimonId, attributedDigimonId)
         const hitIconId = eventDigimonIconId(ev) || who.iconId
-        recordMeterSkillHit(creditRow, ev, cache, dmg, attributedDigimonId, hitIconId)
+        recordMeterSkillHit(
+          creditRow,
+          ev,
+          cache,
+          dmg,
+          attributedDigimonId,
+          hitIconId,
+          hitFamily.length ? hitFamily : previewFamily,
+        )
       } else if (isMeterDebugEnabled()) {
         meterDebugLogEvent(ev, 'SKIP combat basic skill_use (hit_taken owns basics)')
       }

@@ -102,7 +102,10 @@ import {
   type DigimonWikiSkillCache,
 } from './lib/meterWikiSkills'
 import type { WikiDigimonDetail } from './lib/wikiDigimonApi'
-import { registerAlternateStructureWikiCaches } from './lib/resolveDigimonAlternateStructure'
+import {
+  linkAlternateOverrideCacheToParents,
+  registerAlternateStructureWikiCaches,
+} from './lib/resolveDigimonAlternateStructure'
 
 function formatInt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
@@ -166,11 +169,18 @@ export default function MeterApp() {
   const [tick, setTick] = useState(0)
   const loadedWikiDigimonRef = useRef<string | null>(null)
 
+  const ensureWikiForDigimonRef = useRef<(digimonId: string, streamSkillRows?: unknown[] | null) => void>(
+    () => {},
+  )
+
   const applyWikiCache = useCallback(
     (digimonId: string, cache: DigimonWikiSkillCache, detail?: WikiDigimonDetail) => {
       const session = streamRef.current
+      linkAlternateOverrideCacheToParents(session.wikiByDigimonId, digimonId, cache)
       session.wikiByDigimonId.set(digimonId, cache)
-      if (detail) registerAlternateStructureWikiCaches(session.wikiByDigimonId, detail, cache)
+      const overrideIds = detail
+        ? registerAlternateStructureWikiCaches(session.wikiByDigimonId, detail, cache)
+        : []
       loadedWikiDigimonRef.current = digimonId
       const officialName = detail?.name?.trim() || cache.digimonName
       applyWikiOfficialDigimonName(session, digimonId, officialName)
@@ -187,6 +197,12 @@ export default function MeterApp() {
         cache,
         session.selfDigimonId,
       )
+      // Fetch real override kits (tank/healer alts) — do not clone parent skills.
+      for (const overrideId of overrideIds) {
+        if (!session.wikiByDigimonId.has(overrideId)) {
+          ensureWikiForDigimonRef.current(overrideId)
+        }
+      }
       bumpStream()
     },
     [bumpStream],
@@ -208,6 +224,11 @@ export default function MeterApp() {
           cached,
           session.selfDigimonId,
         )
+        for (const overrideId of cached.alternateOverrideIds ?? []) {
+          if (!session.wikiByDigimonId.has(overrideId)) {
+            ensureWikiForDigimonRef.current(overrideId)
+          }
+        }
         bumpStream()
         return
       }
@@ -216,8 +237,9 @@ export default function MeterApp() {
         .then(({ cache, detail }) => applyWikiCache(id, cache, detail))
         .finally(() => unmarkDigimonWikiLoading(id))
     },
-    [applyWikiCache],
+    [applyWikiCache, bumpStream],
   )
+  ensureWikiForDigimonRef.current = ensureWikiForDigimon
 
   const [readerHint, setReaderHint] = useState<string | null>(null)
   const [eventStreamConnected, setEventStreamConnected] = useState(false)

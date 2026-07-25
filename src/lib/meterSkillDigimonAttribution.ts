@@ -1,4 +1,5 @@
 import type { DigimonWikiSkillCache } from './meterWikiSkills'
+import { wikiKitFamilyCaches } from './meterWikiSkills'
 import type { MeterStreamSession } from './meterEventStream'
 
 function normKey(s: string): string {
@@ -40,9 +41,32 @@ function collectSessionDigimonIds(session: MeterStreamSession): string[] {
   return [...ids]
 }
 
+function uniqueFamilyOwner(
+  family: DigimonWikiSkillCache[],
+  skillKey: string,
+  skillName: string,
+): string | null {
+  const key = normSkillKey(skillKey)
+  const name = normSkillName(skillName)
+
+  if (name) {
+    const nameOwners = family.filter((cache) => cache.byName.has(name))
+    if (nameOwners.length === 1) return nameOwners[0]!.digimonId
+  }
+  if (key) {
+    const keyOwners = family.filter(
+      (cache) => cache.byTemplateId.has(key) || cache.names.has(key),
+    )
+    if (keyOwners.length === 1) return keyOwners[0]!.digimonId
+  }
+  return null
+}
+
 /**
  * When combat events report the wrong `digimon_id` (stale roster slot / nickname),
  * pick the digimon whose wiki skill list actually owns this skill.
+ * Same-model Alternate Structure Modules are resolved via exclusive skill names
+ * (e.g. Seiken Grandalpha → tank Alphamon Ouryuken).
  */
 export function resolveDigimonIdForSkillHit(
   session: MeterStreamSession,
@@ -51,6 +75,10 @@ export function resolveDigimonIdForSkillHit(
   fallbackDigimonId: string,
 ): string {
   const fallback = fallbackDigimonId.trim()
+  const family = fallback ? wikiKitFamilyCaches(session.wikiByDigimonId, fallback) : []
+  const familyOwner = uniqueFamilyOwner(family, skillKey, skillName)
+  if (familyOwner) return familyOwner
+
   const fallbackCache = fallback ? session.wikiByDigimonId.get(fallback) : undefined
   if (skillBelongsToWikiCache(fallbackCache, skillKey, skillName)) return fallback
 
@@ -67,7 +95,15 @@ export type DigimonSkillGroupLike = {
   digimonName: string
   iconId?: string | null
   totalDamage: number
-  skills: Array<{ skillKey?: string; skill?: string; skillName?: string; damage: number; hits?: number }>
+  skills: Array<{
+    skillKey?: string
+    skill?: string
+    skillName?: string
+    skillIconId?: string | null
+    iconUrl?: string
+    damage: number
+    hits?: number
+  }>
 }
 
 /** Re-group a member's skill breakdown when skills were stored under the wrong digimon id. */

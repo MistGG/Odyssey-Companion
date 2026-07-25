@@ -1,12 +1,13 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.116",
+  "version": "0.1.117",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
-    "dev:meter": "cross-env ODYSSEY_START_PANEL=meter VITE_METER_DEV_TEST=1 vite",
+    "dev:meter": "cross-env ODYSSEY_START_PANEL=meter vite",
+    "dev:meter:themes": "cross-env ODYSSEY_START_PANEL=meter VITE_METER_DEV_TEST=1 vite",
     "dev:timers": "cross-env ODYSSEY_START_PANEL=timers vite",
     "dev:hud": "cross-env ODYSSEY_START_PANEL=hud vite",
     "dev:settings": "cross-env ODYSSEY_START_PANEL=settings vite",

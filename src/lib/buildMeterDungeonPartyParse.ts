@@ -1,5 +1,4 @@
 import { readCachedDungeonDetails } from './dungeonDetailApi'
-import type { MeterStreamSession } from './meterEventStream'
 import { isMeterSessionLeaderboardEligible } from './meterLeaderboardEligibility'
 import {
   consolidateSelfDamageForUpload,
@@ -86,11 +85,24 @@ export function buildMeterDungeonPartyParse(
   const rows = meterPartyRows(session, nowMs)
   const candidateDigimonIds = [
     ...new Set(
-      rows.flatMap((row) =>
-        meterMemberSkillBreakdownByDigimon(session, row.key)
+      rows.flatMap((row) => {
+        const ids = meterMemberSkillBreakdownByDigimon(session, row.key)
           .map((g) => g.digimonId.trim())
-          .filter(Boolean),
-      ),
+          .filter(Boolean)
+        const expanded = [...ids]
+        for (const id of ids) {
+          const cache = session.wikiByDigimonId.get(id)
+          if (!cache) continue
+          if (cache.parentDigimonId?.trim()) expanded.push(cache.parentDigimonId.trim())
+          for (const overrideId of cache.alternateOverrideIds ?? []) {
+            if (overrideId.trim()) expanded.push(overrideId.trim())
+          }
+          for (const alt of cache.alternateByIcon?.values() ?? []) {
+            if (alt.overrideId.trim()) expanded.push(alt.overrideId.trim())
+          }
+        }
+        return expanded
+      }),
     ),
   ]
   const getCache = (digimonId: string) => session.wikiByDigimonId.get(digimonId.trim())
@@ -103,14 +115,33 @@ export function buildMeterDungeonPartyParse(
     )
     const totalDamage = Math.round(row.totalDamage)
     raidTotalDamage += totalDamage
+    const topGroup = digimonGroups[0]
+    const topIconId =
+      topGroup?.iconId?.trim() ||
+      (topGroup?.digimonId ? streamIconIdForDigimon(session, topGroup.digimonId) : '') ||
+      row.iconId ||
+      ''
+    const topEffective = topGroup
+      ? resolveEffectiveDigimonIdentity({
+          digimonId: topGroup.digimonId,
+          iconId: topIconId,
+          digimonName: topGroup.digimonName,
+          wikiByDigimonId: session.wikiByDigimonId,
+        })
+      : null
     return {
       memberKey: row.isSelf ? 'self' : row.key,
       displayLabel: row.tamerName,
       tamerName: row.tamerName,
-      currentDigimonName: row.digimonName || null,
-      currentDigimonId: row.digimonId || null,
-      portraitIconId: row.iconId || null,
-      portraitUrl: row.portraitUrl || undefined,
+      currentDigimonName:
+        (topEffective?.isAlternateStructure ? topEffective.digimonName : null) ||
+        topGroup?.digimonName ||
+        row.digimonName ||
+        null,
+      currentDigimonId: topGroup?.digimonId || row.digimonId || null,
+      portraitIconId: topIconId || row.iconId || null,
+      portraitUrl:
+        (topIconId ? digimonPortraitUrl(topIconId) : undefined) || row.portraitUrl || undefined,
       totalDamage,
       durationSec: row.durationSec,
       isSelf: row.isSelf,
@@ -126,20 +157,25 @@ export function buildMeterDungeonPartyParse(
           digimonName: g.digimonName,
           wikiByDigimonId: session.wikiByDigimonId,
         })
+        const digimonId = effective.isAlternateStructure ? effective.digimonId : g.digimonId
         return {
-          digimonId: g.digimonId,
+          digimonId,
           digimonName: effective.isAlternateStructure ? effective.digimonName : g.digimonName,
           iconId: groupIconId || null,
           portraitUrl: groupIconId ? digimonPortraitUrl(groupIconId) : undefined,
           totalDamage: Math.round(g.totalDamage),
-          skills: g.skills.map((s) => ({
-            skillKey: s.skillKey,
-            skill: s.skillName,
-            skillIconId: s.skillIconId || null,
-            iconUrl: s.iconUrl || gameSkillIconUrl(s.skillIconId) || undefined,
-            damage: Math.round(s.damage),
-            hits: s.hits,
-          })),
+          skills: g.skills.map((s) => {
+            const skillName = String(s.skillName ?? s.skill ?? '').trim() || String(s.skillKey ?? '')
+            const skillIconId = s.skillIconId?.trim() || ''
+            return {
+              skillKey: String(s.skillKey ?? '').trim() || skillName,
+              skill: skillName,
+              skillIconId: skillIconId || null,
+              iconUrl: s.iconUrl || gameSkillIconUrl(skillIconId) || undefined,
+              damage: Math.round(s.damage),
+              hits: s.hits ?? 1,
+            }
+          }),
         }
       }),
     }

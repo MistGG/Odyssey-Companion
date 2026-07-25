@@ -48,3 +48,17 @@ export function wikiRoleFromAlternateSkin(skin: WikiDigimonSkin, parentRole: str
   const bracket = alternateStructureBracketRole(skin.name)
   return bracket ? bracketRoleToWikiRole(bracket, parentRole) : parentRole
 }
+
+/** Override digimon ids from Alternate Structure Module skins on a detail payload. */
+export function collectAlternateStructureOverrideIds(detail: WikiDigimonDetail): string[] {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const skin of detail.skins ?? []) {
+    if (!isAlternateStructureSkin(skin)) continue
+    const overrideId = (skin.override_id ?? '').trim()
+    if (!overrideId || seen.has(overrideId)) continue
+    seen.add(overrideId)
+    ids.push(overrideId)
+  }
+  return ids
+}

@@ -1,5 +1,6 @@
 import type { WikiDigimonDetail, WikiDigimonSkin } from './wikiDigimonApi'
 import {
+  collectAlternateStructureOverrideIds,
   findAlternateStructureSkinByIcon,
   isAlternateStructureSkin,
   wikiRoleFromAlternateSkin,
@@ -54,23 +55,53 @@ export function buildAlternateByIconMap(detail: WikiDigimonDetail): Map<string, 
   return map
 }
 
-/** Register override-id wiki caches so role buckets and names resolve without another fetch. */
+/**
+ * Attach alternate-structure metadata on the parent cache and return override ids that
+ * still need a real wiki fetch (do not clone parent skills — same-model alts share
+ * portraits but have distinct skill kits).
+ */
 export function registerAlternateStructureWikiCaches(
   wikiByDigimonId: Map<string, DigimonWikiSkillCache>,
   detail: WikiDigimonDetail,
   parentCache: DigimonWikiSkillCache,
-): void {
+): string[] {
   const alternateByIcon = buildAlternateByIconMap(detail)
   parentCache.alternateByIcon = alternateByIcon
+  const overrideIds = collectAlternateStructureOverrideIds(detail)
+  parentCache.alternateOverrideIds = overrideIds
 
-  for (const [iconId, alt] of alternateByIcon) {
-    wikiByDigimonId.set(alt.overrideId, {
-      ...parentCache,
-      digimonId: alt.overrideId,
-      digimonName: alt.overrideName,
-      modelId: iconId,
-      role: alt.wikiRole,
-    })
+  // Drop legacy stubs that reused the parent skill maps (wrong kit for tank/healer alts).
+  for (const overrideId of overrideIds) {
+    const existing = wikiByDigimonId.get(overrideId)
+    if (!existing) continue
+    if (existing.byTemplateId === parentCache.byTemplateId || existing.byName === parentCache.byName) {
+      wikiByDigimonId.delete(overrideId)
+    }
+  }
+
+  return overrideIds
+}
+
+/** Link a fetched override cache back to its parent species id. */
+export function linkAlternateOverrideCacheToParents(
+  wikiByDigimonId: Map<string, DigimonWikiSkillCache>,
+  overrideId: string,
+  overrideCache: DigimonWikiSkillCache,
+): void {
+  const id = overrideId.trim()
+  if (!id) return
+  for (const [parentId, parent] of wikiByDigimonId) {
+    if (parentId === id) continue
+    if (parent.alternateOverrideIds?.includes(id)) {
+      overrideCache.parentDigimonId = parentId
+      return
+    }
+    for (const alt of parent.alternateByIcon?.values() ?? []) {
+      if (alt.overrideId === id) {
+        overrideCache.parentDigimonId = parentId
+        return
+      }
+    }
   }
 }
 
