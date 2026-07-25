@@ -12,6 +12,7 @@ const VERDANDI_OVERLAY_FILES: Record<VerdandiBaseThemeId, string> = {
   omegamon: 'omegamon.png',
   'ulforce-veemon-x': 'ulforce-veemon-x.png',
   'alphamon-ouryuken': 'alphamon-ouryuken.png',
+  mastemon: 'mastemon.png',
 }
 
 function bundledVerdandiOverlayUrl(styleId: VerdandiBaseThemeId): string | undefined {
@@ -25,13 +26,18 @@ const VERDANDI_OVERLAY_FOCUS_Y: Record<VerdandiBaseThemeId, number> = {
   omegamon: 20,
   'ulforce-veemon-x': 46,
   'alphamon-ouryuken': 28,
+  mastemon: 34,
 }
 
-/** Raise (+) or lower (−) the watermark within the bar clip. */
-const VERDANDI_OVERLAY_RAISE_PCT: Record<VerdandiBaseThemeId, number> = {
+/**
+ * Raise (+) or lower (−) the watermark within the bar clip, in px.
+ * (Percent-of-self was ~invisible on short meter bars — 2% ≈ 1px.)
+ */
+const VERDANDI_OVERLAY_RAISE_PX: Record<VerdandiBaseThemeId, number> = {
   omegamon: 2,
   'ulforce-veemon-x': -8,
   'alphamon-ouryuken': 2,
+  mastemon: -2,
 }
 
 /** Rare / legendary Verdandi bar themes — transparent PNG watermark. */
@@ -49,9 +55,9 @@ export function verdandiOverlayObjectPosition(theme: MeterPartyBarTheme): string
 
 export function verdandiOverlayImageStyle(theme: MeterPartyBarTheme): CSSProperties {
   const styleId = theme.barStyleId as VerdandiBaseThemeId
-  const raise = VERDANDI_OVERLAY_RAISE_PCT[styleId] ?? 0
+  const raise = VERDANDI_OVERLAY_RAISE_PX[styleId] ?? 0
   return {
     objectPosition: verdandiOverlayObjectPosition(theme),
-    transform: `translate(-50%, calc(-50% - ${raise}%))`,
+    transform: `translate(-50%, calc(-50% - ${raise}px))`,
   }
 }

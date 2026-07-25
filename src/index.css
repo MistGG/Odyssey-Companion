@@ -12285,6 +12285,13 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.65));
 }
 
+.meter-party-verdandi-digimon-overlay--mastemon {
+  height: 175%;
+  filter:
+    drop-shadow(0 0 8px rgba(56, 189, 248, 0.35))
+    drop-shadow(0 0 8px rgba(236, 72, 153, 0.35));
+}
+
 .meter-party-bar-theme--omegamon {
   background:
     repeating-linear-gradient(
@@ -12753,6 +12760,412 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   animation-delay: 0.24s;
 }
 
+/* ——— Mastemon (Verdandi) ——— */
+.meter-party-bar-theme--mastemon {
+  background:
+    repeating-linear-gradient(
+      118deg,
+      transparent 0,
+      transparent 9px,
+      rgba(192, 132, 252, 0.07) 9px,
+      rgba(192, 132, 252, 0.07) 10px
+    ),
+    radial-gradient(ellipse 70% 120% at 18% 50%, rgba(125, 211, 252, 0.28) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 120% at 82% 50%, rgba(244, 114, 182, 0.26) 0%, transparent 58%),
+    linear-gradient(
+      90deg,
+      rgba(18, 8, 32, 0.9) 0%,
+      rgba(48, 24, 72, 0.62) 38%,
+      rgba(88, 40, 96, 0.48) 62%,
+      rgba(28, 10, 40, 0.86) 100%
+    );
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--mastemon::before,
+.meter-party-bar-theme--legendary.meter-party-bar-theme--mastemon::after {
+  content: none;
+  display: none;
+}
+
+.meter-party-bar-theme--legendary.meter-party-bar-theme--mastemon {
+  background:
+    radial-gradient(ellipse 55% 130% at 16% 50%, rgba(125, 211, 252, 0.38) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 130% at 84% 50%, rgba(244, 114, 182, 0.36) 0%, transparent 60%),
+    linear-gradient(
+      92deg,
+      rgba(12, 4, 28, 0.96) 0%,
+      rgba(48, 16, 72, 0.78) 28%,
+      rgba(120, 48, 120, 0.55) 50%,
+      rgba(180, 72, 140, 0.42) 72%,
+      rgba(16, 6, 32, 0.94) 100%
+    );
+  animation: meter-mastemon-duality-shift 7.5s ease-in-out infinite;
+}
+
+@keyframes meter-mastemon-duality-shift {
+  0%,
+  100% {
+    filter: hue-rotate(0deg) saturate(1);
+  }
+  50% {
+    filter: hue-rotate(-18deg) saturate(1.15);
+  }
+}
+
+/* Place aggression: darker/cooler 4th → hotter pink-purple 1st */
+.meter-parses-meter-chrome
+  .meter-party-bar-fill-stack--mastemon-place-4
+  .meter-party-bar-theme--mastemon {
+  background:
+    radial-gradient(ellipse 50% 120% at 20% 50%, rgba(56, 100, 160, 0.22) 0%, transparent 58%),
+    radial-gradient(ellipse 50% 120% at 80% 50%, rgba(80, 40, 90, 0.22) 0%, transparent 58%),
+    linear-gradient(90deg, rgba(10, 4, 22, 0.96) 0%, rgba(36, 14, 52, 0.78) 50%, rgba(12, 6, 24, 0.94) 100%);
+  animation: none;
+  filter: none;
+}
+
+.meter-parses-meter-chrome
+  .meter-party-bar-fill-stack--mastemon-place-3
+  .meter-party-bar-theme--mastemon {
+  background:
+    radial-gradient(ellipse 55% 120% at 18% 50%, rgba(96, 180, 230, 0.28) 0%, transparent 58%),
+    radial-gradient(ellipse 55% 120% at 82% 50%, rgba(200, 80, 150, 0.26) 0%, transparent 58%),
+    linear-gradient(
+      90deg,
+      rgba(14, 6, 30, 0.95) 0%,
+      rgba(56, 24, 80, 0.7) 45%,
+      rgba(100, 40, 100, 0.5) 70%,
+      rgba(16, 6, 28, 0.94) 100%
+    );
+}
+
+.meter-parses-meter-chrome
+  .meter-party-bar-fill-stack--mastemon-place-2
+  .meter-party-bar-theme--mastemon {
+  background:
+    radial-gradient(ellipse 60% 130% at 16% 50%, rgba(125, 211, 252, 0.36) 0%, transparent 58%),
+    radial-gradient(ellipse 60% 130% at 84% 50%, rgba(244, 114, 182, 0.34) 0%, transparent 58%),
+    linear-gradient(
+      92deg,
+      rgba(12, 4, 28, 0.96) 0%,
+      rgba(64, 24, 96, 0.72) 30%,
+      rgba(140, 56, 130, 0.52) 55%,
+      rgba(200, 80, 150, 0.4) 78%,
+      rgba(16, 6, 32, 0.94) 100%
+    );
+}
+
+.meter-parses-meter-chrome
+  .meter-party-bar-fill-stack--mastemon-place-1
+  .meter-party-bar-theme--mastemon {
+  background:
+    radial-gradient(ellipse 65% 140% at 14% 50%, rgba(186, 230, 253, 0.48) 0%, transparent 58%),
+    radial-gradient(ellipse 65% 140% at 86% 50%, rgba(251, 113, 183, 0.46) 0%, transparent 58%),
+    linear-gradient(
+      92deg,
+      rgba(10, 4, 28, 0.96) 0%,
+      rgba(72, 32, 120, 0.75) 26%,
+      rgba(180, 70, 150, 0.58) 50%,
+      rgba(244, 114, 182, 0.48) 74%,
+      rgba(20, 6, 36, 0.94) 100%
+    );
+  animation: meter-mastemon-duality-shift 5.5s ease-in-out infinite;
+}
+
+.meter-party-bar-fill-stack--mastemon-legendary {
+  min-height: 36px;
+  overflow: visible;
+}
+
+.meter-party-bar-fill-stack--mastemon-legendary .meter-party-bar-verdandi-layer {
+  z-index: 2;
+}
+
+.meter-party-mastemon-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+  border-radius: inherit;
+  --mastemon-wing-w: 68px;
+  --mastemon-glow: 0.35;
+  --mastemon-orb: 0.45;
+}
+
+.meter-party-mastemon-fx--place-4 {
+  --mastemon-glow: 0.28;
+  --mastemon-orb: 0.32;
+  --mastemon-wing-w: 52px;
+  --mastemon-wing-h: 52px;
+}
+
+.meter-party-mastemon-fx--place-3 {
+  --mastemon-glow: 0.45;
+  --mastemon-orb: 0.5;
+  --mastemon-wing-w: 60px;
+  --mastemon-wing-h: 58px;
+}
+
+.meter-party-mastemon-fx--place-2 {
+  --mastemon-glow: 0.68;
+  --mastemon-orb: 0.75;
+  --mastemon-wing-w: 70px;
+  --mastemon-wing-h: 64px;
+}
+
+.meter-party-mastemon-fx--place-1 {
+  --mastemon-glow: 0.92;
+  --mastemon-orb: 1;
+  --mastemon-wing-w: 80px;
+  --mastemon-wing-h: 70px;
+}
+
+
+
+/* Stacked angel (left) / demon (right) wings — hinge at body edge */
+.meter-party-member--mastemon-burst-hit {
+  cursor: pointer;
+  overflow: visible;
+}
+
+.meter-party-member--mastemon-sss {
+  overflow: visible;
+}
+
+.meter-theme-preview--mastemon-burst,
+.meter-theme-preview--mastemon-burst.meter-theme-preview--sss-rune-escape {
+  overflow: visible;
+}
+
+.meter-party-member--mastemon-burst-hit .meter-party-member-grid,
+.meter-party-member--mastemon-sss .meter-party-member-grid,
+.meter-party-member--legendary-verdandi-mastemon .meter-party-member-grid {
+  position: relative;
+  z-index: 40;
+}
+
+.meter-party-member--mastemon-burst-hit .meter-party-bar-fill-stack--mastemon-legendary {
+  z-index: 0;
+  overflow: visible;
+}
+
+.meter-party-mastemon-fx--burst {
+  z-index: 3;
+}
+
+.meter-party-mastemon-wing-stack {
+  position: absolute;
+  top: 50%;
+  width: var(--mastemon-wing-w, 68px);
+  height: var(--mastemon-wing-h, 60px);
+  margin-top: calc(var(--mastemon-wing-h, 60px) * -0.42);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.meter-party-mastemon-wing-stack--angel {
+  left: -2px;
+  transform: translateX(-70%);
+}
+
+.meter-party-mastemon-wing-stack--demon {
+  right: -2px;
+  transform: translateX(70%);
+}
+
+.meter-party-mastemon-wing {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-origin: var(--mastemon-hinge, right center);
+  transform: rotate(var(--mastemon-fan, 0deg));
+  animation: meter-mastemon-wing-flap-angel 3.8s ease-in-out infinite;
+  animation-delay: var(--mastemon-flap-delay, 0s);
+  filter: drop-shadow(0 0 4px rgba(125, 211, 252, 0.35));
+  opacity: calc(0.84 + var(--mastemon-glow) * 0.16);
+}
+
+.meter-party-mastemon-wing--angel {
+  --mastemon-hinge: right center;
+  animation-name: meter-mastemon-wing-flap-angel;
+}
+
+.meter-party-mastemon-wing--demon {
+  --mastemon-hinge: left center;
+  animation-name: meter-mastemon-wing-flap-demon;
+  filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.4));
+}
+
+.meter-party-mastemon-wing-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Flap only deeper downward — never lift above the stacked fan angle. */
+@keyframes meter-mastemon-wing-flap-angel {
+  0%,
+  100% {
+    transform: rotate(var(--mastemon-fan, 12deg)) scaleX(0.97);
+  }
+  50% {
+    transform: rotate(calc(var(--mastemon-fan, 12deg) + 8deg)) scaleX(1.04);
+  }
+}
+
+@keyframes meter-mastemon-wing-flap-demon {
+  0%,
+  100% {
+    transform: rotate(var(--mastemon-fan, -12deg)) scaleX(0.97);
+  }
+  50% {
+    transform: rotate(calc(var(--mastemon-fan, -12deg) - 8deg)) scaleX(1.04);
+  }
+}
+
+.meter-party-mastemon-orb {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  opacity: var(--mastemon-orb);
+  filter: blur(0.2px);
+  animation: meter-mastemon-orb-pulse 1.8s ease-in-out infinite;
+}
+
+.meter-party-mastemon-orb--angel {
+  left: 18%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #7dd3fc 45%, transparent 72%);
+  box-shadow:
+    0 0 8px rgba(125, 211, 252, 0.85),
+    0 0 16px rgba(56, 189, 248, 0.55);
+}
+
+.meter-party-mastemon-orb--demon {
+  right: 18%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #f472b6 45%, transparent 72%);
+  box-shadow:
+    0 0 8px rgba(244, 114, 182, 0.85),
+    0 0 16px rgba(236, 72, 153, 0.55);
+  animation-delay: 0.35s;
+}
+
+@keyframes meter-mastemon-orb-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: calc(var(--mastemon-orb) * 0.75);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: var(--mastemon-orb);
+  }
+}
+
+.meter-party-mastemon-body-glow {
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  width: 14%;
+  border-radius: 4px;
+  opacity: calc(var(--mastemon-glow) * 0.55);
+  animation: meter-mastemon-body-glow 2.4s ease-in-out infinite;
+}
+
+.meter-party-mastemon-body-glow--angel {
+  left: 32%;
+  background: linear-gradient(180deg, transparent, rgba(125, 211, 252, 0.45), transparent);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}
+
+.meter-party-mastemon-body-glow--demon {
+  right: 32%;
+  background: linear-gradient(180deg, transparent, rgba(244, 114, 182, 0.45), transparent);
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.35);
+  animation-delay: 0.4s;
+}
+
+@keyframes meter-mastemon-body-glow {
+  0%,
+  100% {
+    opacity: calc(var(--mastemon-glow) * 0.35);
+  }
+  50% {
+    opacity: calc(var(--mastemon-glow) * 0.75);
+  }
+}
+
+.meter-party-mastemon-border-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(125, 211, 252, 0.55) 18%,
+    rgba(244, 114, 182, 0.55) 52%,
+    rgba(192, 132, 252, 0.35) 78%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  mix-blend-mode: screen;
+  opacity: calc(0.2 + var(--mastemon-glow) * 0.45);
+  animation: meter-mastemon-border-scan 2.4s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1.5px;
+}
+
+@keyframes meter-mastemon-border-scan {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* Under text (grid z-index 40) — fine branching cracks only, no frost plate. */
+.meter-party-member > .meter-party-mastemon-glass,
+.meter-party-mastemon-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.meter-party-mastemon-cracks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: meter-mastemon-cracks-pop 1.05s ease-out forwards;
+}
+
+@keyframes meter-mastemon-cracks-pop {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  68% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .meter-party-member--legendary-verdandi,
 .meter-party-member--legendary-verdandi-omegamon {
   box-shadow:
@@ -12795,6 +13208,47 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
     inset 3px 0 0 #b8860b,
     inset 0 0 0 1px rgba(184, 148, 48, 0.28),
     0 0 12px rgba(0, 0, 0, 0.45);
+}
+
+.meter-party-member--legendary-verdandi-mastemon {
+  box-shadow:
+    inset 3px 0 0 #e879f9,
+    inset 0 0 0 1.5px rgba(125, 211, 252, 0.35),
+    inset 0 0 0 3px rgba(244, 114, 182, 0.18),
+    0 0 18px rgba(168, 85, 247, 0.42);
+}
+
+.meter-party-member--rare-verdandi-mastemon {
+  box-shadow:
+    inset 3px 0 0 #c084fc,
+    inset 0 0 0 1px rgba(192, 132, 252, 0.28),
+    0 0 12px rgba(88, 28, 120, 0.32);
+}
+
+.meter-party-member--mastemon-place-1 {
+  box-shadow:
+    inset 3px 0 0 #f0abfc,
+    inset 0 0 0 2px rgba(125, 211, 252, 0.45),
+    inset 0 0 0 4px rgba(244, 114, 182, 0.28),
+    0 0 22px rgba(192, 132, 252, 0.55);
+}
+
+@keyframes meter-verdandi-sss-border-pulse-mastemon {
+  0%,
+  100% {
+    border-color: rgba(125, 211, 252, 0.45);
+    box-shadow:
+      0 0 0 1px rgba(56, 189, 248, 0.3),
+      -3px 0 12px rgba(125, 211, 252, 0.35),
+      3px 0 12px rgba(244, 114, 182, 0.35);
+  }
+  50% {
+    border-color: rgba(244, 114, 182, 0.9);
+    box-shadow:
+      0 0 0 1px rgba(236, 72, 153, 0.55),
+      -5px 0 18px rgba(125, 211, 252, 0.55),
+      5px 0 18px rgba(244, 114, 182, 0.55);
+  }
 }
 
 /* Verdandi SSS Legendary — 1st place pulsating border glow */
@@ -12905,6 +13359,11 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 
 .meter-party-member--verdandi-sss-first-ulforce-veemon-x::after {
   animation: meter-verdandi-sss-border-pulse-ulforce 2.2s ease-in-out infinite;
+}
+
+.meter-party-member--verdandi-sss-first-mastemon::after {
+  animation: meter-verdandi-sss-border-pulse-mastemon 2s ease-in-out infinite;
+  border-width: 2px;
 }
 
 /* Ulforce SSS 1st — thick greatsword; fast 90° swing in place, then reappear elsewhere */
@@ -13330,8 +13789,18 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   .meter-party-member--verdandi-sss-first-omegamon::before,
   .meter-party-member--verdandi-sss-first-omegamon::after,
   .meter-party-member--verdandi-sss-first-ulforce-veemon-x::after,
-  .meter-party-member--verdandi-sss-first-alphamon-ouryuken::after {
+  .meter-party-member--verdandi-sss-first-alphamon-ouryuken::after,
+  .meter-party-member--verdandi-sss-first-mastemon::after,
+  .meter-party-bar-theme--legendary.meter-party-bar-theme--mastemon,
+  .meter-party-mastemon-wing,
+  .meter-party-mastemon-orb,
+  .meter-party-mastemon-body-glow,
+  .meter-party-mastemon-border-pulse {
     animation: none;
+  }
+
+  .meter-party-mastemon-wing {
+    transform: rotate(var(--mastemon-fan, 0deg));
   }
 
   .meter-party-member--verdandi-sss-first-omegamon::before {

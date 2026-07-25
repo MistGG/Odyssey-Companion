@@ -1,4 +1,4 @@
-export const MIN_METER_UPLOAD_APP_VERSION = '0.1.109'
+export const MIN_METER_UPLOAD_APP_VERSION = '0.1.117'
 export const OUTDATED_METER_UPLOAD_MESSAGE =
   'Please update Odyssey Companion to upload parses.'
 

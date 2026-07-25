@@ -60,12 +60,13 @@ export type MagiaBaseThemeId = 'raguelmon' | 'plesiomon' | 'zhuqiaomon'
 
 export const MAGIA_BASE_THEME_IDS: MagiaBaseThemeId[] = ['raguelmon', 'plesiomon', 'zhuqiaomon']
 
-export type VerdandiBaseThemeId = 'omegamon' | 'ulforce-veemon-x' | 'alphamon-ouryuken'
+export type VerdandiBaseThemeId = 'omegamon' | 'ulforce-veemon-x' | 'alphamon-ouryuken' | 'mastemon'
 
 export const VERDANDI_BASE_THEME_IDS: VerdandiBaseThemeId[] = [
   'omegamon',
   'ulforce-veemon-x',
   'alphamon-ouryuken',
+  'mastemon',
 ]
 
 export function isMagiaMeterShopTheme(theme: MeterPartyBarTheme | null | undefined): boolean {
@@ -514,6 +515,22 @@ const VERDANDI_BASE_THEMES: MeterPartyBarTheme[] = [
       grid: 'rgba(212, 175, 55, 0.1)',
     },
   },
+  {
+    id: 'mastemon',
+    barStyleId: 'mastemon',
+    variant: 'common',
+    label: 'Mastemon',
+    badge: '',
+    domain: 'Angel & demon duality',
+    earnable: true,
+    subtitle: 'Verdandi · Mastemon',
+    style: {
+      accent: '#c084fc',
+      c1: 'rgba(24, 8, 40, 0.9)',
+      c2: 'rgba(120, 40, 110, 0.55)',
+      grid: 'rgba(192, 132, 252, 0.12)',
+    },
+  },
 ]
 
 function shopRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
@@ -526,9 +543,6 @@ function shopRareVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
     subtitle: `${base.subtitle} · Rare`,
   }
 }
-
-export const OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
-  OLYMPOS_XII_COMMON_THEMES.map(shopRareVariant)
 
 function shopLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBarTheme {
   const legendaryId = `${base.barStyleId}-legendary` as MeterPartyBarThemeId
@@ -551,6 +565,9 @@ function shopVerdandiSssLegendaryVariant(base: MeterPartyBarTheme): MeterPartyBa
     subtitle: `${base.subtitle} · SSS Legendary`,
   }
 }
+
+export const OLYMPOS_XII_RARE_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
+  OLYMPOS_XII_COMMON_THEMES.map(shopRareVariant)
 
 export const OLYMPOS_XII_LEGENDARY_METER_PARTY_BAR_THEMES: MeterPartyBarTheme[] =
   OLYMPOS_XII_COMMON_THEMES.map(shopLegendaryVariant)
@@ -718,38 +735,4 @@ export function meterBarThemeIdFromMemberKey(
     return THEME_BY_ID.has(id as MeterPartyBarThemeId) ? (id as MeterPartyBarThemeId) : undefined
   }
   return undefined
-}
-
-/** Dev gallery: Mist rows using the normal hashed party bar (no custom theme). */
-export const METER_DEV_BASELINE_PREVIEW_ROWS = [
-  { memberKey: 'mist:baseline-1', subtitle: 'Baseline · standard A', fillPct: 42, totalDamage: 245_000 },
-  { memberKey: 'mist:baseline-2', subtitle: 'Baseline · standard B', fillPct: 55, totalDamage: 232_000 },
-  { memberKey: 'mist:baseline-3', subtitle: 'Baseline · standard C', fillPct: 68, totalDamage: 218_000 },
-] as const
-
-export function meterDevTestPartyRowCount(): number {
-  return METER_PARTY_BAR_THEMES.length + METER_DEV_BASELINE_PREVIEW_ROWS.length + 1
-}
-
-export function isMeterDevBaselinePartyKey(memberKey: string): boolean {
-  return memberKey.trim().toLowerCase().startsWith('mist:baseline-')
-}
-
-/** Gallery bar width (30–70%) for dev theme preview rows. */
-export function meterDevThemePreviewBarFillPct(themeIndex: number): number {
-  const count = METER_PARTY_BAR_THEMES.length
-  const t = count <= 1 ? 0.5 : themeIndex / (count - 1)
-  return Math.round(30 + t * 40)
-}
-
-/** Stable dev-gallery fill width from member key (themes + baselines). */
-export function meterDevPreviewBarFillPct(memberKey: string): number | undefined {
-  const key = memberKey.trim().toLowerCase()
-  const themeId = meterBarThemeIdFromMemberKey(key)
-  if (themeId) {
-    const index = METER_PARTY_BAR_THEMES.findIndex((t) => t.id === themeId)
-    if (index >= 0) return meterDevThemePreviewBarFillPct(index)
-  }
-  const baseline = METER_DEV_BASELINE_PREVIEW_ROWS.find((b) => b.memberKey === key)
-  return baseline?.fillPct
 }

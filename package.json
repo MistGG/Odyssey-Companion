@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.117",
+  "version": "0.1.118",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Fixed alternate structure skills being remapped to the parent digimon kit by shared skill icons"
+      "releaseNotes": "- Added Verdandi Mastemon SSS Legendary meter theme (place-scaled wings, duality FX, glass burst)."
     }
   }
 }

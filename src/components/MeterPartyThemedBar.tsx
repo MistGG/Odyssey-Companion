@@ -32,6 +32,7 @@ import { MeterAlphamonOuryukenLegendaryBlade } from './MeterAlphamonOuryukenLege
 import { MeterAlphamonOuryukenSssFirstRunes } from './MeterAlphamonOuryukenSssFirstRunes'
 import { MeterOmegamonSssFirstRunes } from './MeterOmegamonSssFirstRunes'
 import { MeterUlforceVeemonXSssFirstSwipes } from './MeterUlforceVeemonXSssFirstSwipes'
+import { MeterMastemonLegendaryFx } from './MeterMastemonLegendaryFx'
 import { MeterVenusmonLegendaryHearts } from './MeterVenusmonLegendaryHearts'
 import { MeterVulcanusmonLegendaryForge } from './MeterVulcanusmonLegendaryForge'
 import { MeterHallOfFameBarOverlay } from './MeterHallOfFameBarOverlay'
@@ -46,6 +47,12 @@ type MeterPartyThemedBarProps = {
   hofRecordCount?: number
   /** Party #1 by DPS — enables Verdandi SSS Legendary outline glow. */
   isFirstPlace?: boolean
+  /** 1-based party place (Mastemon SSS wing / glow states). */
+  placeRank?: number
+  /** Live total damage — Mastemon burst glass on +500k jumps. */
+  totalDamage?: number
+  /** Preview: increment to fire Mastemon glass shatter. */
+  burstSignal?: number
 }
 
 function shopOverlayLayer(theme: MeterPartyBarTheme): 'verdandi' | 'magia' | 'olympus' {
@@ -65,6 +72,9 @@ export function MeterPartyThemedBar({
   sharePct,
   hofRecordCount = 0,
   isFirstPlace = false,
+  placeRank,
+  totalDamage = 0,
+  burstSignal = 0,
 }: MeterPartyThemedBarProps) {
   // Verdandi SSS Legendary always spans the full meter track.
   const widthPct = isVerdandiSssLegendaryTheme(theme) ? 100 : Math.min(100, sharePct)
@@ -73,6 +83,7 @@ export function MeterPartyThemedBar({
   const isHallOfFame = isHallOfFameMeterTheme(theme)
   const isRare = theme.variant === 'rare'
   const isLegendary = theme.variant === 'legendary'
+  const resolvedPlace = placeRank ?? (isFirstPlace ? 1 : 4)
   const fillWidth = { width: `${widthPct}%` }
   const showAlphamonSssRunes =
     isFirstPlace &&
@@ -175,7 +186,9 @@ export function MeterPartyThemedBar({
                                         ? ' meter-party-bar-fill-stack--ulforce-veemon-x-legendary'
                                         : styleId === 'alphamon-ouryuken'
                                           ? ' meter-party-bar-fill-stack--alphamon-ouryuken-legendary'
-                                          : ''
+                                          : styleId === 'mastemon'
+                                            ? ' meter-party-bar-fill-stack--mastemon-legendary'
+                                            : ''
     const legendaryFx =
       styleId === 'apollomon' ? (
         <MeterApollomonLegendarySunrays />
@@ -213,12 +226,22 @@ export function MeterPartyThemedBar({
         <MeterUlforceVeemonXLegendarySpeedLines />
       ) : styleId === 'alphamon-ouryuken' ? (
         <MeterAlphamonOuryukenLegendaryBlade />
+      ) : styleId === 'mastemon' ? (
+        <MeterMastemonLegendaryFx
+          placeRank={resolvedPlace}
+          totalDamage={totalDamage}
+          burstSignal={burstSignal}
+        />
       ) : null
     const layer = shopOverlayLayer(theme)
+    const mastemonPlaceClass =
+      styleId === 'mastemon' && isVerdandiSssLegendaryTheme(theme)
+        ? ` meter-party-bar-fill-stack--mastemon-place-${Math.min(4, Math.max(1, resolvedPlace))}`
+        : ''
     return (
       <>
         <div
-          className={`meter-party-bar-fill-stack meter-party-bar-fill-stack--legendary${legendaryStackModifier}`}
+          className={`meter-party-bar-fill-stack meter-party-bar-fill-stack--legendary${legendaryStackModifier}${mastemonPlaceClass}`}
           style={fillWidth}
           aria-hidden
         >
@@ -313,4 +336,14 @@ export function meterPartyMemberSssFirstClass(
 ): string {
   if (!isFirstPlace || !isVerdandiSssLegendaryTheme(theme) || !theme) return ''
   return ` meter-party-member--verdandi-sss-first meter-party-member--verdandi-sss-first-${theme.barStyleId}`
+}
+
+/** Mastemon SSS — place-scaled row chrome (wings bleed past the bar). */
+export function meterPartyMemberMastemonPlaceClass(
+  theme: MeterPartyBarTheme | null | undefined,
+  placeRank: number,
+): string {
+  if (!isVerdandiSssLegendaryTheme(theme) || theme?.barStyleId !== 'mastemon') return ''
+  const place = Math.min(4, Math.max(1, placeRank || 4))
+  return ` meter-party-member--mastemon-sss meter-party-member--mastemon-place-${place}`
 }

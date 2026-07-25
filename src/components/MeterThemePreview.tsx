@@ -1,36 +1,40 @@
+import { useState } from 'react'
 import {
   isHallOfFameMeterTheme,
   isVerdandiSssLegendaryTheme,
   meterPartyBarThemeStyle,
   meterThemePreviewDigimonLine,
+  shouldShowMeterThemeBadge,
   type MeterPartyBarTheme,
 } from '../lib/meterPartyBarThemes'
+
 import { METER_THEME_PREVIEW_BAR_FILL, meterThemePreviewStats } from '../lib/meterThemeShop'
-import {
-  MeterPartyPlainBar,
-  MeterPartyThemedBar,
-  meterPartyMemberSssFirstClass,
-  meterPartyMemberThemeClass,
-} from './MeterPartyThemedBar'
-import { MeterPartyThemeBadge } from './MeterPartyThemeBadge'
 
 function formatInt(n: number) {
   return Math.round(n).toLocaleString('en-US')
 }
+
+import {
+  MeterPartyPlainBar,
+  MeterPartyThemedBar,
+  meterPartyMemberMastemonPlaceClass,
+  meterPartyMemberSssFirstClass,
+  meterPartyMemberThemeClass,
+} from './MeterPartyThemedBar'
 
 export type MeterThemePreviewRow = {
   tamerName: string
   digimonName: string
   fillPct: number
   isSelf?: boolean
+  /** Optional 1-based place for Mastemon SSS demos. */
+  placeRank?: number
 }
 
 type MeterThemePreviewProps = {
   theme: MeterPartyBarTheme
   rows: MeterThemePreviewRow[]
   className?: string
-  /** Single themed row only — for compact equip lists. */
-  compact?: boolean
   hofRecordCount?: number
 }
 
@@ -38,38 +42,56 @@ export function MeterThemePreview({
   theme,
   rows,
   className = '',
-  compact = false,
   hofRecordCount = 0,
 }: MeterThemePreviewProps) {
-  const displayRows = compact ? rows.filter((r) => r.isSelf) : rows
-  // Compact equip lists clip FX so overflow layers cannot cover Equip.
+  const mastemonBurstPreview =
+    isVerdandiSssLegendaryTheme(theme) && theme.barStyleId === 'mastemon'
+  const [burstSignals, setBurstSignals] = useState<Record<number, number>>({})
+
   const sssRuneEscape =
-    !compact &&
     isVerdandiSssLegendaryTheme(theme) &&
     (theme.barStyleId === 'alphamon-ouryuken' ||
       theme.barStyleId === 'omegamon' ||
-      theme.barStyleId === 'ulforce-veemon-x')
+      theme.barStyleId === 'ulforce-veemon-x' ||
+      theme.barStyleId === 'mastemon')
 
   return (
     <div
-      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${sssRuneEscape ? ' meter-theme-preview--sss-rune-escape' : ''}${compact ? ' meter-theme-preview--compact' : ''}${className ? ` ${className}` : ''}`}
+      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${sssRuneEscape ? ' meter-theme-preview--sss-rune-escape' : ''}${mastemonBurstPreview ? ' meter-theme-preview--mastemon-burst' : ''}${className ? ` ${className}` : ''}`}
       aria-label={`${theme.label} party bar preview`}
     >
-      {displayRows.map((row, index) => {
+      {rows.map((row, index) => {
         const rowKey = `${row.tamerName}-${row.digimonName}-${index}`
         const themed = Boolean(row.isSelf)
         const themeStyle = themed ? meterPartyBarThemeStyle(theme) : undefined
         const sharePct = row.fillPct
         const { dps, totalDamage, durationSec } = meterThemePreviewStats(sharePct, index)
-        const isFirstPlace = themed
+        const placeRank = row.placeRank ?? (themed ? 1 : index + 1)
+        const isFirstPlace = themed && placeRank === 1
         const sssFirstClass = themed ? meterPartyMemberSssFirstClass(theme, isFirstPlace) : ''
+        const mastemonPlaceClass = themed
+          ? meterPartyMemberMastemonPlaceClass(theme, placeRank)
+          : ''
+        const canBurstClick = themed && mastemonBurstPreview
         // Live meter uses sss-bleed; previews must not — negative margins steal Equip/Buy clicks.
 
         return (
           <div
             key={rowKey}
-            className={`meter-party-member${themed ? ' meter-party-member--bar-theme' : ''}${themed ? meterPartyMemberThemeClass(theme) : ''}${sssFirstClass}`}
+            className={`meter-party-member${themed ? ' meter-party-member--bar-theme' : ''}${themed ? meterPartyMemberThemeClass(theme) : ''}${sssFirstClass}${mastemonPlaceClass}${canBurstClick ? ' meter-party-member--mastemon-burst-hit' : ''}`}
             style={themeStyle}
+            title={canBurstClick ? 'Click to preview glass shatter' : undefined}
+            onClick={
+              canBurstClick
+                ? () => {
+                    setBurstSignals((prev) => ({
+                      ...prev,
+                      [index]: (prev[index] ?? 0) + 1,
+                    }))
+                  }
+                : undefined
+            }
+            role={canBurstClick ? 'button' : undefined}
           >
             {themed ? (
               <MeterPartyThemedBar
@@ -79,6 +101,9 @@ export function MeterThemePreview({
                   isHallOfFameMeterTheme(theme) ? Math.max(hofRecordCount, 1) : hofRecordCount
                 }
                 isFirstPlace={isFirstPlace}
+                placeRank={placeRank}
+                totalDamage={totalDamage}
+                burstSignal={burstSignals[index] ?? 0}
               />
             ) : (
               <MeterPartyPlainBar sharePct={sharePct} rowKey={rowKey} />
@@ -95,18 +120,18 @@ export function MeterThemePreview({
                         You
                       </span>
                     ) : null}
-                    {themed ? <MeterPartyThemeBadge theme={theme} /> : null}
+                    {themed && shouldShowMeterThemeBadge(theme) ? (
+                      <span className="meter-party-theme-badge" title={theme.label} aria-hidden>
+                        {theme.badge}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="meter-party-digimon">{row.digimonName}</span>
                 </span>
               </span>
-              {!compact ? (
-                <>
-                  <span className="meter-party-num">{formatInt(dps)}</span>
-                  <span className="meter-party-num">{formatInt(totalDamage)}</span>
-                  <span className="meter-party-num">{durationSec.toFixed(0)}</span>
-                </>
-              ) : null}
+              <span className="meter-party-num">{formatInt(dps)}</span>
+              <span className="meter-party-num">{formatInt(totalDamage)}</span>
+              <span className="meter-party-num">{durationSec.toFixed(0)}</span>
             </div>
           </div>
         )
@@ -123,20 +148,38 @@ export function buildThemePreviewRows(
   fillerDigimon: string[],
 ): MeterThemePreviewRow[] {
   const [topFill, ...partyFills] = [...METER_THEME_PREVIEW_BAR_FILL].sort((a, b) => b - a)
+
   const partyRows: MeterThemePreviewRow[] = fillerDigimon.slice(0, 3).map((digimonName, i) => ({
     tamerName: PREVIEW_PARTY_TAMER,
     digimonName,
     fillPct: partyFills[i] ?? partyFills[partyFills.length - 1] ?? 42,
   }))
+
   const selfName = confirmedTamerName?.trim()
+
   if (!selfName) return partyRows
+
   return [
     {
       tamerName: selfName,
       digimonName: meterThemePreviewDigimonLine(theme),
       fillPct: topFill,
       isSelf: true,
+      placeRank: 1,
     },
     ...partyRows,
   ]
+}
+
+/** Four Mastemon SSS rows — 1st→4th wing states for design QA. */
+export function buildMastemonPlacePreviewRows(theme: MeterPartyBarTheme): MeterThemePreviewRow[] {
+  const fills = [100, 82, 64, 48]
+  const labels = ['1st · 4 wings', '2nd · 3 wings', '3rd · 2 wings', '4th · 1 wing']
+  return fills.map((fillPct, i) => ({
+    tamerName: labels[i]!,
+    digimonName: meterThemePreviewDigimonLine(theme),
+    fillPct,
+    isSelf: true,
+    placeRank: (i + 1) as 1 | 2 | 3 | 4,
+  }))
 }
