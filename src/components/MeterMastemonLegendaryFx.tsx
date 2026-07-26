@@ -487,24 +487,89 @@ export function MeterMastemonLegendaryFx({
       setWingBox(null)
       return
     }
-    const sync = () => {
+
+    let pollRaf = 0
+    let settleRaf = 0
+    let alive = true
+
+    const readBox = (): WingBox => {
       const m = member.getBoundingClientRect()
-      setWingBox({
-        top: m.top,
-        left: m.left,
-        width: m.width,
-        height: m.height,
+      return { top: m.top, left: m.left, width: m.width, height: m.height }
+    }
+
+    const applyBox = (next: WingBox) => {
+      setWingBox((prev) => {
+        if (
+          prev &&
+          prev.top === next.top &&
+          prev.left === next.left &&
+          prev.width === next.width &&
+          prev.height === next.height
+        ) {
+          return prev
+        }
+        return next
       })
     }
+
+    const sync = () => {
+      if (!alive) return
+      applyBox(readBox())
+    }
+
+    /** Extra frames after layout events — DOM often settles one frame late. */
+    const syncSoon = () => {
+      sync()
+      cancelAnimationFrame(settleRaf)
+      settleRaf = requestAnimationFrame(() => {
+        sync()
+        settleRaf = requestAnimationFrame(sync)
+      })
+    }
+
     sync()
-    const ro = new ResizeObserver(sync)
+
+    const ro = new ResizeObserver(syncSoon)
     ro.observe(member)
+    const party = member.parentElement
+    if (party) ro.observe(party)
+    const shell =
+      member.closest('.shell--meter') ??
+      member.closest('.meter-backdrop') ??
+      member.closest('.meter-shell')
+    if (shell && shell !== party) ro.observe(shell)
+
+    const mo = party ? new MutationObserver(syncSoon) : null
+    mo?.observe(party!, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
     window.addEventListener('scroll', sync, true)
-    window.addEventListener('resize', sync)
+    window.addEventListener('resize', syncSoon)
+
+    /*
+     * Continuous cheap poll: ResizeObserver misses translate-only layout shifts
+     * (sibling rows removed, header text wrapping). Equality check avoids re-renders.
+     */
+    const tick = () => {
+      if (!alive) return
+      sync()
+      pollRaf = requestAnimationFrame(tick)
+    }
+    pollRaf = requestAnimationFrame(tick)
+
     return () => {
+      alive = false
+      cancelAnimationFrame(pollRaf)
+      cancelAnimationFrame(settleRaf)
       ro.disconnect()
+      mo?.disconnect()
       window.removeEventListener('scroll', sync, true)
-      window.removeEventListener('resize', sync)
+      window.removeEventListener('resize', syncSoon)
+      setWingBox(null)
     }
   }, [memberHost, wings])
 

@@ -49,9 +49,9 @@ type MeterPartyThemedBarProps = {
   isFirstPlace?: boolean
   /** 1-based party place (Mastemon SSS wing / glow states). */
   placeRank?: number
-  /** Live total damage — Mastemon burst glass on +500k jumps. */
+  /** Live total damage — theme burst FX on +500k jumps. */
   totalDamage?: number
-  /** Preview: increment to fire Mastemon glass shatter. */
+  /** Preview: increment to fire theme burst FX. */
   burstSignal?: number
 }
 
@@ -99,7 +99,7 @@ export function MeterPartyThemedBar({
   ) : showAlphamonSssRunes ? (
     <MeterAlphamonOuryukenSssFirstRunes />
   ) : showUlforceSssSwipes ? (
-    <MeterUlforceVeemonXSssFirstSwipes />
+    <MeterUlforceVeemonXSssFirstSwipes totalDamage={totalDamage} burstSignal={burstSignal} />
   ) : null
 
   const bar = (
@@ -221,11 +221,17 @@ export function MeterPartyThemedBar({
       ) : styleId === 'zhuqiaomon' ? (
         <MeterZhuqiaomonLegendaryPhoenixFeathers />
       ) : styleId === 'omegamon' ? (
-        <MeterOmegamonLegendaryGreySword />
+        <MeterOmegamonLegendaryGreySword
+          totalDamage={totalDamage}
+          burstSignal={burstSignal}
+        />
       ) : styleId === 'ulforce-veemon-x' ? (
         <MeterUlforceVeemonXLegendarySpeedLines />
       ) : styleId === 'alphamon-ouryuken' ? (
-        <MeterAlphamonOuryukenLegendaryBlade />
+        <MeterAlphamonOuryukenLegendaryBlade
+          totalDamage={totalDamage}
+          burstSignal={burstSignal}
+        />
       ) : styleId === 'mastemon' ? (
         <MeterMastemonLegendaryFx
           placeRank={resolvedPlace}

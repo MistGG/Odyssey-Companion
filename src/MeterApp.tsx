@@ -1119,10 +1119,8 @@ export default function MeterApp() {
   )
 
   useEffect(() => {
+    /* Sync wanted state only — do not send false on unmount (opaque recreate remounts). */
     void window.odysseyCompanion?.setMeterWingBleed?.(mastemonWingBleed)
-    return () => {
-      void window.odysseyCompanion?.setMeterWingBleed?.(false)
-    }
   }, [mastemonWingBleed])
 
   const detailMember = useMemo(() => {

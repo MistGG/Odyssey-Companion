@@ -7861,6 +7861,7 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
 /*
  * Mastemon wing bleed: transparent side gutters on the shell (window is widened via IPC).
  * Wing overlay is position:fixed on document.body (inline), locked to the member rect.
+ * Gutters must stay see-through — never fill with opaque-window #070a12.
  */
 .shell--meter.meter-shell--mastemon-wings {
   --mastemon-window-gutter: 80px;
@@ -7868,7 +7869,13 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   padding-left: var(--mastemon-window-gutter);
   padding-right: var(--mastemon-window-gutter);
   overflow: visible;
-  background: transparent;
+  background: transparent !important;
+}
+
+body.body--meter:has(.meter-shell--mastemon-wings),
+body.body--meter:has(.meter-shell--mastemon-wings) #root,
+.shell--opaque-windows.shell--meter.meter-shell--mastemon-wings {
+  background: transparent !important;
 }
 
 .shell--meter.meter-shell--mastemon-wings .meter-backdrop {
@@ -12621,6 +12628,775 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   animation: meter-omegamon-blade-slash-garuru 4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
+/* Omegamon +500k — left blue flamethrower, right Grey Sword fiery slash */
+.meter-party-omegamon-burst {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.meter-party-omegamon-burst__flame {
+  position: absolute;
+  left: -10%;
+  top: 2%;
+  bottom: 2%;
+  width: 68%;
+  transform-origin: left center;
+  animation: meter-omegamon-flame-blast 1.05s cubic-bezier(0.4, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__flame-muzzle {
+  position: absolute;
+  left: -2%;
+  top: 50%;
+  width: 22px;
+  height: 34px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(186, 230, 253, 0.85) 35%,
+    rgba(56, 189, 248, 0.4) 65%,
+    transparent 80%
+  );
+  filter: blur(1px);
+  box-shadow:
+    0 0 16px rgba(186, 230, 253, 0.9),
+    0 0 28px rgba(56, 189, 248, 0.55);
+  animation: meter-omegamon-flame-muzzle 1.05s cubic-bezier(0.4, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__flame-glow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 110%;
+  height: 95%;
+  transform: translateY(-50%);
+  border-radius: 45% 80% 80% 45% / 50% 60% 60% 50%;
+  background: radial-gradient(
+    ellipse 70% 60% at 20% 50%,
+    rgba(125, 211, 252, 0.55) 0%,
+    rgba(56, 189, 248, 0.28) 45%,
+    transparent 72%
+  );
+  filter: blur(6px);
+  opacity: 0.85;
+}
+
+.meter-party-omegamon-burst__flame-core {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 108%;
+  height: 78%;
+  transform: translateY(-50%);
+  border-radius: 40% 85% 85% 40% / 50% 62% 62% 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(186, 230, 253, 0.95) 12%,
+    rgba(56, 189, 248, 0.85) 32%,
+    rgba(14, 165, 233, 0.55) 58%,
+    rgba(59, 130, 246, 0.22) 80%,
+    transparent 100%
+  );
+  filter: blur(1.2px);
+  box-shadow:
+    0 0 18px rgba(125, 211, 252, 0.85),
+    0 0 36px rgba(56, 189, 248, 0.55),
+    0 0 52px rgba(14, 165, 233, 0.3);
+}
+
+.meter-party-omegamon-burst__flame-stream {
+  position: absolute;
+  left: 4%;
+  top: 50%;
+  width: 92%;
+  height: 42%;
+  --stream-y: -58%;
+  transform: translateY(var(--stream-y));
+  border-radius: 40% 90% 90% 40% / 50% 60% 60% 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(224, 242, 254, 0.75) 0%,
+    rgba(125, 211, 252, 0.55) 35%,
+    rgba(56, 189, 248, 0.28) 70%,
+    transparent 100%
+  );
+  filter: blur(2.5px);
+  opacity: 0.85;
+  animation: meter-omegamon-flame-stream 1.05s cubic-bezier(0.4, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__flame-stream--2 {
+  height: 36%;
+  --stream-y: -38%;
+  opacity: 0.7;
+  animation-delay: 0.04s;
+  filter: blur(3.5px);
+  background: linear-gradient(
+    90deg,
+    rgba(186, 230, 253, 0.55) 0%,
+    rgba(56, 189, 248, 0.4) 40%,
+    rgba(37, 99, 235, 0.18) 75%,
+    transparent 100%
+  );
+}
+
+.meter-party-omegamon-burst__puff {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(186, 230, 253, 0.8) 28%,
+    rgba(56, 189, 248, 0.45) 55%,
+    transparent 74%
+  );
+  filter: blur(0.9px);
+  opacity: 0;
+  animation: meter-omegamon-puff 1.05s cubic-bezier(0.35, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__puff--1 {
+  left: 2%;
+  top: 14%;
+  width: 26px;
+  height: 26px;
+  animation-delay: 0.02s;
+}
+
+.meter-party-omegamon-burst__puff--2 {
+  left: 12%;
+  top: 48%;
+  width: 32px;
+  height: 30px;
+  animation-delay: 0.06s;
+}
+
+.meter-party-omegamon-burst__puff--3 {
+  left: 22%;
+  top: 18%;
+  width: 24px;
+  height: 24px;
+  animation-delay: 0.1s;
+}
+
+.meter-party-omegamon-burst__puff--4 {
+  left: 30%;
+  top: 58%;
+  width: 28px;
+  height: 26px;
+  animation-delay: 0.14s;
+}
+
+.meter-party-omegamon-burst__puff--5 {
+  left: 40%;
+  top: 32%;
+  width: 22px;
+  height: 22px;
+  animation-delay: 0.18s;
+}
+
+.meter-party-omegamon-burst__puff--6 {
+  left: 48%;
+  top: 52%;
+  width: 20px;
+  height: 20px;
+  animation-delay: 0.24s;
+}
+
+.meter-party-omegamon-burst__puff--7 {
+  left: 54%;
+  top: 22%;
+  width: 18px;
+  height: 18px;
+  animation-delay: 0.3s;
+}
+
+.meter-party-omegamon-burst__puff--8 {
+  left: 58%;
+  top: 44%;
+  width: 16px;
+  height: 16px;
+  animation-delay: 0.36s;
+}
+
+.meter-party-omegamon-burst__ember {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f0f9ff 0%, #7dd3fc 45%, #38bdf8 70%, transparent 100%);
+  box-shadow: 0 0 8px rgba(125, 211, 252, 1);
+  opacity: 0;
+  animation: meter-omegamon-ember 1.05s cubic-bezier(0.35, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__ember--1 {
+  left: 16%;
+  top: 28%;
+  --ey: -8px;
+  animation-delay: 0.06s;
+}
+
+.meter-party-omegamon-burst__ember--2 {
+  left: 28%;
+  top: 60%;
+  width: 4px;
+  height: 4px;
+  --ey: 6px;
+  animation-delay: 0.12s;
+}
+
+.meter-party-omegamon-burst__ember--3 {
+  left: 38%;
+  top: 36%;
+  width: 4.5px;
+  height: 4.5px;
+  --ey: -4px;
+  animation-delay: 0.18s;
+}
+
+.meter-party-omegamon-burst__ember--4 {
+  left: 46%;
+  top: 54%;
+  width: 3.5px;
+  height: 3.5px;
+  --ey: 10px;
+  animation-delay: 0.26s;
+}
+
+.meter-party-omegamon-burst__ember--5 {
+  left: 52%;
+  top: 26%;
+  width: 3px;
+  height: 3px;
+  --ey: -12px;
+  animation-delay: 0.32s;
+}
+
+.meter-party-omegamon-burst__ember--6 {
+  left: 56%;
+  top: 48%;
+  width: 3.5px;
+  height: 3.5px;
+  --ey: 4px;
+  animation-delay: 0.38s;
+}
+
+.meter-party-omegamon-burst__slash {
+  position: absolute;
+  right: -10%;
+  top: -16%;
+  bottom: -16%;
+  width: 72%;
+  animation: meter-omegamon-slash-enter 1.05s cubic-bezier(0.18, 0.9, 0.22, 1) both;
+}
+
+/* Swing rig — grip pivot; tip wave + sword ride together */
+.meter-party-omegamon-burst__swing {
+  position: absolute;
+  right: 18%;
+  top: 8%;
+  width: 36px;
+  height: 118%;
+  transform-origin: 50% 92%;
+  opacity: 0;
+  animation: meter-omegamon-sword-slash 1.05s cubic-bezier(0.45, 0.05, 0.25, 1) both;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.meter-party-omegamon-burst__swing--ghost {
+  filter: blur(1.2px) drop-shadow(0 0 6px rgba(255, 90, 20, 0.55));
+  animation-name: meter-omegamon-sword-slash-ghost;
+  animation-delay: 0.02s;
+}
+
+.meter-party-omegamon-burst__swing--ghost2 {
+  filter: blur(2.4px) drop-shadow(0 0 8px rgba(255, 60, 10, 0.4));
+  animation-name: meter-omegamon-sword-slash-ghost2;
+  animation-delay: 0.04s;
+}
+
+.meter-party-omegamon-burst__sword {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 8px rgba(255, 100, 30, 0.7))
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+  overflow: visible;
+}
+
+/* Fire wave anchored on the blade tip — expands outward during the swipe */
+.meter-party-omegamon-burst__tip-wave {
+  position: absolute;
+  left: 50%;
+  top: 2%;
+  width: 140px;
+  height: 90px;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 55%;
+  pointer-events: none;
+  overflow: visible;
+  filter: drop-shadow(0 0 10px rgba(255, 100, 20, 0.9))
+    drop-shadow(0 0 22px rgba(255, 50, 0, 0.5));
+  animation: meter-omegamon-tip-wave 1.05s cubic-bezier(0.4, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__tip-wave-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.meter-party-omegamon-burst__tip-wave-arc {
+  filter: blur(0.6px);
+}
+
+.meter-party-omegamon-burst__tip-wave-core {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 252, 230, 0.95) 0%,
+    rgba(255, 200, 80, 0.7) 35%,
+    rgba(255, 80, 15, 0.35) 65%,
+    transparent 78%
+  );
+  filter: blur(1.5px);
+  animation: meter-omegamon-tip-core 1.05s ease-out both;
+}
+
+.meter-party-omegamon-burst__tip-wave-ring {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  width: 54px;
+  height: 36px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.35);
+  background: radial-gradient(
+    ellipse 70% 55% at 50% 50%,
+    transparent 30%,
+    rgba(255, 180, 50, 0.55) 48%,
+    rgba(255, 70, 10, 0.45) 62%,
+    transparent 78%
+  );
+  filter: blur(2px);
+  opacity: 0;
+  animation: meter-omegamon-tip-ring 1.05s cubic-bezier(0.4, 0.05, 0.2, 1) both;
+}
+
+.meter-party-omegamon-burst__tip-wave-ring--2 {
+  width: 78px;
+  height: 50px;
+  animation-delay: 0.06s;
+  filter: blur(3.5px);
+  background: radial-gradient(
+    ellipse 72% 55% at 50% 50%,
+    transparent 34%,
+    rgba(255, 140, 30, 0.4) 52%,
+    rgba(220, 40, 0, 0.3) 68%,
+    transparent 82%
+  );
+}
+
+.meter-party-omegamon-burst__tip-wave-ring--3 {
+  width: 108px;
+  height: 68px;
+  animation-delay: 0.12s;
+  filter: blur(5px);
+  background: radial-gradient(
+    ellipse 75% 58% at 50% 50%,
+    transparent 38%,
+    rgba(255, 100, 20, 0.28) 56%,
+    rgba(160, 20, 0, 0.18) 72%,
+    transparent 86%
+  );
+}
+
+.meter-party-omegamon-burst__tip-ember {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8e0 0%, #ffb020 40%, #ff4a00 72%, transparent 100%);
+  box-shadow: 0 0 7px rgba(255, 140, 30, 0.9);
+  opacity: 0;
+  animation: meter-omegamon-tip-ember 0.95s ease-out both;
+}
+
+.meter-party-omegamon-burst__tip-ember--1 {
+  --ex: -18px;
+  --ey: -14px;
+  animation-delay: 0.1s;
+}
+
+.meter-party-omegamon-burst__tip-ember--2 {
+  --ex: 22px;
+  --ey: -10px;
+  width: 4px;
+  height: 4px;
+  animation-delay: 0.16s;
+}
+
+.meter-party-omegamon-burst__tip-ember--3 {
+  --ex: -32px;
+  --ey: 4px;
+  width: 3.5px;
+  height: 3.5px;
+  animation-delay: 0.22s;
+}
+
+.meter-party-omegamon-burst__tip-ember--4 {
+  --ex: 36px;
+  --ey: 6px;
+  width: 4px;
+  height: 4px;
+  animation-delay: 0.28s;
+}
+
+.meter-party-omegamon-burst__tip-ember--5 {
+  --ex: -10px;
+  --ey: 18px;
+  width: 3px;
+  height: 3px;
+  animation-delay: 0.34s;
+}
+
+.meter-party-omegamon-burst__tip-ember--6 {
+  --ex: 14px;
+  --ey: 20px;
+  width: 3px;
+  height: 3px;
+  animation-delay: 0.4s;
+}
+
+@keyframes meter-omegamon-flame-blast {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.18) scaleY(0.65);
+  }
+  12% {
+    opacity: 1;
+    transform: scaleX(0.55) scaleY(0.9);
+  }
+  28% {
+    opacity: 1;
+    transform: scaleX(0.82) scaleY(1.04);
+  }
+  48% {
+    opacity: 1;
+    transform: scaleX(1) scaleY(1.02);
+  }
+  72% {
+    opacity: 0.85;
+    transform: scaleX(1.06) scaleY(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.14) scaleY(0.94);
+  }
+}
+
+@keyframes meter-omegamon-flame-muzzle {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.4);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.15);
+  }
+  40% {
+    opacity: 0.9;
+    transform: translateY(-50%) scale(1);
+  }
+  70% {
+    opacity: 0.55;
+    transform: translateY(-50%) scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.6);
+  }
+}
+
+@keyframes meter-omegamon-flame-stream {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--stream-y, -58%)) scaleX(0.25);
+  }
+  18% {
+    opacity: 0.9;
+    transform: translateY(var(--stream-y, -58%)) scaleX(0.7);
+  }
+  45% {
+    opacity: 0.85;
+    transform: translateY(var(--stream-y, -58%)) scaleX(1);
+  }
+  75% {
+    opacity: 0.5;
+    transform: translateY(var(--stream-y, -58%)) scaleX(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--stream-y, -58%)) scaleX(1.15);
+  }
+}
+
+@keyframes meter-omegamon-puff {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.35);
+  }
+  18% {
+    opacity: 0.95;
+    transform: translateX(2px) scale(0.95);
+  }
+  42% {
+    opacity: 0.9;
+    transform: translateX(14px) scale(1.2);
+  }
+  70% {
+    opacity: 0.55;
+    transform: translateX(28px) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(40px) scale(1.55);
+  }
+}
+
+@keyframes meter-omegamon-ember {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.45);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(10px, calc(var(--ey, 0px) * 0.3)) scale(1.1);
+  }
+  55% {
+    opacity: 0.8;
+    transform: translate(24px, calc(var(--ey, 0px) * 0.7)) scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(42px, var(--ey, -6px)) scale(0.3);
+  }
+}
+
+@keyframes meter-omegamon-slash-enter {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Tip wave grows from the blade tip outward while the swing carries it */
+@keyframes meter-omegamon-tip-wave {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.28);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.75);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+  70% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.65);
+  }
+}
+
+@keyframes meter-omegamon-tip-core {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  55% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.55);
+  }
+}
+
+@keyframes meter-omegamon-tip-ring {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  25% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  55% {
+    opacity: 0.65;
+    transform: translate(-50%, -50%) scale(1.35);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+}
+
+@keyframes meter-omegamon-tip-ember {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(calc(var(--ex, 0px) * 0.4), calc(var(--ey, 0px) * 0.4)) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--ex, 0px), var(--ey, 0px)) scale(0.35);
+  }
+}
+
+/* Even angular steps so the arc reads continuous at 1.05s */
+@keyframes meter-omegamon-sword-slash {
+  0% {
+    opacity: 0;
+    transform: rotate(-118deg) translateY(-6%) scale(0.9);
+  }
+  8% {
+    opacity: 1;
+    transform: rotate(-102deg) translateY(-4%) scale(0.94);
+  }
+  22% {
+    opacity: 1;
+    transform: rotate(-72deg) translateY(-1%) scale(0.98);
+  }
+  38% {
+    opacity: 1;
+    transform: rotate(-40deg) translateY(1%) scale(1.02);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-10deg) translateY(3%) scale(1.03);
+  }
+  72% {
+    opacity: 1;
+    transform: rotate(12deg) translateY(4%) scale(1);
+  }
+  88% {
+    opacity: 0.55;
+    transform: rotate(24deg) translateY(5%) scale(0.97);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(32deg) translateY(6%) scale(0.94);
+  }
+}
+
+@keyframes meter-omegamon-sword-slash-ghost {
+  0% {
+    opacity: 0;
+    transform: rotate(-118deg) translateY(-6%) scale(0.9);
+  }
+  10% {
+    opacity: 0.4;
+    transform: rotate(-100deg) translateY(-4%) scale(0.93);
+  }
+  28% {
+    opacity: 0.38;
+    transform: rotate(-68deg) translateY(-1%) scale(0.97);
+  }
+  48% {
+    opacity: 0.3;
+    transform: rotate(-32deg) translateY(1%) scale(1);
+  }
+  68% {
+    opacity: 0.18;
+    transform: rotate(2deg) translateY(3%) scale(0.98);
+  }
+  88% {
+    opacity: 0.08;
+    transform: rotate(18deg) translateY(4%) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(26deg) translateY(5%) scale(0.92);
+  }
+}
+
+@keyframes meter-omegamon-sword-slash-ghost2 {
+  0% {
+    opacity: 0;
+    transform: rotate(-118deg) translateY(-6%) scale(0.9);
+  }
+  12% {
+    opacity: 0.26;
+    transform: rotate(-98deg) translateY(-4%) scale(0.92);
+  }
+  32% {
+    opacity: 0.22;
+    transform: rotate(-62deg) translateY(0%) scale(0.96);
+  }
+  52% {
+    opacity: 0.16;
+    transform: rotate(-26deg) translateY(2%) scale(0.98);
+  }
+  72% {
+    opacity: 0.08;
+    transform: rotate(4deg) translateY(3%) scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(20deg) translateY(4%) scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-party-omegamon-burst {
+    display: none;
+  }
+}
+
 .meter-party-bar-theme--legendary.meter-party-bar-theme--ulforce-veemon-x::before,
 .meter-party-bar-theme--legendary.meter-party-bar-theme--ulforce-veemon-x::after {
   content: none;
@@ -12883,6 +13659,206 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   width: 3.5px;
   height: 3.5px;
   animation-delay: 0.24s;
+}
+
+/* Alphamon +500k — electrical current traveling along top/bottom borders */
+.meter-party-alphamon-current {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.meter-party-alphamon-current__origin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 120%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 248, 220, 0.7) 0%,
+    rgba(232, 200, 114, 0.35) 40%,
+    transparent 72%
+  );
+  animation: meter-alphamon-current-origin 0.75s ease-out both;
+}
+
+.meter-party-alphamon-current__rail {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+}
+
+.meter-party-alphamon-current__rail--top {
+  top: -1px;
+}
+
+.meter-party-alphamon-current__rail--bottom {
+  bottom: -1px;
+}
+
+.meter-party-alphamon-current__track {
+  fill: none;
+  stroke: rgba(212, 175, 55, 0.28);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.meter-party-alphamon-current__stroke {
+  fill: none;
+  stroke: #fff3c4;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px rgba(255, 236, 170, 0.95))
+    drop-shadow(0 0 7px rgba(212, 175, 55, 0.85));
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  opacity: 0;
+}
+
+.meter-party-alphamon-current__stroke--left {
+  animation: meter-alphamon-current-draw 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.meter-party-alphamon-current__stroke--right {
+  animation: meter-alphamon-current-draw 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.meter-party-alphamon-current__rail--bottom .meter-party-alphamon-current__stroke--left,
+.meter-party-alphamon-current__rail--bottom .meter-party-alphamon-current__stroke--right {
+  animation-delay: 0.05s;
+}
+
+.meter-party-alphamon-current__head {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf0 0%, #f0d78a 40%, #b8860b 70%, transparent 100%);
+  box-shadow:
+    0 0 6px rgba(255, 248, 220, 1),
+    0 0 12px rgba(232, 200, 114, 0.9),
+    0 0 18px rgba(184, 148, 48, 0.55);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.meter-party-alphamon-current__head--top-left,
+.meter-party-alphamon-current__head--top-right {
+  top: 5px;
+}
+
+.meter-party-alphamon-current__head--bottom-left,
+.meter-party-alphamon-current__head--bottom-right {
+  bottom: 5px;
+  top: auto;
+  margin-top: 0;
+  margin-bottom: -4.5px;
+}
+
+.meter-party-alphamon-current__head--top-left {
+  left: 50%;
+  animation: meter-alphamon-current-head-left 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.meter-party-alphamon-current__head--top-right {
+  left: 50%;
+  animation: meter-alphamon-current-head-right 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.meter-party-alphamon-current__head--bottom-left {
+  left: 50%;
+  animation: meter-alphamon-current-head-left 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) 0.05s both;
+}
+
+.meter-party-alphamon-current__head--bottom-right {
+  left: 50%;
+  animation: meter-alphamon-current-head-right 0.7s cubic-bezier(0.2, 0.8, 0.25, 1) 0.05s both;
+}
+
+@keyframes meter-alphamon-current-draw {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 90;
+  }
+  8% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes meter-alphamon-current-head-left {
+  0% {
+    opacity: 0;
+    left: 50%;
+  }
+  10% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+    left: 1%;
+  }
+  100% {
+    opacity: 0;
+    left: 0%;
+  }
+}
+
+@keyframes meter-alphamon-current-head-right {
+  0% {
+    opacity: 0;
+    left: 50%;
+  }
+  10% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+    left: 99%;
+  }
+  100% {
+    opacity: 0;
+    left: 100%;
+  }
+}
+
+@keyframes meter-alphamon-current-origin {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleY(0.4);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleY(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-party-alphamon-current {
+    display: none;
+  }
 }
 
 /* ——— Mastemon (Verdandi) ——— */
@@ -13645,6 +14621,10 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
   overflow: visible;
 }
 
+.meter-party-ulforce-sss-swipes--bursting {
+  inset: -18px -14px;
+}
+
 .meter-party-ulforce-sss-sword {
   position: absolute;
   left: 50%;
@@ -13749,6 +14729,68 @@ body.body--opaque-windows.body--hud.body--hud-locked #root {
     transform: scaleX(-1) rotate(-14deg);
   }
   52% {
+    opacity: 0;
+    transform: scaleX(-1) rotate(-18deg);
+  }
+}
+
+/* +500k flurry — after idle rules so burst wins on specificity/order */
+.meter-party-ulforce-sss-sword--burst {
+  width: 36px;
+  height: 112px;
+  animation-name: meter-ulforce-sss-sword-burst;
+  animation-duration: 0.22s;
+  animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1);
+  animation-fill-mode: both;
+  filter: drop-shadow(0 0 9px rgba(34, 211, 238, 0.95))
+    drop-shadow(0 0 18px rgba(8, 145, 178, 0.65));
+}
+
+.meter-party-ulforce-sss-sword--burst .meter-party-ulforce-sss-sword__arc {
+  animation-name: meter-ulforce-sss-arc-smear;
+  animation-duration: 0.22s;
+  animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1);
+  animation-fill-mode: both;
+  width: 100px;
+  height: 100px;
+  margin-left: -50px;
+  top: 2%;
+}
+
+.meter-party-ulforce-sss-sword--burst.meter-party-ulforce-sss-sword--mirror-arc
+  .meter-party-ulforce-sss-sword__arc {
+  animation-name: meter-ulforce-sss-arc-smear-mirror-burst;
+}
+
+@keyframes meter-ulforce-sss-sword-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--ulforce-sword-mid, 45deg) - 48deg))
+      scale(0.92);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(calc(var(--ulforce-sword-mid, 45deg) + 48deg))
+      scale(1.05);
+  }
+}
+
+@keyframes meter-ulforce-sss-arc-smear-mirror-burst {
+  0% {
+    opacity: 0;
+    transform: scaleX(-1) scaleY(1) rotate(0deg);
+  }
+  14% {
+    opacity: 0.75;
+  }
+  70% {
+    opacity: 0.45;
+    transform: scaleX(-1) rotate(-12deg);
+  }
+  100% {
     opacity: 0;
     transform: scaleX(-1) rotate(-18deg);
   }

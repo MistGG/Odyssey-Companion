@@ -408,8 +408,25 @@ let timersLootDetailSavedBounds: Rectangle | null = null
 /** Content bounds before Mastemon wing gutters — restored when bleed turns off. */
 let meterWingBleedSavedBounds: Rectangle | null = null
 let meterWingBleedActive = false
+/** Last renderer-requested wing-bleed state (debounce survives opaque-window recreate remounts). */
+let meterWingBleedWanted = false
+let meterWingBleedApplyTimer: NodeJS.Timeout | null = null
 /** Transparent side margin so Mastemon wings paint outside the opaque meter panel. */
 const MASTEMON_WING_WINDOW_GUTTER = 80
+
+/**
+ * Meter wing gutters must punch through to the game (same idea as locked Digi Aura).
+ * `transparent` is constructor-only, so wing-bleed toggles recreate when opaque overlays are on.
+ */
+function meterWindowChromeOptions(): Pick<
+  Electron.BrowserWindowConstructorOptions,
+  'transparent' | 'backgroundColor'
+> {
+  if (meterWingBleedActive) {
+    return { transparent: true, backgroundColor: '#00000000' }
+  }
+  return overlayWindowChromeOptions()
+}
 /** Unified settings (fixed layout; not tied to overlay size). */
 let settingsWin: BrowserWindow | null = null
 /** EventStream WebSocket log viewer (dev / support). */
@@ -1145,7 +1162,7 @@ function createMeterWindow() {
     ...(os.platform() === 'win32'
       ? { roundedCorners: false as const, thickFrame: true as const }
       : {}),
-    ...overlayWindowChromeOptions(),
+    ...meterWindowChromeOptions(),
     frame: false,
     alwaysOnTop: true,
     autoHideMenuBar: true,
@@ -2147,33 +2164,62 @@ ipcMain.on('hud:apply-options', (_e, opts: unknown) => {
   }
 })
 
+function applyMeterWingBleed() {
+  if (!meterWin || meterWin.isDestroyed()) return
+
+  if (meterWingBleedWanted) {
+    if (meterWingBleedActive) {
+      meterWin.setBackgroundColor('#00000000')
+      return
+    }
+    const contentBounds = meterWin.getBounds()
+    meterWingBleedSavedBounds = contentBounds
+    meterWingBleedActive = true
+    const opaqueOverlays = lastOverlaySettings?.overlayOpaqueWindows === true
+    /* transparent is constructor-only — recreate so gutters aren't filled with #070a12. */
+    if (opaqueOverlays) {
+      recreateMeterWindowForOpaqueToggle()
+    }
+    if (!meterWin || meterWin.isDestroyed()) return
+    meterWin.setBounds({
+      x: contentBounds.x - MASTEMON_WING_WINDOW_GUTTER,
+      y: contentBounds.y,
+      width: contentBounds.width + MASTEMON_WING_WINDOW_GUTTER * 2,
+      height: contentBounds.height,
+    })
+    meterWin.setBackgroundColor('#00000000')
+    return
+  }
+
+  if (!meterWingBleedActive) return
+  const restore = meterWingBleedSavedBounds
+  meterWingBleedSavedBounds = null
+  meterWingBleedActive = false
+  const opaqueOverlays = lastOverlaySettings?.overlayOpaqueWindows === true
+  if (opaqueOverlays) {
+    recreateMeterWindowForOpaqueToggle()
+  }
+  if (meterWin && !meterWin.isDestroyed() && restore) {
+    meterWin.setBounds(restore)
+    meterWin.setBackgroundColor(opaqueOverlays ? OVERLAY_WINDOW_BG_OPAQUE : '#00000000')
+  }
+}
+
 ipcMain.handle('meter:set-wing-bleed', (_evt, enabled: unknown) => {
-  if (!meterWin || meterWin.isDestroyed()) {
-    return { ok: false as const, error: 'No meter window' }
+  if (enabled !== true && enabled !== false) {
+    return { ok: false as const, error: 'Invalid enabled flag' }
   }
-  if (enabled === true) {
-    if (!meterWingBleedActive) {
-      const b = meterWin.getBounds()
-      meterWingBleedSavedBounds = b
-      meterWin.setBounds({
-        x: b.x - MASTEMON_WING_WINDOW_GUTTER,
-        y: b.y,
-        width: b.width + MASTEMON_WING_WINDOW_GUTTER * 2,
-        height: b.height,
-      })
-      meterWingBleedActive = true
-    }
-    return { ok: true as const }
-  }
-  if (enabled === false) {
-    if (meterWingBleedActive && meterWingBleedSavedBounds) {
-      meterWin.setBounds(meterWingBleedSavedBounds)
-      meterWingBleedSavedBounds = null
-      meterWingBleedActive = false
-    }
-    return { ok: true as const }
-  }
-  return { ok: false as const, error: 'Invalid enabled flag' }
+  meterWingBleedWanted = enabled === true
+  if (meterWingBleedApplyTimer != null) clearTimeout(meterWingBleedApplyTimer)
+  /*
+   * Debounce: opaque recreate unmounts the renderer (sends false) then remounts (sends true).
+   * Collapsing on that false would flash the blue gutter fill / wrong bounds.
+   */
+  meterWingBleedApplyTimer = setTimeout(() => {
+    meterWingBleedApplyTimer = null
+    applyMeterWingBleed()
+  }, 50)
+  return { ok: true as const }
 })
 
 ipcMain.handle(

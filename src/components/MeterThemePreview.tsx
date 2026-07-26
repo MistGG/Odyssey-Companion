@@ -44,8 +44,20 @@ export function MeterThemePreview({
   className = '',
   hofRecordCount = 0,
 }: MeterThemePreviewProps) {
-  const mastemonBurstPreview =
-    isVerdandiSssLegendaryTheme(theme) && theme.barStyleId === 'mastemon'
+  const burstPreview =
+    isVerdandiSssLegendaryTheme(theme) &&
+    (theme.barStyleId === 'mastemon' ||
+      theme.barStyleId === 'alphamon-ouryuken' ||
+      theme.barStyleId === 'omegamon' ||
+      theme.barStyleId === 'ulforce-veemon-x')
+  const burstPreviewTitle =
+    theme.barStyleId === 'alphamon-ouryuken'
+      ? 'Click to preview edge current'
+      : theme.barStyleId === 'omegamon'
+        ? 'Click to preview dual burst'
+        : theme.barStyleId === 'ulforce-veemon-x'
+          ? 'Click to preview rapid swipes'
+          : 'Click to preview glass shatter'
   const [burstSignals, setBurstSignals] = useState<Record<number, number>>({})
 
   const sssRuneEscape =
@@ -57,7 +69,7 @@ export function MeterThemePreview({
 
   return (
     <div
-      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${sssRuneEscape ? ' meter-theme-preview--sss-rune-escape' : ''}${mastemonBurstPreview ? ' meter-theme-preview--mastemon-burst' : ''}${className ? ` ${className}` : ''}`}
+      className={`meter-theme-preview meter-parses-meter-chrome${theme.variant === 'rare' ? ' meter-theme-preview--rare' : ''}${theme.variant === 'legendary' ? ' meter-theme-preview--legendary' : ''}${sssRuneEscape ? ' meter-theme-preview--sss-rune-escape' : ''}${burstPreview ? ' meter-theme-preview--mastemon-burst' : ''}${className ? ` ${className}` : ''}`}
       aria-label={`${theme.label} party bar preview`}
     >
       {rows.map((row, index) => {
@@ -72,7 +84,7 @@ export function MeterThemePreview({
         const mastemonPlaceClass = themed
           ? meterPartyMemberMastemonPlaceClass(theme, placeRank)
           : ''
-        const canBurstClick = themed && mastemonBurstPreview
+        const canBurstClick = themed && burstPreview
         // Live meter uses sss-bleed; previews must not — negative margins steal Equip/Buy clicks.
 
         return (
@@ -80,7 +92,7 @@ export function MeterThemePreview({
             key={rowKey}
             className={`meter-party-member${themed ? ' meter-party-member--bar-theme' : ''}${themed ? meterPartyMemberThemeClass(theme) : ''}${sssFirstClass}${mastemonPlaceClass}${canBurstClick ? ' meter-party-member--mastemon-burst-hit' : ''}`}
             style={themeStyle}
-            title={canBurstClick ? 'Click to preview glass shatter' : undefined}
+            title={canBurstClick ? burstPreviewTitle : undefined}
             onClick={
               canBurstClick
                 ? () => {
