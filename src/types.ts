@@ -497,9 +497,34 @@ export type WikiNpcDetail = {
   model_id: string
 }
 
-/** `GET …/api/wiki/items?id=` — fields used for reward icon URLs. */
+/** Field / open-world drop row from `GET …/api/wiki/items?id=`. */
+export type WikiItemDropSource = {
+  monster_id: string
+  monster_name: string
+  monster_level: number
+  quantity: number
+  drop_type: string
+  locations: { map_id: string; map_name: string; count: number }[]
+}
+
+/** Raid reward row from `GET …/api/wiki/items?id=`. */
+export type WikiItemRaidSource = {
+  boss_id: string
+  boss_name: string
+  boss_level: number
+  dungeons: { id: string; name: string }[]
+  rank_start: number
+  rank_end: number
+  rate: number
+  min: number
+  max: number
+}
+
+/** `GET …/api/wiki/items?id=` — fields used for reward icon URLs + farm sources. */
 export type WikiItemDetail = {
   id: string
   name: string
   icon_id: string
+  drop_sources?: WikiItemDropSource[]
+  raid_sources?: WikiItemRaidSource[]
 }

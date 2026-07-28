@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('odysseyCompanion', {
 
   fetchWikiItem: (id: string) => ipcRenderer.invoke('wiki:fetch-item', id),
 
+  loadMiscFarmPlan: () => ipcRenderer.invoke('misc:load-farm-plan') as Promise<unknown>,
+
+  saveMiscFarmPlan: (plan: unknown) =>
+    ipcRenderer.invoke('misc:save-farm-plan', plan) as Promise<boolean>,
+
   fetchForumTeaser: () =>
     ipcRenderer.invoke('forum:fetch-teaser') as Promise<{
       imageUrl: string

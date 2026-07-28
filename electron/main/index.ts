@@ -38,6 +38,7 @@ import { isOverlaySettings } from '../../src/lib/overlaySettingsGuard'
 import { normalizeSettingsSection } from '../../src/lib/settingsSection'
 import type { OverlaySettings, StartupPanelKey } from '../../src/types'
 import { readOverlaySettingsFromDisk, writeOverlaySettingsToDisk } from './overlaySettingsDisk'
+import { readMiscFarmPlanFromDisk, writeMiscFarmPlanToDisk } from './miscFarmPlanDisk'
 import {
   bossTimerAlertTick,
   setActiveRaidBossAlerts,
@@ -1992,6 +1993,13 @@ ipcMain.handle('wiki:fetch-item', async (_evt, id: string) => {
     throw new Error(`Item detail returned ${res.status}`)
   }
   return res.json() as Promise<unknown>
+})
+
+ipcMain.handle('misc:load-farm-plan', () => readMiscFarmPlanFromDisk())
+
+ipcMain.handle('misc:save-farm-plan', (_evt, plan: unknown) => {
+  writeMiscFarmPlanToDisk(plan)
+  return true
 })
 
 ipcMain.handle('market:open-login', () => showMarketLoginWindow())

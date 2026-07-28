@@ -20,6 +20,8 @@ declare global {
       fetchWikiDigimon?: (id: string) => Promise<unknown>
       fetchWikiNpc: (id: string) => Promise<unknown>
       fetchWikiItem: (id: string) => Promise<unknown>
+      loadMiscFarmPlan?: () => Promise<unknown>
+      saveMiscFarmPlan?: (plan: unknown) => Promise<boolean>
       fetchForumTeaser?: () => Promise<{
         imageUrl: string
         readMoreUrl: string
