@@ -25,14 +25,14 @@ const SHARED_APOCALYPTIC: PurifiedFragmentMaterial = {
   itemId: 'iyuj9dd',
   name: 'Apocalyptic Fragment',
   iconId: 'neuzs29',
-  perCraft: 100,
+  perCraft: 30,
 }
 
 const SHARED_DREAM: PurifiedFragmentMaterial = {
   itemId: 'i1t61wt4',
   name: 'Pieces of a Dream',
   iconId: 'n7qkhmq',
-  perCraft: 100,
+  perCraft: 30,
 }
 
 export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
@@ -42,12 +42,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Courage',
     iconId: 'ns0mjf5',
     materials: [
-      { itemId: 'i491wgt', name: 'Fragment of Courage', iconId: 'ns0mjf5', perCraft: 50 },
+      { itemId: 'i491wgt', name: 'Fragment of Courage', iconId: 'ns0mjf5', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'i1s60o7o', name: 'Dragonic Shard', iconId: 'n1p2s5xl', perCraft: 100 },
-      { itemId: 'i1vb29wl', name: 'Dragonic Core', iconId: 'n1d99vsm', perCraft: 50 },
-      { itemId: 'isjzw8f', name: 'Fire Essence', iconId: 'nyr1er6', perCraft: 20 },
+      { itemId: 'i1s60o7o', name: 'Dragonic Shard', iconId: 'n1p2s5xl', perCraft: 30 },
+      { itemId: 'i1vb29wl', name: 'Dragonic Core', iconId: 'n1d99vsm', perCraft: 15 },
+      { itemId: 'isjzw8f', name: 'Fire Essence', iconId: 'nyr1er6', perCraft: 6 },
     ],
   },
   {
@@ -56,12 +56,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Friendship',
     iconId: 'n1o1maoh',
     materials: [
-      { itemId: 'i1qr3bol', name: 'Fragment of Friendship', iconId: 'n1o1maoh', perCraft: 50 },
+      { itemId: 'i1qr3bol', name: 'Fragment of Friendship', iconId: 'n1o1maoh', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'i1qajj7n', name: 'Bestial Shard', iconId: 'n4lorux', perCraft: 100 },
-      { itemId: 'icxqo7s', name: 'Bestial Core', iconId: 'n1vtsfyi', perCraft: 50 },
-      { itemId: 'ira1qxj', name: 'Ice Essence', iconId: 'n1a5qnol', perCraft: 20 },
+      { itemId: 'i1qajj7n', name: 'Bestial Shard', iconId: 'n4lorux', perCraft: 30 },
+      { itemId: 'icxqo7s', name: 'Bestial Core', iconId: 'n1vtsfyi', perCraft: 15 },
+      { itemId: 'ira1qxj', name: 'Ice Essence', iconId: 'n1a5qnol', perCraft: 6 },
     ],
   },
   {
@@ -70,12 +70,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Love',
     iconId: 'n1ldfzgn',
     materials: [
-      { itemId: 'i4i7y6j', name: 'Fragment of Love', iconId: 'n1ldfzgn', perCraft: 50 },
+      { itemId: 'i4i7y6j', name: 'Fragment of Love', iconId: 'n1ldfzgn', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'i54x3vi', name: 'Gale Shard', iconId: 'n10e0rbo', perCraft: 100 },
-      { itemId: 'i9eyh3l', name: 'Gale Core', iconId: 'ni4a9r', perCraft: 50 },
-      { itemId: 'i1ujx88s', name: 'Wind Essence', iconId: 'n85aneh', perCraft: 20 },
+      { itemId: 'i54x3vi', name: 'Gale Shard', iconId: 'n10e0rbo', perCraft: 30 },
+      { itemId: 'i9eyh3l', name: 'Gale Core', iconId: 'ni4a9r', perCraft: 15 },
+      { itemId: 'i1ujx88s', name: 'Wind Essence', iconId: 'n85aneh', perCraft: 6 },
     ],
   },
   {
@@ -84,12 +84,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Hope',
     iconId: 'nc08rbo',
     materials: [
-      { itemId: 'iumekga', name: 'Fragment of Hope', iconId: 'nc08rbo', perCraft: 50 },
+      { itemId: 'iumekga', name: 'Fragment of Hope', iconId: 'nc08rbo', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'inrc4zq', name: 'Shadow Shard', iconId: 'n1me6mp9', perCraft: 100 },
-      { itemId: 'i1r6u9aq', name: 'Shadow Core', iconId: 'nxl7xby', perCraft: 50 },
-      { itemId: 'i1x76lly', name: 'Dark Essence', iconId: 'n1i4ejik', perCraft: 20 },
+      { itemId: 'inrc4zq', name: 'Shadow Shard', iconId: 'n1me6mp9', perCraft: 30 },
+      { itemId: 'i1r6u9aq', name: 'Shadow Core', iconId: 'nxl7xby', perCraft: 15 },
+      { itemId: 'i1x76lly', name: 'Dark Essence', iconId: 'n1i4ejik', perCraft: 6 },
     ],
   },
   {
@@ -98,12 +98,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Knowledge',
     iconId: 'n1khrfxn',
     materials: [
-      { itemId: 'i1loz604', name: 'Fragment of Knowledge', iconId: 'n1khrfxn', perCraft: 50 },
+      { itemId: 'i1loz604', name: 'Fragment of Knowledge', iconId: 'n1khrfxn', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 100 },
-      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 50 },
-      { itemId: 'i1i9sthj', name: 'Thunder Essence', iconId: 'nphm1dr', perCraft: 20 },
+      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 30 },
+      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 15 },
+      { itemId: 'i1i9sthj', name: 'Thunder Essence', iconId: 'nphm1dr', perCraft: 6 },
     ],
   },
   {
@@ -112,12 +112,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Reliability',
     iconId: 'nw825c9',
     materials: [
-      { itemId: 'igwo9t7', name: 'Fragment of Reliability', iconId: 'nw825c9', perCraft: 50 },
+      { itemId: 'igwo9t7', name: 'Fragment of Reliability', iconId: 'nw825c9', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'icv7d0n', name: 'Verdant Shard', iconId: 'n1z5ves', perCraft: 100 },
-      { itemId: 'i1apqmn8', name: 'Verdant Core', iconId: 'n1hzvmzj', perCraft: 50 },
-      { itemId: 'i1uufxlb', name: 'Wood Essence', iconId: 'neki26u', perCraft: 20 },
+      { itemId: 'icv7d0n', name: 'Verdant Shard', iconId: 'n1z5ves', perCraft: 30 },
+      { itemId: 'i1apqmn8', name: 'Verdant Core', iconId: 'n1hzvmzj', perCraft: 15 },
+      { itemId: 'i1uufxlb', name: 'Wood Essence', iconId: 'neki26u', perCraft: 6 },
     ],
   },
   {
@@ -126,12 +126,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Sincerity',
     iconId: 'n1qg9ueq',
     materials: [
-      { itemId: 'ilxle91', name: 'Fragment of Sincerity', iconId: 'n1qg9ueq', perCraft: 50 },
+      { itemId: 'ilxle91', name: 'Fragment of Sincerity', iconId: 'n1qg9ueq', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'ix90r36', name: 'Abyssal Shard', iconId: 'n2uj4bw', perCraft: 100 },
-      { itemId: 'i1sptsdr', name: 'Abyssal Core', iconId: 'nl1vqr7', perCraft: 50 },
-      { itemId: 'ifpgwxy', name: 'Water Essence', iconId: 'nhfw7uf', perCraft: 20 },
+      { itemId: 'ix90r36', name: 'Abyssal Shard', iconId: 'n2uj4bw', perCraft: 30 },
+      { itemId: 'i1sptsdr', name: 'Abyssal Core', iconId: 'nl1vqr7', perCraft: 15 },
+      { itemId: 'ifpgwxy', name: 'Water Essence', iconId: 'nhfw7uf', perCraft: 6 },
     ],
   },
   {
@@ -140,12 +140,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Light',
     iconId: 'n14fjga4',
     materials: [
-      { itemId: 'ih9i2ow', name: 'Fragment of Light', iconId: 'n14fjga4', perCraft: 50 },
+      { itemId: 'ih9i2ow', name: 'Fragment of Light', iconId: 'n14fjga4', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 100 },
-      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 50 },
-      { itemId: 'i13l67ch', name: 'Light Essence', iconId: 'n1xn8jsk', perCraft: 20 },
+      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 30 },
+      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 15 },
+      { itemId: 'i13l67ch', name: 'Light Essence', iconId: 'n1xn8jsk', perCraft: 6 },
     ],
   },
   {
@@ -154,12 +154,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Kindness',
     iconId: 'n1chn0bi',
     materials: [
-      { itemId: 'irixjy2', name: 'Fragment of Kindness', iconId: 'n1chn0bi', perCraft: 50 },
+      { itemId: 'irixjy2', name: 'Fragment of Kindness', iconId: 'n1chn0bi', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'icv7d0n', name: 'Verdant Shard', iconId: 'n1z5ves', perCraft: 100 },
-      { itemId: 'i1apqmn8', name: 'Verdant Core', iconId: 'n1hzvmzj', perCraft: 50 },
-      { itemId: 'i1qiblbp', name: 'Earth Essence', iconId: 'n933lu8', perCraft: 20 },
+      { itemId: 'icv7d0n', name: 'Verdant Shard', iconId: 'n1z5ves', perCraft: 30 },
+      { itemId: 'i1apqmn8', name: 'Verdant Core', iconId: 'n1hzvmzj', perCraft: 15 },
+      { itemId: 'i1qiblbp', name: 'Earth Essence', iconId: 'n933lu8', perCraft: 6 },
     ],
   },
   {
@@ -168,12 +168,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Fate',
     iconId: 'n1pkwqsy',
     materials: [
-      { itemId: 'i1jzmh8d', name: 'Fragment of Fate', iconId: 'n1pkwqsy', perCraft: 50 },
+      { itemId: 'i1jzmh8d', name: 'Fragment of Fate', iconId: 'n1pkwqsy', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 100 },
-      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 50 },
-      { itemId: 'i1776jto', name: 'Steel Essence', iconId: 'n1n9enf6', perCraft: 20 },
+      { itemId: 'if08jw9', name: 'Chromatic Shard', iconId: 'n8vgzcy', perCraft: 30 },
+      { itemId: 'i9rvija', name: 'Chromatic Core', iconId: 'n195ut2q', perCraft: 15 },
+      { itemId: 'i1776jto', name: 'Steel Essence', iconId: 'n1n9enf6', perCraft: 6 },
     ],
   },
   {
@@ -182,12 +182,12 @@ export const PURIFIED_FRAGMENT_RECIPES: readonly PurifiedFragmentRecipe[] = [
     shortLabel: 'Miracle',
     iconId: 'npf9uce',
     materials: [
-      { itemId: 'i7vo81', name: 'Fragment of Miracle', iconId: 'npf9uce', perCraft: 50 },
+      { itemId: 'i7vo81', name: 'Fragment of Miracle', iconId: 'npf9uce', perCraft: 30 },
       SHARED_APOCALYPTIC,
       SHARED_DREAM,
-      { itemId: 'i190is93', name: 'Radiant Shard', iconId: 'n81vgkn', perCraft: 100 },
-      { itemId: 'ipit01v', name: 'Radiant Core', iconId: 'ncqbxhj', perCraft: 50 },
-      { itemId: 'i13l67ch', name: 'Light Essence', iconId: 'n1xn8jsk', perCraft: 20 },
+      { itemId: 'i190is93', name: 'Radiant Shard', iconId: 'n81vgkn', perCraft: 30 },
+      { itemId: 'ipit01v', name: 'Radiant Core', iconId: 'ncqbxhj', perCraft: 15 },
+      { itemId: 'i13l67ch', name: 'Light Essence', iconId: 'n1xn8jsk', perCraft: 6 },
     ],
   },
 ]

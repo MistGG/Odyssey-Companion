@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.123",
+  "version": "0.1.124",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Added rates and estimated runs for purified fragment farm"
+      "releaseNotes": "- Updated purified fragment crafting costs"
     }
   }
 }
