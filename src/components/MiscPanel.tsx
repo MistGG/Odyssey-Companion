@@ -6,18 +6,21 @@ import {
   saveMiscFarmPlan,
   type MiscFarmView,
 } from '../lib/miscFarmPlanStorage'
+import { formatDropRatePermille } from '../lib/wikiDropRateFormat'
 import { wikiItemIconUrl } from '../lib/wikiItemDetailApi'
 import {
   PURIFIED_FRAGMENT_RECIPES,
   aggregatePurifiedCraftCosts,
   enrichIdealFarmsForFocus,
   enrichIdealFarmsWithDifficulties,
+  expectedRunsForRemaining,
   fetchPurifiedRecipeItems,
   fetchWikiItemsByIds,
   materialNeedsWithOwned,
   purifiedMaterialCatalog,
   rankIdealFarms,
   rankIdealFarmsForItems,
+  scalePurifiedMaterials,
   type IdealFarmHit,
   type PurifiedFragmentRecipe,
 } from '../lib/purifiedFragmentFarm'
@@ -38,68 +41,166 @@ function parseQty(raw: string): number {
   return n
 }
 
+function formatExpectedPerRun(n: number): string {
+  if (!(n > 0)) return '—'
+  if (n >= 10) return n.toFixed(1)
+  if (n >= 1) return n.toFixed(2)
+  return n.toFixed(3)
+}
+
+function formatExpectedRuns(n: number | null): string {
+  if (n === null) return '—'
+  if (n === 0) return '0'
+  return n.toLocaleString()
+}
+
 function FarmRows({
   farms,
   focusIds,
   focusTotal,
+  remainingByItem,
   onOpenDungeon,
   materialIconById,
 }: {
   farms: IdealFarmHit[]
   focusIds: Set<string>
   focusTotal: number
+  remainingByItem: Map<string, number>
   onOpenDungeon: (dungeonId: string) => void
   materialIconById: Map<string, string>
 }) {
+  const [expandedIds, setExpandedIds] = useState<Record<string, true>>({})
+
+  function toggleExpand(id: string) {
+    setExpandedIds((prev) => {
+      const next = { ...prev }
+      if (next[id]) delete next[id]
+      else next[id] = true
+      return next
+    })
+  }
+
   return (
     <ul className="misc-panel__farms">
       {farms.map((farm) => {
         const openId = farm.dungeonId
+        const expanded = Boolean(expandedIds[farm.id])
+        const details = (farm.dropDetails ?? []).filter((d) => focusIds.has(d.itemId))
+        const canExpand = farm.kind === 'dungeon' && details.length > 0
         return (
-          <li key={farm.id} className="misc-panel__farm">
-            <div className="misc-panel__farm-title">
-              {farm.kind === 'dungeon' && openId ? (
+          <li
+            key={farm.id}
+            className={`misc-panel__farm${expanded ? ' misc-panel__farm--expanded' : ''}`}
+          >
+            <div className="misc-panel__farm-row">
+              {canExpand ? (
                 <button
                   type="button"
-                  className="misc-panel__farm-link"
-                  onClick={() => onOpenDungeon(openId)}
+                  className="misc-panel__farm-expand"
+                  aria-expanded={expanded}
+                  aria-label={expanded ? `Collapse ${farm.name} rates` : `Expand ${farm.name} rates`}
+                  onClick={() => toggleExpand(farm.id)}
                 >
-                  {farm.name}
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden focusable="false">
+                    <path
+                      fill="currentColor"
+                      d={
+                        expanded
+                          ? 'M3.2 10.2 8 5.4l4.8 4.8-.9.9L8 7.2 4.1 11.1z'
+                          : 'M3.2 5.8 8 10.6l4.8-4.8.9.9L8 12.4 2.3 6.7z'
+                      }
+                    />
+                  </svg>
                 </button>
               ) : (
-                <span className="misc-panel__farm-name" title="Open-world map">
-                  {farm.name}
-                </span>
+                <span className="misc-panel__farm-expand misc-panel__farm-expand--spacer" aria-hidden />
               )}
-              {farm.difficulty ? (
-                <span className={difficultyTagClassName(farm.difficulty)}>{farm.difficulty}</span>
-              ) : null}
-              {farm.otherFragments.length > 0 ? (
-                <span
-                  className="misc-panel__farm-also"
-                  title={`Useful for ${farm.otherFragments.join(', ')}`}
-                >
-                  +{farm.otherFragments.join(' · ')}
-                </span>
-              ) : null}
+              <div className="misc-panel__farm-title">
+                {farm.kind === 'dungeon' && openId ? (
+                  <button
+                    type="button"
+                    className="misc-panel__farm-link"
+                    onClick={() => onOpenDungeon(openId)}
+                  >
+                    {farm.name}
+                  </button>
+                ) : (
+                  <span className="misc-panel__farm-name" title="Open-world map">
+                    {farm.name}
+                  </span>
+                )}
+                {farm.difficulty ? (
+                  <span className={difficultyTagClassName(farm.difficulty)}>{farm.difficulty}</span>
+                ) : null}
+                {farm.otherFragments.length > 0 ? (
+                  <span
+                    className="misc-panel__farm-also"
+                    title={`Useful for ${farm.otherFragments.join(', ')}`}
+                  >
+                    +{farm.otherFragments.join(' · ')}
+                  </span>
+                ) : null}
+              </div>
+              <div className="misc-panel__farm-icons" aria-label="Drops here">
+                {farm.materialIds.map((id) => {
+                  const iconId = materialIconById.get(id)
+                  if (!iconId) return null
+                  const focus = focusIds.has(id)
+                  return (
+                    <Icon
+                      key={id}
+                      iconId={iconId}
+                      className={`misc-panel__farm-icon${focus ? '' : ' misc-panel__farm-icon--also'}`}
+                    />
+                  )
+                })}
+              </div>
+              <span className="misc-panel__farm-coverage">
+                {farm.focusMaterialIds.length}/{Math.max(1, focusTotal)}
+              </span>
             </div>
-            <div className="misc-panel__farm-icons" aria-label="Drops here">
-              {farm.materialIds.map((id) => {
-                const iconId = materialIconById.get(id)
-                if (!iconId) return null
-                const focus = focusIds.has(id)
-                return (
-                  <Icon
-                    key={id}
-                    iconId={iconId}
-                    className={`misc-panel__farm-icon${focus ? '' : ' misc-panel__farm-icon--also'}`}
-                  />
-                )
-              })}
-            </div>
-            <span className="misc-panel__farm-coverage">
-              {farm.focusMaterialIds.length}/{Math.max(1, focusTotal)}
-            </span>
+            {expanded && canExpand ? (
+              <div className="misc-panel__farm-detail">
+                <div className="misc-panel__farm-detail-head" aria-hidden>
+                  <span>Item</span>
+                  <span>Rate</span>
+                  <span>Avg/run</span>
+                  <span>Need</span>
+                  <span>Est. runs</span>
+                </div>
+                <ul className="misc-panel__farm-detail-list">
+                  {details.map((d) => {
+                    const remaining = remainingByItem.get(d.itemId) ?? 0
+                    const runs = expectedRunsForRemaining(remaining, d.expectedPerRun)
+                    return (
+                      <li key={d.itemId} className="misc-panel__farm-detail-row">
+                        <span className="misc-panel__farm-detail-item" title={d.name}>
+                          <Icon iconId={d.iconId} className="misc-panel__farm-detail-icon" />
+                          <span className="misc-panel__farm-detail-name">{d.name}</span>
+                        </span>
+                        <span className="misc-panel__farm-detail-rate">
+                          {formatDropRatePermille(d.ratePermil)}
+                          {d.min !== d.max ? (
+                            <span className="muted"> ×{d.min}–{d.max}</span>
+                          ) : d.min > 1 ? (
+                            <span className="muted"> ×{d.min}</span>
+                          ) : null}
+                        </span>
+                        <span className="misc-panel__farm-detail-avg">
+                          {formatExpectedPerRun(d.expectedPerRun)}
+                        </span>
+                        <span className="misc-panel__farm-detail-need">
+                          {remaining.toLocaleString()}
+                        </span>
+                        <span className="misc-panel__farm-detail-runs">
+                          {formatExpectedRuns(runs)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ) : null}
           </li>
         )
       })}
@@ -113,6 +214,7 @@ function FarmList({
   farmsError,
   focusIds,
   focusTotal,
+  remainingByItem,
   emptyLabel,
   onOpenDungeon,
   materialIconById,
@@ -122,6 +224,7 @@ function FarmList({
   farmsError: string | null
   focusIds: Set<string>
   focusTotal: number
+  remainingByItem: Map<string, number>
   emptyLabel: string
   onOpenDungeon: (dungeonId: string) => void
   materialIconById: Map<string, string>
@@ -143,6 +246,7 @@ function FarmList({
             farms={dungeons}
             focusIds={focusIds}
             focusTotal={focusTotal}
+            remainingByItem={remainingByItem}
             onOpenDungeon={onOpenDungeon}
             materialIconById={materialIconById}
           />
@@ -155,6 +259,7 @@ function FarmList({
             farms={maps}
             focusIds={focusIds}
             focusTotal={focusTotal}
+            remainingByItem={remainingByItem}
             onOpenDungeon={onOpenDungeon}
             materialIconById={materialIconById}
           />
@@ -257,6 +362,20 @@ export function MiscPanel({ onOpenDungeon }: MiscPanelProps) {
     return new Set(recipe?.materials.map((m) => m.itemId) ?? [])
   }, [view, remainingMaterials, recipe])
 
+  const remainingByItem = useMemo(() => {
+    const map = new Map<string, number>()
+    if (view === 'total') {
+      for (const m of materialNeeds) map.set(m.itemId, m.remaining)
+      return map
+    }
+    if (!recipe) return map
+    const scaled = scalePurifiedMaterials(recipe, parseQty(qtyByRecipe[recipe.id] ?? '0'))
+    for (const m of materialNeedsWithOwned(scaled, ownedByItem)) {
+      map.set(m.itemId, m.remaining)
+    }
+    return map
+  }, [view, materialNeeds, recipe, qtyByRecipe, ownedByItem])
+
   useEffect(() => {
     let cancelled = false
     setFarmsLoading(true)
@@ -276,6 +395,7 @@ export function MiscPanel({ onOpenDungeon }: MiscPanelProps) {
           focus,
           rankIdealFarmsForItems(ids, items, 12),
           focus,
+          items,
         )
         if (!cancelled) setFarms(next)
         return
@@ -287,7 +407,11 @@ export function MiscPanel({ onOpenDungeon }: MiscPanelProps) {
       }
       const items = await fetchPurifiedRecipeItems(recipe)
       if (cancelled) return
-      const next = await enrichIdealFarmsWithDifficulties(recipe, rankIdealFarms(recipe, items, 8))
+      const next = await enrichIdealFarmsWithDifficulties(
+        recipe,
+        rankIdealFarms(recipe, items, 8),
+        items,
+      )
       if (!cancelled) setFarms(next)
     }
 
@@ -497,6 +621,7 @@ export function MiscPanel({ onOpenDungeon }: MiscPanelProps) {
                 farmsError={farmsError}
                 focusIds={focusMaterialIds}
                 focusTotal={remainingMaterials.length}
+                remainingByItem={remainingByItem}
                 emptyLabel={
                   totalCrafts <= 0
                     ? 'Set fragment amounts above.'
@@ -520,6 +645,7 @@ export function MiscPanel({ onOpenDungeon }: MiscPanelProps) {
               farmsError={farmsError}
               focusIds={focusMaterialIds}
               focusTotal={recipe.materials.length}
+              remainingByItem={remainingByItem}
               emptyLabel="No farm sources found."
               onOpenDungeon={onOpenDungeon}
               materialIconById={materialIconById}

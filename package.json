@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.122",
+  "version": "0.1.123",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated all SSS Legendary themes"
+      "releaseNotes": "- Added rates and estimated runs for purified fragment farm"
     }
   }
 }

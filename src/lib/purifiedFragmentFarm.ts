@@ -1,5 +1,5 @@
 import type { DungeonDetail, WikiItemDetail } from '../types'
-import { fetchDungeonDetail } from './dungeonDetailApi'
+import { fetchDungeonDetail, readCachedDungeonDetails } from './dungeonDetailApi'
 import { orderedDifficultyLabels } from './dungeonDifficultyTags'
 import { fetchWikiItemDetail } from './wikiItemDetailApi'
 
@@ -201,6 +201,18 @@ export type ScaledPurifiedMaterial = {
 
 export type IdealFarmKind = 'dungeon' | 'map'
 
+export type IdealFarmDropDetail = {
+  itemId: string
+  name: string
+  iconId: string
+  /** Wiki rate_permil (display % = rate_permil / 100). */
+  ratePermil: number
+  min: number
+  max: number
+  /** Expected items per run from the best ranking band. */
+  expectedPerRun: number
+}
+
 export type IdealFarmHit = {
   kind: IdealFarmKind
   /** Stable list key (`dungeonId:difficulty` or map key). */
@@ -216,6 +228,8 @@ export type IdealFarmHit = {
   materialIds: string[]
   /** Other purified fragment labels that also use drops from this row. */
   otherFragments: string[]
+  /** Per-item drop rates for this dungeon difficulty (when known). */
+  dropDetails: IdealFarmDropDetail[]
 }
 
 export type PurifiedMaterialCatalogEntry = {
@@ -223,6 +237,23 @@ export type PurifiedMaterialCatalogEntry = {
   name: string
   iconId: string
   fragmentLabels: string[]
+}
+
+/** Probability from wiki rate_permil (display % = rate_permil / 100). */
+export function dropChanceFromPermil(ratePermil: number): number {
+  return Math.max(0, ratePermil) / 10_000
+}
+
+export function expectedQtyPerRun(ratePermil: number, min: number, max: number): number {
+  const avg = (Math.max(0, min) + Math.max(0, max)) / 2
+  return dropChanceFromPermil(ratePermil) * avg
+}
+
+/** Expected clears to farm `remaining` items at `expectedPerRun` average yield. */
+export function expectedRunsForRemaining(remaining: number, expectedPerRun: number): number | null {
+  if (remaining <= 0) return 0
+  if (!(expectedPerRun > 0)) return null
+  return Math.ceil(remaining / expectedPerRun)
 }
 
 /** Unique materials across every purified fragment recipe. */
@@ -294,6 +325,45 @@ type RankedFarmSeed = {
   focusMaterialIds: Set<string>
 }
 
+/**
+ * Best raid roll rates for focus materials on a dungeon, from item `raid_sources`.
+ * Item `rate` uses the same units as dungeon `rate_permil`.
+ */
+function dropDetailsFromItemRaidSources(
+  dungeonId: string,
+  items: readonly WikiItemDetail[],
+  catalog: readonly PurifiedMaterialCatalogEntry[],
+  focusIds?: ReadonlySet<string>,
+): IdealFarmDropDetail[] {
+  const byId = new Map<string, IdealFarmDropDetail>()
+  const catalogById = new Map(catalog.map((c) => [c.itemId, c]))
+
+  for (const item of items) {
+    if (focusIds && !focusIds.has(item.id)) continue
+    for (const src of item.raid_sources ?? []) {
+      if (!(src.dungeons ?? []).some((d) => d.id === dungeonId)) continue
+      const ratePermil = Math.max(0, Number(src.rate) || 0)
+      const min = Math.max(0, Number(src.min) || 0)
+      const max = Math.max(min, Number(src.max) || 0)
+      const expected = expectedQtyPerRun(ratePermil, min, max)
+      const prev = byId.get(item.id)
+      if (prev && prev.expectedPerRun >= expected) continue
+      const meta = catalogById.get(item.id)
+      byId.set(item.id, {
+        itemId: item.id,
+        name: meta?.name ?? item.name,
+        iconId: meta?.iconId ?? item.icon_id,
+        ratePermil,
+        min,
+        max,
+        expectedPerRun: expected,
+      })
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
 /** Rank dungeons/maps by how many of `focusItemIds` drop there. */
 export function rankIdealFarmsForItems(
   focusItemIds: readonly string[],
@@ -302,6 +372,7 @@ export function rankIdealFarmsForItems(
 ): IdealFarmHit[] {
   const wanted = new Set(focusItemIds)
   if (wanted.size === 0) return []
+  const catalog = purifiedMaterialCatalog()
   const byKey = new Map<string, RankedFarmSeed>()
 
   for (const item of items) {
@@ -348,6 +419,10 @@ export function rankIdealFarmsForItems(
   return [...byKey.entries()]
     .map(([key, row]) => {
       const focusMaterialIds = [...row.focusMaterialIds]
+      const dropDetails =
+        row.kind === 'dungeon' && row.dungeonId
+          ? dropDetailsFromItemRaidSources(row.dungeonId, items, catalog, wanted)
+          : []
       return {
         kind: row.kind,
         id: key,
@@ -357,6 +432,7 @@ export function rankIdealFarmsForItems(
         focusMaterialIds,
         materialIds: focusMaterialIds,
         otherFragments: [],
+        dropDetails,
       } satisfies IdealFarmHit
     })
     .sort((a, b) => {
@@ -387,22 +463,52 @@ function materialIdsOnDifficulty(
   difficultyLabel: string,
   catalogIds: ReadonlySet<string>,
 ): string[] {
+  return dropDetailsOnDifficulty(detail, difficultyLabel, catalogIds, []).map((d) => d.itemId)
+}
+
+function dropDetailsOnDifficulty(
+  detail: DungeonDetail,
+  difficultyLabel: string,
+  catalogIds: ReadonlySet<string>,
+  catalog: readonly PurifiedMaterialCatalogEntry[],
+): IdealFarmDropDetail[] {
   const diff = detail.difficulties.find(
     (d) => d.difficulty.trim().toLowerCase() === difficultyLabel.trim().toLowerCase(),
   )
   if (!diff) return []
-  const found = new Set<string>()
+  const byId = new Map<string, IdealFarmDropDetail>()
+  const catalogById = new Map(catalog.map((c) => [c.itemId, c]))
+
+  const consider = (itemId: string, ratePermil: number, min: number, max: number) => {
+    if (!catalogIds.has(itemId)) return
+    const expected = expectedQtyPerRun(ratePermil, min, max)
+    const prev = byId.get(itemId)
+    if (prev && prev.expectedPerRun >= expected) return
+    const meta = catalogById.get(itemId)
+    byId.set(itemId, {
+      itemId,
+      name: meta?.name ?? itemId,
+      iconId: meta?.iconId ?? '',
+      ratePermil,
+      min,
+      max,
+      expectedPerRun: expected,
+    })
+  }
+
   for (const objective of diff.objectives) {
     for (const ranking of objective.raid_rankings ?? []) {
       for (const reward of ranking.rewards ?? []) {
-        if (catalogIds.has(reward.item_id)) found.add(reward.item_id)
+        consider(reward.item_id, reward.rate_permil, reward.min, reward.max)
       }
     }
   }
   for (const reward of diff.rewards ?? []) {
-    if (catalogIds.has(reward.item_id)) found.add(reward.item_id)
+    // Clear rewards are often guaranteed counts without rate_permil.
+    consider(reward.item_id, 10_000, reward.item_count, reward.item_count)
   }
-  return [...found]
+
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function fragmentLabelsForMaterials(
@@ -434,15 +540,32 @@ function otherFragmentLabelsForMaterials(
 /**
  * Split dungeon farms into one row per difficulty.
  * `focusIds` = materials to prioritize; `displayIds` = materials to show icons for.
+ * `items` (optional) supplies raid rates when dungeon detail is missing / rate-limited.
  */
 export async function enrichIdealFarmsForFocus(
   focusIds: ReadonlySet<string>,
   farms: IdealFarmHit[],
   displayIds?: ReadonlySet<string>,
+  items: readonly WikiItemDetail[] = [],
 ): Promise<IdealFarmHit[]> {
   const catalog = purifiedMaterialCatalog()
   const showIds = displayIds ?? new Set(catalog.map((c) => c.itemId))
   const out: IdealFarmHit[] = []
+
+  const dungeonIds = farms
+    .map((f) => f.dungeonId)
+    .filter((id): id is string => Boolean(id))
+  const cached = readCachedDungeonDetails(dungeonIds)
+  const detailById = new Map<string, DungeonDetail>(Object.entries(cached))
+
+  for (const id of dungeonIds) {
+    if (detailById.has(id)) continue
+    try {
+      detailById.set(id, await fetchDungeonDetail(id))
+    } catch {
+      /* keep item-based rates when wiki is rate-limited */
+    }
+  }
 
   for (const farm of farms) {
     if (farm.kind !== 'dungeon' || !farm.dungeonId) {
@@ -451,12 +574,27 @@ export async function enrichIdealFarmsForFocus(
         ...farm,
         materialIds: mats.length ? mats : farm.materialIds,
         otherFragments: fragmentLabelsForMaterials(farm.materialIds, catalog),
+        dropDetails: farm.dropDetails ?? [],
+      })
+      continue
+    }
+
+    const fallbackDetails =
+      farm.dropDetails?.length
+        ? farm.dropDetails
+        : dropDetailsFromItemRaidSources(farm.dungeonId, items, catalog, showIds)
+
+    const detail = detailById.get(farm.dungeonId)
+    if (!detail) {
+      out.push({
+        ...farm,
+        otherFragments: fragmentLabelsForMaterials(farm.materialIds, catalog),
+        dropDetails: fallbackDetails.filter((d) => focusIds.has(d.itemId) || showIds.has(d.itemId)),
       })
       continue
     }
 
     try {
-      const detail = await fetchDungeonDetail(farm.dungeonId)
       const difficultyLabels = orderedDifficultyLabels(
         detail.difficulties
           .map((d) => d.difficulty)
@@ -464,14 +602,21 @@ export async function enrichIdealFarmsForFocus(
       )
 
       if (difficultyLabels.length === 0) {
-        out.push(farm)
+        out.push({
+          ...farm,
+          otherFragments: fragmentLabelsForMaterials(farm.materialIds, catalog),
+          dropDetails: fallbackDetails.filter((d) => focusIds.has(d.itemId) || showIds.has(d.itemId)),
+        })
         continue
       }
 
       for (const difficulty of difficultyLabels) {
-        const focusOnDiff = materialIdsOnDifficulty(detail, difficulty, focusIds)
+        const details = dropDetailsOnDifficulty(detail, difficulty, showIds, catalog)
+        const focusOnDiff = details
+          .filter((d) => focusIds.has(d.itemId))
+          .map((d) => d.itemId)
         if (focusOnDiff.length === 0) continue
-        const shownOnDiff = materialIdsOnDifficulty(detail, difficulty, showIds)
+        const shownOnDiff = details.map((d) => d.itemId)
         out.push({
           kind: 'dungeon',
           id: `${farm.dungeonId}:${difficulty}`,
@@ -481,10 +626,15 @@ export async function enrichIdealFarmsForFocus(
           focusMaterialIds: focusOnDiff,
           materialIds: shownOnDiff.length ? shownOnDiff : focusOnDiff,
           otherFragments: fragmentLabelsForMaterials(shownOnDiff, catalog),
+          dropDetails: details.filter((d) => focusIds.has(d.itemId) || showIds.has(d.itemId)),
         })
       }
     } catch {
-      out.push(farm)
+      out.push({
+        ...farm,
+        otherFragments: fragmentLabelsForMaterials(farm.materialIds, catalog),
+        dropDetails: fallbackDetails.filter((d) => focusIds.has(d.itemId) || showIds.has(d.itemId)),
+      })
     }
   }
 
@@ -509,9 +659,10 @@ export async function enrichIdealFarmsForFocus(
 export async function enrichIdealFarmsWithDifficulties(
   recipe: PurifiedFragmentRecipe,
   farms: IdealFarmHit[],
+  items: readonly WikiItemDetail[] = [],
 ): Promise<IdealFarmHit[]> {
   const focusIds = new Set(recipe.materials.map((m) => m.itemId))
-  const enriched = await enrichIdealFarmsForFocus(focusIds, farms)
+  const enriched = await enrichIdealFarmsForFocus(focusIds, farms, undefined, items)
   const catalog = purifiedMaterialCatalog()
   return enriched.map((farm) => ({
     ...farm,
@@ -580,20 +731,21 @@ export async function fetchPurifiedRecipeItems(
 export async function fetchWikiItemsByIds(ids: readonly string[]): Promise<WikiItemDetail[]> {
   const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
   const catalog = new Map(purifiedMaterialCatalog().map((c) => [c.itemId, c]))
-  return Promise.all(
-    unique.map(async (id) => {
-      try {
-        return await fetchWikiItemDetail(id)
-      } catch {
-        const fallback = catalog.get(id)
-        return {
-          id,
-          name: fallback?.name ?? id,
-          icon_id: fallback?.iconId ?? '',
-          raid_sources: [],
-          drop_sources: [],
-        } satisfies WikiItemDetail
-      }
-    }),
-  )
+  const out: WikiItemDetail[] = []
+  // Sequential to avoid wiki 429 storms; cache hits stay fast.
+  for (const id of unique) {
+    try {
+      out.push(await fetchWikiItemDetail(id))
+    } catch {
+      const fallback = catalog.get(id)
+      out.push({
+        id,
+        name: fallback?.name ?? id,
+        icon_id: fallback?.iconId ?? '',
+        raid_sources: [],
+        drop_sources: [],
+      })
+    }
+  }
+  return out
 }

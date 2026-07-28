@@ -16575,14 +16575,125 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
 }
 
 .misc-panel__farm {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px 10px;
-  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
   border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(8, 14, 28, 0.45);
+  overflow: hidden;
+}
+
+.misc-panel__farm--expanded {
+  border-color: rgba(62, 224, 255, 0.22);
+}
+
+.misc-panel__farm-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 7px 10px;
+}
+
+.misc-panel__farm-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(62, 224, 255, 0.22);
+  border-radius: 6px;
+  background: rgba(62, 224, 255, 0.1);
+  color: rgba(120, 220, 255, 0.98);
+  cursor: pointer;
+  padding: 0;
+}
+
+.misc-panel__farm-expand:hover {
+  background: rgba(62, 224, 255, 0.18);
+  color: #fff;
+}
+
+.misc-panel__farm-expand--spacer {
+  border: 0;
+  background: transparent;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.misc-panel__farm-detail {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 10px 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.misc-panel__farm-detail-head,
+.misc-panel__farm-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 0.7fr 0.55fr 0.45fr 0.55fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.misc-panel__farm-detail-head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.misc-panel__farm-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.misc-panel__farm-detail-row {
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+}
+
+.misc-panel__farm-detail-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.misc-panel__farm-detail-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.misc-panel__farm-detail-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.misc-panel__farm-detail-rate,
+.misc-panel__farm-detail-avg,
+.misc-panel__farm-detail-need,
+.misc-panel__farm-detail-runs {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.misc-panel__farm-detail-runs {
+  color: rgba(62, 224, 255, 0.98);
+  text-align: right;
 }
 
 .misc-panel__farm-title {
