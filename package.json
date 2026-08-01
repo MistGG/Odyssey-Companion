@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.124",
+  "version": "0.1.125",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated purified fragment crafting costs"
+      "releaseNotes": "- Updated Mastemon theme visuals"
     }
   }
 }

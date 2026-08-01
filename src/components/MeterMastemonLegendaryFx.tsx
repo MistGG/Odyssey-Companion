@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
-/** Place rank 1–4+ → wing count 4→1. */
+/** Place rank 1–4+ → wing count 6→1 (cap 6). */
 export type MastemonPlaceRank = 1 | 2 | 3 | 4
 
 /** Damage jump that triggers glass shatter in live meter. */
@@ -31,110 +31,141 @@ function clampPlace(placeRank: number | undefined): MastemonPlaceRank {
   return placeRank as MastemonPlaceRank
 }
 
-/** 4th→1 wing, 3rd→2, 2nd→3, 1st→4 */
+/** 1st→6, 2nd→4, 3rd→3, 4th→1 — never more than 6. */
 function wingCountForPlace(place: MastemonPlaceRank): number {
-  return 5 - place
+  switch (place) {
+    case 1:
+      return 6
+    case 2:
+      return 4
+    case 3:
+      return 3
+    default:
+      return 1
+  }
 }
 
-/** Rest droop — angel +, demon − (mirrored). Lower feathers sit slightly more closed. */
+/**
+ * Fan by rotation from a shared hinge (reference cluster).
+ * Screen Y grows down: angel (hinge right) tip-up = +, demon (hinge left) tip-up = −.
+ * index 0 = visual top, last = visual bottom.
+ */
 function fanAngle(index: number, total: number, side: 'angel' | 'demon'): number {
-  const down = total <= 1 ? 4 : 2 + (index / (total - 1)) * 10 /* 2° … 12° */
-  return side === 'angel' ? down : -down
+  const tipUp = side === 'angel' ? 1 : -1
+  if (total <= 1) return tipUp * 6
+  const t = index / (total - 1) /* 0 top … 1 bottom */
+  const span = total >= 5 ? 58 : total >= 3 ? 46 : 28
+  /* Top rests raised, bottom droops. */
+  return tipUp * (span / 2 - t * span)
 }
 
-/** Fixed hinge roots along the bar edge — never move during soar. */
+/** Roots stay near bar mid-edge — fan is rotation, not vertical scatter. */
 function edgeYPercent(index: number, total: number): number {
   if (total <= 1) return 50
-  return 22 + (index / (total - 1)) * 56
+  return 47 + (index / (total - 1)) * 6 /* 47% … 53% */
 }
 
-/** Up-flap amplitude — bottom least, each feather above lifts a bit more. */
+/**
+ * Idle flap amp — bottom barely moves; each blade above lifts more so the
+ * stroke opens a little spread (top ~20–22°, bottom ~0.4°).
+ */
 function flapAmpDeg(index: number, total: number): number {
-  if (total <= 1) return 6
-  return 10 - (index / (total - 1)) * 8 /* 10° top … 2° bottom */
+  if (total <= 1) return 8
+  const t = index / (total - 1) /* 0 top … 1 bottom */
+  const max = total >= 5 ? 22 : total >= 3 ? 18 : 14
+  const min = 0.4
+  return max - t * (max - min)
 }
 
 /** Extra raise during soar (rotation only) — top opens most. */
 function soarSpreadDeg(index: number, total: number): number {
   if (total <= 1) return 0
-  return ((total - 1 - index) / (total - 1)) * 22 /* 22° … 0° */
+  return ((total - 1 - index) / (total - 1)) * 14 /* 14° … 0° */
 }
 
 /**
- * Angel wing — soft feathers with one mild sharp elbow on the leading edge.
- * Attaches on the right (body) edge.
+ * Angel wing — one elongated feathered blade (white + lavender tips).
+ * Stack up to 6 of these to form the reference fan. Hinge on the right.
  */
 function AngelWingSvg() {
   const uid = useId().replace(/:/g, '')
   const body = `mw-angel-body-${uid}`
   const tip = `mw-angel-tip-${uid}`
+  const shade = `mw-angel-shade-${uid}`
   return (
     <svg className="meter-party-mastemon-wing-svg" viewBox="0 0 140 120" aria-hidden>
       <defs>
-        <linearGradient id={body} x1="100%" y1="20%" x2="0%" y2="80%">
+        <linearGradient id={body} x1="100%" y1="30%" x2="0%" y2="55%">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="40%" stopColor="#f8fafc" />
-          <stop offset="75%" stopColor="#e2e8f0" />
-          <stop offset="100%" stopColor="#bfdbfe" />
+          <stop offset="45%" stopColor="#f4f2fa" />
+          <stop offset="78%" stopColor="#e4e0f0" />
+          <stop offset="100%" stopColor="#c9c2e0" />
         </linearGradient>
-        <linearGradient id={tip} x1="70%" y1="20%" x2="10%" y2="90%">
-          <stop offset="0%" stopColor="#e0f2fe" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#7dd3fc" stopOpacity="0.5" />
+        <linearGradient id={tip} x1="85%" y1="20%" x2="5%" y2="80%">
+          <stop offset="0%" stopColor="#ddd6f3" stopOpacity="0.2" />
+          <stop offset="55%" stopColor="#c4b5e0" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.7" />
+        </linearGradient>
+        <linearGradient id={shade} x1="90%" y1="0%" x2="20%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#b8b0d4" stopOpacity="0.65" />
         </linearGradient>
       </defs>
-      {/* Leading vane — long sweep, one soft-sharp break at the elbow. */}
+
+      {/* Primary blade silhouette — long, sharp, layered feathers */}
       <path
-        d="M128 26
-           L96 18 L62 28
-           L34 48 L12 70
-           L28 66 L54 50 L78 40
-           L104 32 L128 34 Z"
+        d="M128 48
+           C110 36, 88 28, 66 26
+           L48 28 L30 36 L14 48 L4 58
+           L12 62 L22 68 L16 74
+           L28 72 L38 78 L32 84
+           L46 80 L58 86 L52 92
+           L66 86 L78 90 L74 96
+           L88 88 L100 90 L96 96
+           L110 86 L120 78 L128 62 Z"
         fill={`url(#${body})`}
-      />
-      {/* Mid vane — slight angle, still mostly feathered. */}
-      <path
-        d="M128 34
-           L94 38 L66 54
-           L40 74 L14 96
-           L30 90 L56 72 L84 56
-           L108 44 L128 38 Z"
-        fill={`url(#${body})`}
-      />
-      {/* Lower vane */}
-      <path
-        d="M126 40
-           L92 52 L64 72
-           L38 92 L16 108
-           L32 100 L58 84 L86 66
-           L110 52 L126 44 Z"
-        fill={`url(#${body})`}
-        opacity="0.9"
-      />
-      <path
-        d="M48 78 L36 94 L20 104 L34 92 L46 76 Z
-           M70 66 L56 84 L38 98 L54 82 L68 64 Z
-           M94 52 L80 70 L60 86 L78 68 L92 50 Z
-           M112 40 L100 56 L82 70 L98 52 L110 38 Z"
-        fill={`url(#${tip})`}
-      />
-      <ellipse cx="114" cy="34" rx="16" ry="14" fill="#ffffff" opacity="0.55" />
-      {/* Elbow crease — the one sharp-ish angle read */}
-      <path
-        d="M126 30 L88 34 L58 52"
-        fill="none"
-        stroke="rgba(255,255,255,0.9)"
-        strokeWidth="2.1"
-        strokeLinecap="round"
+        stroke="rgba(180,170,210,0.45)"
+        strokeWidth="0.9"
         strokeLinejoin="round"
       />
-      <circle cx="128" cy="32" r="3.6" fill="#e0f2fe" />
+      {/* Underside lavender wash */}
+      <path
+        d="M126 56
+           C104 48, 78 46, 54 50
+           L34 60 L18 72
+           L28 74 L42 80 L38 86
+           L54 80 L68 86 L64 92
+           L80 84 L94 88 L90 94
+           L106 84 L118 74 L126 62 Z"
+        fill={`url(#${tip})`}
+      />
+      {/* Feather vane splits */}
+      <g fill="none" stroke="rgba(160,150,190,0.4)" strokeWidth="0.85" strokeLinecap="round">
+        <path d="M122 50 C96 40, 68 36, 40 44" />
+        <path d="M122 56 C94 50, 64 52, 36 64" />
+        <path d="M120 62 C92 60, 66 68, 42 80" />
+      </g>
+      {/* Leading-edge highlight */}
+      <path
+        d="M126 48 C102 36, 74 30, 48 32 L28 40"
+        fill="none"
+        stroke="rgba(255,255,255,0.95)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      {/* Sharp tip accents */}
+      <path d="M4 58 L-4 52 L10 64 Z" fill={`url(#${shade})`} />
+      <path d="M16 74 L8 78 L22 76 Z" fill="#c4b5e0" opacity="0.75" />
+      <path d="M32 84 L24 90 L40 84 Z" fill="#b8a8d8" opacity="0.7" />
+      <circle cx="128" cy="52" r="3.2" fill="#ffffff" />
+      <circle cx="128" cy="52" r="1.4" fill="#ddd6f3" opacity="0.85" />
     </svg>
   )
 }
 
 /**
- * Demon wing — hard-angled bat membrane with sharp knuckles and tips.
- * Attaches on the left (body) edge.
+ * Demon wing — one charcoal bat blade (serrated trailing edge, needle tip).
+ * Stack to form the devil fan. Hinge on the left.
  */
 function DemonWingSvg() {
   const uid = useId().replace(/:/g, '')
@@ -143,57 +174,66 @@ function DemonWingSvg() {
   return (
     <svg className="meter-party-mastemon-wing-svg" viewBox="0 0 140 120" aria-hidden>
       <defs>
-        <linearGradient id={membrane} x1="0%" y1="20%" x2="100%" y2="85%">
-          <stop offset="0%" stopColor="#1c1018" />
-          <stop offset="50%" stopColor="#0a0608" />
-          <stop offset="100%" stopColor="#4c1d3a" />
+        <linearGradient id={membrane} x1="5%" y1="20%" x2="95%" y2="70%">
+          <stop offset="0%" stopColor="#3c3c44" />
+          <stop offset="40%" stopColor="#25252c" />
+          <stop offset="75%" stopColor="#16161a" />
+          <stop offset="100%" stopColor="#0a0a0e" />
         </linearGradient>
-        <linearGradient id={bone} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.75" />
-          <stop offset="100%" stopColor="#f472b6" stopOpacity="0.55" />
+        <linearGradient id={bone} x1="0%" y1="0%" x2="100%" y2="40%">
+          <stop offset="0%" stopColor="#9a9aa4" />
+          <stop offset="50%" stopColor="#686872" />
+          <stop offset="100%" stopColor="#323238" />
         </linearGradient>
       </defs>
-      {/* Upper membrane — sharp zig-zag leading edge */}
+
+      {/* Single membrane blade — sawtooth trailing edge, needle tip */}
       <path
-        d="M12 26
-           L52 22 L78 36 L108 58 L136 86
-           L122 94 L96 72 L70 54 L40 42
-           L12 38 Z"
+        d="M12 52
+           C32 36, 56 26, 78 22
+           L98 20 L116 26 L132 40 L140 52
+           L132 48 L122 46
+           L114 62 L104 52 L94 66 L84 56
+           L74 70 L64 60 L54 72 L44 62
+           L34 74 L24 64 L16 70
+           L12 58 Z"
         fill={`url(#${membrane})`}
+        stroke="#08080a"
+        strokeWidth="1.35"
+        strokeLinejoin="miter"
       />
-      {/* Lower membrane — steeper angles */}
+      {/* Inner panel depth */}
       <path
-        d="M12 38
-           L46 48 L76 70 L108 94 L134 114
-           L116 110 L88 88 L58 68 L28 52
-           L12 44 Z"
-        fill="#120810"
+        d="M18 52 L70 34 L66 54 L22 58 Z
+           M66 38 L108 32 L100 56 L64 56 Z
+           M98 36 L132 46 L122 64 L94 58 Z"
+        fill="#121216"
+        opacity="0.55"
       />
-      {/* Digit panels — hard triangles */}
+      {/* Finger bones */}
+      <g
+        fill="none"
+        stroke={`url(#${bone})`}
+        strokeWidth="2.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M14 52 C42 34, 74 24, 104 24 L124 32 L138 50" />
+        <path d="M14 54 C40 50, 70 54, 98 66 L118 80" />
+        <path d="M14 56 C34 60, 54 70, 72 80 L90 90" />
+      </g>
+      {/* Top-edge sheen */}
       <path
-        d="M14 30 L60 28 L54 54 L18 42 Z
-           M54 36 L98 52 L90 78 L50 56 Z
-           M92 58 L132 84 L118 104 L84 76 Z"
-        fill={`url(#${membrane})`}
-        opacity="0.92"
+        d="M16 50 C44 32, 78 22, 108 24 L126 34"
+        fill="none"
+        stroke="rgba(200,200,210,0.58)"
+        strokeWidth="1.1"
+        strokeLinecap="round"
       />
-      <g stroke={`url(#${bone})`} strokeWidth="2.3" strokeLinecap="square" strokeLinejoin="miter" fill="none">
-        <path d="M14 32 L62 30" />
-        <path d="M14 32 L96 54" />
-        <path d="M14 32 L120 80" />
-        <path d="M14 32 L134 108" />
-      </g>
-      <g stroke="rgba(244,114,182,0.35)" strokeWidth="1.1" strokeLinejoin="miter" fill="none">
-        <path d="M34 38 L58 46 L78 60" />
-        <path d="M34 46 L62 62 L86 80" />
-      </g>
-      {/* Sharp claw tips */}
-      <path d="M62 30 L78 18 L68 40 Z" fill="#f472b6" opacity="0.9" />
-      <path d="M96 54 L116 42 L102 66 Z" fill="#e879f9" opacity="0.85" />
-      <path d="M120 80 L138 70 L126 94 Z" fill="#f472b6" opacity="0.9" />
-      <path d="M134 108 L146 102 L136 118 Z" fill="#f9a8d4" opacity="0.92" />
-      <path d="M18 24 L4 8 L24 34 Z" fill="#f9a8d4" opacity="0.9" />
-      <circle cx="14" cy="32" r="3.6" fill="#f9a8d4" />
+      {/* Needle tip */}
+      <path d="M138 50 L150 42 L142 60 Z" fill="#2a2a32" stroke="#08080a" strokeWidth="0.8" />
+      <circle cx="12" cy="54" r="3.1" fill="#3a3a42" stroke="#08080a" strokeWidth="1" />
+      <circle cx="12" cy="54" r="1.25" fill="#6e6e78" opacity="0.9" />
     </svg>
   )
 }
@@ -219,9 +259,13 @@ function MastemonWingStack({
           ['--mastemon-soar-spread' as string]: `${soarSpreadDeg(index, count)}deg`,
         } as CSSProperties
         const wingStyle = {
-          ['--mastemon-fan' as string]: `${fanAngle(index, count, side)}deg`,
-          ['--mastemon-flap' as string]: `${flapAmpDeg(index, count)}deg`,
-          ['--mastemon-flap-delay' as string]: `${index * 0.12}s`,
+          /* Unitless — composed in CSS with --mastemon-flap-phase (dip then raise). */
+          ['--mastemon-fan-n' as string]: fanAngle(index, count, side),
+          ['--mastemon-flap-n' as string]: flapAmpDeg(index, count),
+          /* Angel tip-up = +1; demon tip-up = −1. */
+          ['--mastemon-flap-dir' as string]: side === 'angel' ? 1 : -1,
+          /* Bottom leads; upper blades follow so the spread reads upward. */
+          ['--mastemon-flap-delay' as string]: `${(count - 1 - index) * 0.07}s`,
         } as CSSProperties
         return (
           <span

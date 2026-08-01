@@ -7893,29 +7893,29 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
 .meter-party-mastemon-wings-float--place-4 {
   --mastemon-glow: 0.28;
   --mastemon-orb: 0.32;
-  --mastemon-wing-w: 52px;
-  --mastemon-wing-h: 40px;
+  --mastemon-wing-w: 56px;
+  --mastemon-wing-h: 36px;
 }
 
 .meter-party-mastemon-wings-float--place-3 {
   --mastemon-glow: 0.45;
   --mastemon-orb: 0.5;
-  --mastemon-wing-w: 64px;
-  --mastemon-wing-h: 58px;
+  --mastemon-wing-w: 68px;
+  --mastemon-wing-h: 42px;
 }
 
 .meter-party-mastemon-wings-float--place-2 {
   --mastemon-glow: 0.68;
   --mastemon-orb: 0.75;
-  --mastemon-wing-w: 74px;
-  --mastemon-wing-h: 64px;
+  --mastemon-wing-w: 78px;
+  --mastemon-wing-h: 48px;
 }
 
 .meter-party-mastemon-wings-float--place-1 {
   --mastemon-glow: 0.92;
   --mastemon-orb: 1;
-  --mastemon-wing-w: 86px;
-  --mastemon-wing-h: 70px;
+  --mastemon-wing-w: 90px;
+  --mastemon-wing-h: 52px;
 }
 
 /*
@@ -7925,18 +7925,18 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
 .meter-party-mastemon-wing-pivot {
   position: absolute;
   inset: 0;
-  transform-origin: var(--mastemon-hinge, right 28%);
+  transform-origin: var(--mastemon-hinge, right 45%);
   transform: rotate(0deg);
   transition: transform 0.85s cubic-bezier(0.33, 0.1, 0.2, 1);
   will-change: transform;
 }
 
 .meter-party-mastemon-wing-pivot--angel {
-  --mastemon-hinge: right 28%;
+  --mastemon-hinge: right 45%;
 }
 
 .meter-party-mastemon-wing-pivot--demon {
-  --mastemon-hinge: left 28%;
+  --mastemon-hinge: left 45%;
 }
 
 /* Raise tips: angel +, demon − (mirrored). Top feathers get extra spread. */
@@ -14000,29 +14000,29 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
 .meter-party-member--mastemon-place-4 {
   --mastemon-glow: 0.28;
   --mastemon-orb: 0.32;
-  --mastemon-wing-w: 52px;
-  --mastemon-wing-h: 40px;
+  --mastemon-wing-w: 56px;
+  --mastemon-wing-h: 36px;
 }
 
 .meter-party-member--mastemon-place-3 {
   --mastemon-glow: 0.45;
   --mastemon-orb: 0.5;
-  --mastemon-wing-w: 64px;
-  --mastemon-wing-h: 58px;
+  --mastemon-wing-w: 68px;
+  --mastemon-wing-h: 42px;
 }
 
 .meter-party-member--mastemon-place-2 {
   --mastemon-glow: 0.68;
   --mastemon-orb: 0.75;
-  --mastemon-wing-w: 74px;
-  --mastemon-wing-h: 64px;
+  --mastemon-wing-w: 78px;
+  --mastemon-wing-h: 48px;
 }
 
 .meter-party-member--mastemon-place-1 {
   --mastemon-glow: 0.92;
   --mastemon-orb: 1;
-  --mastemon-wing-w: 86px;
-  --mastemon-wing-h: 70px;
+  --mastemon-wing-w: 90px;
+  --mastemon-wing-h: 52px;
 }
 
 .meter-party-mastemon-fx--place-4 {
@@ -14098,11 +14098,11 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
 
 .meter-party-mastemon-wing-slot {
   position: absolute;
-  /* Art roots sit ~28% down the SVG — offset so that point lands on bar mid-edge. */
+  /* Art roots sit ~45% down the SVG — offset so that point lands on bar mid-edge. */
   top: var(--mastemon-edge-y, 50%);
   width: var(--mastemon-wing-w, 68px);
-  height: var(--mastemon-wing-h, 60px);
-  margin-top: calc(var(--mastemon-wing-h, 60px) * -0.28);
+  height: var(--mastemon-wing-h, 48px);
+  margin-top: calc(var(--mastemon-wing-h, 48px) * -0.45);
   pointer-events: none;
   overflow: visible;
 }
@@ -14119,27 +14119,47 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
   transform: translateX(-14px);
 }
 
+/*
+ * Animate a unitless phase via @property so dip→raise actually interpolates.
+ * Electron drops calc(var()) transform keyframes, which made the dip vanish.
+ */
+@property --mastemon-flap-phase {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 .meter-party-mastemon-wing {
   position: absolute;
   inset: 0;
   display: block;
-  transform-origin: var(--mastemon-hinge, right 28%);
-  transform: rotate(var(--mastemon-fan, 4deg));
-  animation: meter-mastemon-wing-flap-angel 4.6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  --mastemon-fan-n: 0;
+  --mastemon-flap-n: 6;
+  --mastemon-flap-dir: 1;
+  --mastemon-flap-phase: 0;
+  transform-origin: var(--mastemon-hinge, right 45%);
+  /* phase < 0 = dip, phase > 0 = raise; amp scales per blade. */
+  transform: rotate(
+    calc(
+      (var(--mastemon-fan-n) + var(--mastemon-flap-n) * var(--mastemon-flap-phase) * var(--mastemon-flap-dir)) * 1deg
+    )
+  );
+  animation: meter-mastemon-wing-flap-phase 4.8s ease-in-out infinite;
   animation-delay: var(--mastemon-flap-delay, 0s);
   filter: drop-shadow(0 0 4px rgba(125, 211, 252, 0.35));
   opacity: calc(0.84 + var(--mastemon-glow) * 0.16);
 }
 
 .meter-party-mastemon-wing--angel {
-  --mastemon-hinge: right 28%;
-  animation-name: meter-mastemon-wing-flap-angel;
+  --mastemon-hinge: right 45%;
+  --mastemon-flap-dir: 1;
+  filter: drop-shadow(0 0 3px rgba(196, 181, 224, 0.45));
 }
 
 .meter-party-mastemon-wing--demon {
-  --mastemon-hinge: left 28%;
-  animation-name: meter-mastemon-wing-flap-demon;
-  filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.4));
+  --mastemon-hinge: left 45%;
+  --mastemon-flap-dir: -1;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 3px rgba(70, 70, 80, 0.35));
 }
 
 .meter-party-mastemon-wing-svg {
@@ -14149,27 +14169,20 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
   overflow: visible;
 }
 
-/*
- * Idle flap — angel raises with +, demon with −.
- * Larger --mastemon-flap on top feathers → they rise higher and separate.
- */
-@keyframes meter-mastemon-wing-flap-angel {
+/* phase: 0 rest → negative dip → +1 raise → rest */
+@keyframes meter-mastemon-wing-flap-phase {
   0%,
   100% {
-    transform: rotate(var(--mastemon-fan, 4deg));
+    --mastemon-flap-phase: 0;
   }
-  50% {
-    transform: rotate(calc(var(--mastemon-fan, 4deg) + var(--mastemon-flap, 6deg)));
+  20% {
+    --mastemon-flap-phase: -0.45;
   }
-}
-
-@keyframes meter-mastemon-wing-flap-demon {
-  0%,
-  100% {
-    transform: rotate(var(--mastemon-fan, -4deg));
+  28% {
+    --mastemon-flap-phase: -0.45;
   }
-  50% {
-    transform: rotate(calc(var(--mastemon-fan, -4deg) - var(--mastemon-flap, 6deg)));
+  58% {
+    --mastemon-flap-phase: 1;
   }
 }
 
@@ -15080,7 +15093,8 @@ body.body--meter:has(.meter-shell--mastemon-wings) #root,
   }
 
   .meter-party-mastemon-wing {
-    transform: rotate(var(--mastemon-fan, 0deg));
+    --mastemon-flap-phase: 0;
+    transform: rotate(calc(var(--mastemon-fan-n, 0) * 1deg));
   }
 
   .meter-party-member--verdandi-sss-first-omegamon::before {
