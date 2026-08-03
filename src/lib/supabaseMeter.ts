@@ -1,9 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { createSupabaseAuthStorage } from './supabaseAuthStorage'
-import {
-  buildPartyRunFingerprint,
-  PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
-} from './meterPartyFingerprint'
+import { buildPartyRunFingerprint } from './meterPartyFingerprint'
 import {
   isMeterUploadAppVersionAllowed,
   OUTDATED_METER_UPLOAD_MESSAGE,
@@ -468,31 +465,15 @@ export async function insertMeterParse(
       ...(digimonNamesRequireWikiLookup ? { digimonNamesRequireWikiLookup: true } : {}),
     }
 
+    // Fingerprint is stored for debugging only. Do not block peer meters of the same
+    // clear — each upload ranks its own isSelf; same-uploader retries are collapsed
+    // by process-meter-leaderboard.
     const partyFingerprint = buildPartyRunFingerprint(
       payload.dungeon.dungeonId,
       payload.dungeon.difficultyId,
       payload.sessionDurationSec,
       payload.members,
     )
-
-    const { data: duplicateId, error: dupError } = await client.rpc('meter_find_duplicate_party_parse', {
-      p_fingerprint: partyFingerprint,
-      p_window_seconds: PARTY_UPLOAD_DEDUPE_WINDOW_SEC,
-    })
-    const existingParseId =
-      !dupError && typeof duplicateId === 'string' && duplicateId.trim() ? duplicateId.trim() : null
-    if (existingParseId) {
-      if (cachedClient?.url && cachedClient?.key) {
-        void maybeScheduleLeaderboardProcessor(
-          client,
-          cachedClient.url,
-          cachedClient.key,
-          existingParseId,
-          dungeon.leaderboardEligible,
-        )
-      }
-      return { error: null, parseId: existingParseId, deduped: true }
-    }
 
     const { data, error } = await client.from('meter_parses').insert({
       user_id: userId,

@@ -1,6 +1,6 @@
 {
   "name": "odyssey-companion",
-  "version": "0.1.125",
+  "version": "0.1.126",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
@@ -104,7 +104,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "- Updated Mastemon theme visuals"
+      "releaseNotes": "- Fixed an issue with uploads failing when multiple meter users are in the same run"
     }
   }
 }
